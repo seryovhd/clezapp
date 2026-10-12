@@ -1,0 +1,30 @@
+sudo apt-get update
+sudo apt install npm
+
+sudo npm install -g n
+sudo n 22
+hash -r
+
+cd backend
+npm install
+sudo apt install redis-server
+sudo apt install postgresql postgresql-contrib -y
+sudo systemctl start postgresql
+sudo -u postgres psql
+ALTER USER postgres WITH PASSWORD 'tu_contraseña';
+exit
+
+cp .env.example .env
+
+npm run build
+npx sequelize db:create
+npm run db:migrate
+npm run db:seed
+npm run start
+
+------------
+cd frontend
+npm install
+cp .env.example .env
+npm run build
+npm run start

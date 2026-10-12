@@ -1,0 +1,27 @@
+# Registro de Bugs del Proyecto
+
+Este archivo tiene como objetivo llevar un seguimiento de los bugs reportados en el programa, su estado actual, fechas y notas relacionadas con cada uno.
+
+## 🐞 Lista de Bugs
+
+| ID  |   Fecha    |   Estado   |  Ver  | Descripción                                          
+|-----|------------|---------------------------------------------------------------------------|
+
+
+## 📝 Leyenda de Estados
+
+- **Pendiente**: El bug ha sido reportado pero aún no se ha comenzado a trabajar en él.
+- **En progreso**: Se está trabajando en la solución del bug.
+- **Resuelto**: El bug ha sido solucionado y verificado.
+
+## ✅ Cómo agregar un nuevo bug
+
+Añadir una nueva fila a la tabla de arriba con la siguiente información:
+
+1. **ID**: Número secuencial del bug.
+2. **Fecha Reporte**: Fecha en que se detectó el bug.
+3. **Descripción**: Breve descripción del problema.
+4. **Estado**: Pendiente, En progreso o Resuelto.
+
+---
+

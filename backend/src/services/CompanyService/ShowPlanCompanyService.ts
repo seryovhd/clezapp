@@ -1,0 +1,38 @@
+import Company from "../../models/Company";
+import Plan from "../../models/Plan";
+
+const ShowPlanCompanyService = async (id: string | number): Promise<Company> => {
+    if (!id || isNaN(Number(id))) {
+        throw new Error("ERRORX4: ID de la empresa no válido");
+    }
+    const companies = await Company.findOne({
+        where: { id },
+        attributes: ["id", "name", "email", "status", "dueDate", "createdAt", "phone"],
+        order: [["name", "ASC"]],
+        include: [
+            {
+                model: Plan, as: "plan",
+                attributes: [
+                    "id",
+                    "name",
+                    "users",
+                    "connections",
+                    "queues",
+                    "value",
+                    "useCampaigns",
+                    "useSchedules",
+                    "useInternalChat",
+                    "useExternalApi",
+                    "useKanban",
+                    "useOpenAi",
+                    "useIntegrations",
+					"useInternal"
+                ]
+            },
+        ]
+    });
+
+    return companies;
+};
+
+export default ShowPlanCompanyService;

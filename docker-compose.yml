@@ -1,0 +1,125 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # 1. BASE DE DATOS POSTGRESQL
+  # ==========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: chasap_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: chasap_user
+      POSTGRES_PASSWORD: chasap_password_segura
+      POSTGRES_DB: chasap_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - chasap_network
+
+  # ==========================================
+  # 2. CACHÉ Y COLAS REDIS
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: chasap_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - chasap_network
+
+  # ==========================================
+  # 3. MOTOR DE WHATSAPP: EVOLUTION API v2
+  # ==========================================
+  evolution-api:
+    image: atendai/evolution-api:v2.1.2
+    container_name: chasap_evolution_api
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_URL=http://localhost:8080
+      - DOCKER_ENV=true
+      - LOG_LEVEL=ERROR,WARN,DEBUG,INFO
+      - LOG_COLOR=true
+      - LOG_BAILEYS=error
+      - AUTHENTICATION_API_KEY=CHASAP_EVOLUTION_SECRET_KEY_2026
+      - DATABASE_ENABLED=true
+      - DATABASE_CONNECTION_URI=postgresql://chasap_user:chasap_password_segura@postgres:5432/chasap_db?schema=evolution
+      - DATABASE_CONNECTION_CLIENT_NAME=evolution_api
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://redis:6379/1
+      - CACHE_REDIS_PREFIX_KEY=evolution
+      - CACHE_REDIS_SAVE_INSTANCES=true
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - evolution_instances:/evolution/instances
+    networks:
+      - chasap_network
+
+  # ==========================================
+  # 4. CHASAP BACKEND (NODE.JS + TYPESCRIPT)
+  # ==========================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: chasap_backend
+    restart: always
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+      - BACKEND_URL=http://localhost:4000
+      - FRONTEND_URL=http://localhost:3000
+      - PORT=4000
+      - DB_DIALECT=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=chasap_user
+      - DB_PASS=chasap_password_segura
+      - DB_NAME=chasap_db
+      - JWT_SECRET=SECRET_JWT_KEY_SUPER_SEGURA_2026
+      - JWT_REFRESH_SECRET=SECRET_JWT_REFRESH_SUPER_SEGURA_2026
+      - REDIS_URI=redis://redis:6379
+      - EVOLUTION_API_URL=http://evolution-api:8080
+      - EVOLUTION_API_KEY=CHASAP_EVOLUTION_SECRET_KEY_2026
+      - EVOLUTION_API_ENABLED=true
+    depends_on:
+      - postgres
+      - redis
+      - evolution-api
+    networks:
+      - chasap_network
+
+  # ==========================================
+  # 5. CHASAP FRONTEND (REACT SPA)
+  # ==========================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: chasap_frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - chasap_network
+
+networks:
+  chasap_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  evolution_instances:
