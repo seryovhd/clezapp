@@ -53,8 +53,9 @@ const useStyles = makeStyles((theme) => ({
   toolbar: {
     paddingRight: 24,
     minHeight: 54,
-    color: theme.palette.dark.main,
+    color: "#ffffff",
     background: theme.palette.barraSuperior,
+    borderBottom: (theme.palette?.type || theme.mode) === 'dark' ? "1px solid #222d34" : "none",
   },
   toolbarIcon: {
     display: "flex",

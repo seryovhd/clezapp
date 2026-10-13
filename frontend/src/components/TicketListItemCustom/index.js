@@ -50,9 +50,16 @@ const iconContainerStyle = {
 const useStyles = makeStyles((theme) => ({
   ticket: {
     position: "relative",
-    height: 80,
-    borderRadius: 20,
-    marginTop: 3,
+    height: 74,
+    borderRadius: 8,
+    margin: "2px 6px",
+    transition: "background-color 0.15s ease",
+    "&:hover": {
+      backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "#202c33" : "#f5f6f6",
+    },
+  },
+  selectedTicket: {
+    backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "#2a3942 !important" : "#f0f2f5 !important",
   },
   pendingTicket: {
     cursor: "unset",

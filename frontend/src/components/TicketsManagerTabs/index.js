@@ -64,14 +64,14 @@ const useStyles = makeStyles((theme) => ({
     padding: theme.spacing(1),
   },
   addButtonStyled: {
-    background: theme.palette.type === 'dark' ? '#9E9E9E' : '#1E88E5',
-    color: theme.palette.type === 'dark' ? '#000' : '#fff',
+    background: theme.palette.type === 'dark' ? '#00a884' : '#008069',
+    color: '#ffffff',
     borderRadius: 12,
     padding: 8,
     boxShadow: "0px 2px 6px rgba(0, 0, 0, 0.2)",
-    transition: "background 0.3s, transform 0.2s",
+    transition: "background 0.2s, transform 0.2s",
     "&:hover": {
-      background: "linear-gradient(135deg, #0056d2 0%, #4b00c2 100%)",
+      background: theme.palette.type === 'dark' ? '#029070' : '#00a884',
       transform: "scale(1.05)",
     },
   },
@@ -302,10 +302,10 @@ const TicketsManagerTabs = () => {
                   onClick={() => setSnackbarOpen(true)}
                   size="small"
                   style={{
-                    backgroundColor: theme.palette.type === 'dark' ? '#9E9E9E' : '#0000001f',
-                    color: theme.palette.type === 'dark' ? '#1E88E5' : '#373a3c',
-                    width: 26,
-                    height: 26,
+                    backgroundColor: theme.palette.type === 'dark' ? '#202c33' : '#f0f2f5',
+                    color: theme.palette.type === 'dark' ? '#00a884' : '#008069',
+                    width: 28,
+                    height: 28,
                   }}
                 >
                   <PlaylistAddCheckOutlinedIcon fontSize="small" />
@@ -319,8 +319,10 @@ const TicketsManagerTabs = () => {
                   onClick={() => setShowAllTickets((prev) => !prev)}
                   size="small"
                   style={{
-                    backgroundColor: getShowAllValue() ? "#0000001f" : "#0000001f",
-                    color: getShowAllValue() ? "#373a3c" : "#373a3c",
+                    backgroundColor: theme.palette.type === 'dark' ? '#202c33' : '#f0f2f5',
+                    color: theme.palette.type === 'dark' ? '#aebac1' : '#54656f',
+                    width: 28,
+                    height: 28,
                   }}
                 >
                   {getShowAllValue() ? <VisibilityIcon fontSize="small" /> : <VisibilityOffIcon fontSize="small" />}
