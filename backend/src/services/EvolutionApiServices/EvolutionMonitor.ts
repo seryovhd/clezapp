@@ -183,11 +183,24 @@ class EvolutionMonitorService {
             });
           } else if (content.image || content.video || content.audio || content.document) {
             const mediaType = content.image ? "image" : content.video ? "video" : content.audio ? "audio" : "document";
-            const media = content.image?.url || content.video?.url || content.audio?.url || content.document?.url;
+            let media: any;
+            if (Buffer.isBuffer(content.image)) {
+              media = content.image.toString("base64");
+            } else if (Buffer.isBuffer(content.video)) {
+              media = content.video.toString("base64");
+            } else if (Buffer.isBuffer(content.audio)) {
+              media = content.audio.toString("base64");
+            } else if (Buffer.isBuffer(content.document)) {
+              media = content.document.toString("base64");
+            } else {
+              media = content.image?.url || content.video?.url || content.audio?.url || content.document?.url || content.image || content.video || content.audio || content.document;
+            }
             return await EvolutionApiService.sendMediaMessage(whatsapp, jid, {
               media,
-              mediaType,
-              caption: content.caption
+              mediaType: mediaType as any,
+              caption: content.caption,
+              mimetype: content.mimetype,
+              fileName: content.fileName
             });
           }
         }

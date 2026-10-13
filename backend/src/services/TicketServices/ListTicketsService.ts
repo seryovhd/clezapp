@@ -121,25 +121,7 @@ const ListTicketsService = async ({
 
   //console.log("WhereCondition final:", whereCondition);
 
-  // ✅ DEBUG EXTRA: Verificar qué tickets existen en la BD
-  try {
-    const testCondition = { ...whereCondition, companyId };
-    //console.log("Condición de test para BD:", testCondition);
 
-    const testTickets = await Ticket.findAll({
-      where: testCondition,
-      attributes: ['id', 'userId', 'queueId', 'status', 'companyId'],
-      limit: 10
-    });
-    //console.log("Tickets encontrados en BD:", testTickets.length);
-    testTickets.forEach(t => {
-      //console.log(`- Ticket ${t.id}: User=${t.userId}, Queue=${t.queueId}, Status=${t.status}, Company=${t.companyId}`);
-    });
-  } catch (error) {
-    //console.log("Error en consulta de test:", error.message);
-  }
-
-  //console.log("=== FIN DEBUG BACKEND DETALLADO ===");
 
   let includeCondition: Includeable[];
 

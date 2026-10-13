@@ -158,12 +158,15 @@ const SendWhatsAppMedia = async ({
             destination = lidMsg.remoteJid;
           }
         }
-      }
-
-      const fileBuffer = fs.readFileSync(media.path);
+      }      const fileBuffer = fs.readFileSync(media.path);
       const base64Media = fileBuffer.toString("base64");
       const typeMsg = media.mimetype.split("/")[0];
       const mediaType = typeMsg === "audio" ? "audio" : typeMsg === "video" ? "video" : typeMsg === "image" ? "image" : "document";
+
+      let evoMime = media.mimetype;
+      if (evoMime === "image/jpg" || evoMime === "image/pjpeg" || media.originalname?.toLowerCase().endsWith(".jpg") || media.originalname?.toLowerCase().endsWith(".jpeg")) {
+        evoMime = "image/jpeg";
+      }
 
       const sentRes = await EvolutionApiService.sendMediaMessage(
         ticket.whatsapp,
@@ -173,7 +176,7 @@ const SendWhatsAppMedia = async ({
           mediaType: mediaType as any,
           caption: formatBody(body, ticket.contact),
           fileName: media.originalname,
-          mimetype: media.mimetype
+          mimetype: evoMime
         }
       );
 
@@ -205,11 +208,22 @@ const SendWhatsAppMedia = async ({
     const companyId = ticket.companyId.toString();
 
     const pathMedia = media.path;
-    const mimeType = media.mimetype;
-    const typeMessage = mimeType.split("/")[0];
+    const rawMimeType = media.mimetype || "";
+    let mimeType = rawMimeType;
     const fileName = media.originalname.replace('/', '-');
-    let options: AnyMessageContent;
     const bodyMessage = formatBody(body, ticket.contact);
+
+    // Normalizar MIME types para imágenes JPEG/JPG
+    if (
+      mimeType === "image/jpg" ||
+      mimeType === "image/pjpeg" ||
+      fileName.toLowerCase().endsWith(".jpg") ||
+      fileName.toLowerCase().endsWith(".jpeg")
+    ) {
+      mimeType = "image/jpeg";
+    }
+
+    const typeMessage = mimeType.split("/")[0];
 
     // Lista de tipos MIME de vídeo comuns
     const videoMimeTypes = [
@@ -224,10 +238,16 @@ const SendWhatsAppMedia = async ({
     ];
 
     // Lista de extensões que devem ser tratadas como documento
-    const documentExtensions = ['.psd', '.ai', '.eps', '.indd', '.xd', '.sketch'];
+    const documentExtensions = ['.psd', '.ai', '.eps', '.indd', '.xd', '.sketch', '.svg', '.tif', '.tiff', '.bmp'];
 
-    // Verifica se é um arquivo PSD ou similar (deve ser tratado como documento)
+    // Verifica se é um arquivo que deve ser tratado como documento
     const shouldBeDocument = documentExtensions.some(ext => fileName.toLowerCase().endsWith(ext));
+
+    // Formatos de imagen estándar que WhatsApp soporta nativamente como foto
+    const standardImageMimes = ['image/jpeg', 'image/png', 'image/webp'];
+    const isStandardImage = standardImageMimes.includes(mimeType);
+
+    let options: AnyMessageContent;
 
     if (shouldBeDocument) {
       options = {
@@ -236,9 +256,7 @@ const SendWhatsAppMedia = async ({
         fileName: fileName,
         mimetype: mimeType
       };
-    }
-    // Verifica se é um vídeo (incluindo vários formatos)
-    else if (typeMessage === "video" || videoMimeTypes.includes(mimeType)) {
+    } else if (typeMessage === "video" || videoMimeTypes.includes(mimeType)) {
       options = {
         video: fs.readFileSync(pathMedia),
         caption: bodyMessage,
@@ -246,7 +264,6 @@ const SendWhatsAppMedia = async ({
         mimetype: mimeType
       };
     } else if (typeMessage === "audio") {
-      // Verifica se o arquivo já é OGG
       if (mimeType === "audio/ogg") {
         options = {
           audio: fs.readFileSync(pathMedia),
@@ -254,7 +271,6 @@ const SendWhatsAppMedia = async ({
           ptt: true
         };
       } else {
-        // Converte para OGG se não for
         const convert = await processAudio(pathMedia, companyId);
         options = {
           audio: fs.readFileSync(convert),
@@ -262,6 +278,22 @@ const SendWhatsAppMedia = async ({
           ptt: true
         };
       }
+    } else if (typeMessage === "image" && isStandardImage) {
+      options = {
+        image: fs.readFileSync(pathMedia),
+        caption: bodyMessage,
+        mimetype: mimeType,
+        fileName: fileName
+      };
+    } else if (typeMessage === "image" && !isStandardImage) {
+      // Si es un formato de imagen no estándar (SVG, BMP, TIFF, etc.), se envía como documento
+      // para asegurar que el receptor lo reciba intacto y sin errores
+      options = {
+        document: fs.readFileSync(pathMedia),
+        caption: bodyMessage,
+        fileName: fileName,
+        mimetype: mimeType
+      };
     } else if (typeMessage === "document" || mimeType === "application/pdf") {
       options = {
         document: fs.readFileSync(pathMedia),
@@ -269,29 +301,78 @@ const SendWhatsAppMedia = async ({
         fileName: fileName,
         mimetype: mimeType
       };
-    } else if (typeMessage === "image") {
-      options = {
-        image: fs.readFileSync(pathMedia),
-        caption: bodyMessage
-      };
     } else {
-      // Caso o tipo de mídia não seja reconhecido, trata como documento
       options = {
         document: fs.readFileSync(pathMedia),
         caption: bodyMessage,
         fileName: fileName,
-        mimetype: mimeType
+        mimetype: mimeType || "application/octet-stream"
       };
     }
 
+    // Resolver destino correctamente (soportando números regulares y LID)
+    let destination = ticket.contact.number;
+    if (!destination.includes("@")) {
+      const lastMsg = await Message.findOne({
+        where: { ticketId: ticket.id },
+        order: [["createdAt", "DESC"]]
+      });
+      if (lastMsg?.remoteJid?.endsWith("@lid") || lastMsg?.remoteJid?.includes("@")) {
+        destination = lastMsg.remoteJid;
+      } else if (destination.length > 13) {
+        const lidMsg = await Message.findOne({
+          where: {
+            ticketId: ticket.id,
+            remoteJid: { [Op.like]: "%@lid%" }
+          }
+        });
+        if (lidMsg?.remoteJid) {
+          destination = lidMsg.remoteJid;
+        }
+      }
+    }
+
+    const cleanDestNumber = destination.replace(/\D/g, "");
+    const finalJid = destination.includes("@")
+      ? destination
+      : (ticket.isGroup ? `${ticket.contact.number}@g.us` : `${cleanDestNumber}@s.whatsapp.net`);
+
     const sentMessage = await wbot.sendMessage(
-      `${ticket.contact.number}@${ticket.isGroup ? "g.us" : "s.whatsapp.net"}`,
+      finalJid,
       {
         ...options
       }
     );
 
-    await ticket.update({ lastMessage: bodyMessage });
+    const detectedMediaType = (typeMessage === "image" && isStandardImage)
+      ? "image"
+      : typeMessage === "video"
+      ? "video"
+      : typeMessage === "audio"
+      ? "audio"
+      : "document";
+
+    try {
+      await CreateMessageService({
+        messageData: {
+          id: sentMessage?.key?.id || `media_${Date.now()}`,
+          ticketId: ticket.id,
+          contactId: undefined,
+          body: bodyMessage || fileName,
+          fromMe: true,
+          read: true,
+          mediaUrl: media.filename,
+          mediaType: detectedMediaType,
+          ack: 1,
+          queueId: ticket.queueId
+        },
+        companyId: ticket.companyId
+      });
+    } catch (saveErr) {
+      console.error("[SendWhatsAppMedia] Error al guardar media saliente en BD:", saveErr);
+    }
+
+    await ticket.update({ lastMessage: bodyMessage || fileName });
 
     return sentMessage;
   } catch (err) {

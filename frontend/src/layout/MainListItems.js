@@ -370,14 +370,12 @@ const MainListItems = (props) => {
                 icon={<TbMessageCircleBolt style={{ height: "25px", width: "25px" }} />}
                 collapsed={collapsed}
               />
-              {/*              {showKanban && (
-                <ListItemLink
-                  to="/kanban"
-                  primary="Kanban"
-                  icon={<TbChartTreemap style={{ height: "25px", width: "25px" }} />}
-                  collapsed={collapsed}
-                />
-              )} */}
+              <ListItemLink
+                to="/kanban"
+                primary="Kanban"
+                icon={<TbChartTreemap style={{ height: "25px", width: "25px" }} />}
+                collapsed={collapsed}
+              />
               {/*               <ListItemLink
                 to="/todolist"
                 primary={i18n.t("mainDrawer.menuNew.tasks")}

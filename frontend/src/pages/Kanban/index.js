@@ -52,7 +52,7 @@ const useStyles = makeStyles((theme) => ({
 const Kanban = () => {
   const classes = useStyles();
   const { user } = useContext(AuthContext);
-  const queueIds = user.queues.map((q) => q.UserQueue.queueId);
+  const queueIds = user.queues?.map((q) => q.id || q.UserQueue?.queueId) || [];
 
   const [tags, setTags] = useState([]);
   const [tickets, setTickets] = useState([]);

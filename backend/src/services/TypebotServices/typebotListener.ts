@@ -2,10 +2,12 @@ import axios, { AxiosRequestConfig } from "axios";
 import Ticket from "../../models/Ticket";
 import QueueIntegrations from "../../models/QueueIntegrations";
 import { WASocket, delay, proto } from "@whiskeysockets/baileys";
-import { getBodyMessage } from "../WbotServices/wbotMessageListener";
+import { getBodyMessage, verifyMessage } from "../WbotServices/wbotMessageListener";
 import { logger } from "../../utils/logger";
 import { isNil } from "lodash";
 import UpdateTicketService from "../TicketServices/UpdateTicketService";
+import Contact from "../../models/Contact";
+import CreateMessageService from "../MessageServices/CreateMessageService";
 
 type Session = WASocket & {
     id?: number;
@@ -45,6 +47,67 @@ const typebotListener = async ({
 
     const cleanUrl = url.trim().replace(/\/+$/, "");
     const number = msg.key.remoteJid.replace(/\D/g, '');
+
+    const contact = ticket.contact || (await Contact.findByPk(ticket.contactId));
+
+    const sendAndSaveMessage = async (text: string) => {
+        const sentMessage = await wbot.sendMessage(msg.key.remoteJid, { text });
+        if (sentMessage && contact) {
+            if (sentMessage.key) {
+                sentMessage.key.fromMe = true;
+            }
+            try {
+                await verifyMessage(sentMessage, ticket, contact);
+            } catch (errVerify) {
+                logger.warn("[Typebot] verifyMessage falló, usando CreateMessageService:", errVerify);
+                try {
+                    await CreateMessageService({
+                        messageData: {
+                            id: sentMessage?.key?.id || `typebot_${Date.now()}`,
+                            ticketId: ticket.id,
+                            contactId: undefined,
+                            body: text,
+                            fromMe: true,
+                            mediaType: "conversation",
+                            read: true,
+                            ack: 1
+                        },
+                        companyId: ticket.companyId
+                    });
+                    await ticket.update({ lastMessage: text });
+                } catch (fallbackErr) {
+                    logger.error("[Typebot] Error al guardar mensaje saliente:", fallbackErr);
+                }
+            }
+        }
+        return sentMessage;
+    };
+
+    const downloadMediaBuffer = async (mediaUrl: string): Promise<{ buffer: Buffer; mimetype: string } | null> => {
+        try {
+            if (!mediaUrl) return null;
+            let targetUrl = mediaUrl.trim();
+            if (targetUrl.startsWith('/') && cleanUrl) {
+                targetUrl = `${cleanUrl}${targetUrl}`;
+            }
+            const response = await axios.get(targetUrl, {
+                responseType: 'arraybuffer',
+                timeout: 20000,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+                    'Accept': '*/*'
+                }
+            });
+            const contentType = (response.headers['content-type'] || '').split(';')[0].trim();
+            return {
+                buffer: Buffer.from(response.data),
+                mimetype: contentType
+            };
+        } catch (error: any) {
+            logger.warn(`[Typebot] Error al descargar buffer de media (${mediaUrl}): ${error?.message || error}`);
+            return null;
+        }
+    };
 
     const safePresence = async (presence: 'composing' | 'paused') => {
         try {
@@ -167,7 +230,7 @@ const typebotListener = async ({
 
             if (messages?.length === 0) {
                 if (typebotUnknownMessage) {
-                    await wbot.sendMessage(msg.key.remoteJid, { text: typebotUnknownMessage });
+                    await sendAndSaveMessage(typebotUnknownMessage);
                 }
             } else if (messages) {
                 for (const message of messages) {
@@ -316,7 +379,7 @@ const typebotListener = async ({
                         await delay(typebotDelayMessage || 1000);
                         await safePresence('paused');
 
-                        await wbot.sendMessage(msg.key.remoteJid, { text: formattedText });
+                        await sendAndSaveMessage(formattedText);
                     }
 
                     if (message.type === 'audio') {
@@ -325,14 +388,48 @@ const typebotListener = async ({
                         await delay(typebotDelayMessage || 1000);
                         await safePresence('paused');
                         
-                        const media = {
-                            audio: {
-                                url: message.content.url,
+                        const mediaUrl = message.content?.url || message.content;
+                        const downloaded = await downloadMediaBuffer(mediaUrl);
+                        let sentMessage;
+
+                        if (downloaded) {
+                            sentMessage = await wbot.sendMessage(msg.key.remoteJid, {
+                                audio: downloaded.buffer,
                                 mimetype: 'audio/mp4',
                                 ptt: true
-                            },
-                        };
-                        await wbot.sendMessage(msg.key.remoteJid, media);
+                            });
+                        } else {
+                            const media = {
+                                audio: {
+                                    url: mediaUrl,
+                                    mimetype: 'audio/mp4',
+                                    ptt: true
+                                },
+                            };
+                            sentMessage = await wbot.sendMessage(msg.key.remoteJid, media);
+                        }
+
+                        if (sentMessage && contact) {
+                            try {
+                                await CreateMessageService({
+                                    messageData: {
+                                        id: sentMessage?.key?.id || `typebot_audio_${Date.now()}`,
+                                        ticketId: ticket.id,
+                                        contactId: undefined,
+                                        body: "Audio",
+                                        fromMe: true,
+                                        mediaUrl: mediaUrl,
+                                        mediaType: "audio",
+                                        read: true,
+                                        ack: 1
+                                    },
+                                    companyId: ticket.companyId
+                                });
+                                await ticket.update({ lastMessage: "Audio" });
+                            } catch (errAudio) {
+                                logger.error("[Typebot] Error al guardar audio saliente en BD:", errAudio);
+                            }
+                        }
                     }
 
                     if (message.type === 'image') {
@@ -341,12 +438,94 @@ const typebotListener = async ({
                         await delay(typebotDelayMessage || 1000);
                         await safePresence('paused');
                         
-                        const media = {
-                            image: {
-                                url: message.content.url,
-                            },
-                        };
-                        await wbot.sendMessage(msg.key.remoteJid, media);
+                        const mediaUrl = message.content?.url || message.content;
+                        const downloaded = await downloadMediaBuffer(mediaUrl);
+                        let sentMessage;
+
+                        if (downloaded) {
+                            let mime = downloaded.mimetype || 'image/jpeg';
+                            if (mime === 'image/jpg' || mime === 'image/pjpeg') mime = 'image/jpeg';
+                            sentMessage = await wbot.sendMessage(msg.key.remoteJid, {
+                                image: downloaded.buffer,
+                                mimetype: mime
+                            });
+                        } else {
+                            const media = {
+                                image: {
+                                    url: mediaUrl,
+                                },
+                            };
+                            sentMessage = await wbot.sendMessage(msg.key.remoteJid, media);
+                        }
+
+                        if (sentMessage && contact) {
+                            try {
+                                await CreateMessageService({
+                                    messageData: {
+                                        id: sentMessage?.key?.id || `typebot_img_${Date.now()}`,
+                                        ticketId: ticket.id,
+                                        contactId: undefined,
+                                        body: mediaUrl,
+                                        fromMe: true,
+                                        mediaUrl: mediaUrl,
+                                        mediaType: "image",
+                                        read: true,
+                                        ack: 1
+                                    },
+                                    companyId: ticket.companyId
+                                });
+                                await ticket.update({ lastMessage: "Imagen" });
+                            } catch (errImg) {
+                                logger.error("[Typebot] Error al guardar imagen saliente en BD:", errImg);
+                            }
+                        }
+                    }
+
+                    if (message.type === 'video') {
+                        await safeSubscribe();
+                        await safePresence('composing');
+                        await delay(typebotDelayMessage || 1000);
+                        await safePresence('paused');
+                        
+                        const mediaUrl = message.content?.url || message.content;
+                        const downloaded = await downloadMediaBuffer(mediaUrl);
+                        let sentMessage;
+
+                        if (downloaded) {
+                            sentMessage = await wbot.sendMessage(msg.key.remoteJid, {
+                                video: downloaded.buffer,
+                                mimetype: downloaded.mimetype || 'video/mp4'
+                            });
+                        } else {
+                            const media = {
+                                video: {
+                                    url: mediaUrl,
+                                },
+                            };
+                            sentMessage = await wbot.sendMessage(msg.key.remoteJid, media);
+                        }
+
+                        if (sentMessage && contact) {
+                            try {
+                                await CreateMessageService({
+                                    messageData: {
+                                        id: sentMessage?.key?.id || `typebot_video_${Date.now()}`,
+                                        ticketId: ticket.id,
+                                        contactId: undefined,
+                                        body: mediaUrl,
+                                        fromMe: true,
+                                        mediaUrl: mediaUrl,
+                                        mediaType: "video",
+                                        read: true,
+                                        ack: 1
+                                    },
+                                    companyId: ticket.companyId
+                                });
+                                await ticket.update({ lastMessage: "Video" });
+                            } catch (errVideo) {
+                                logger.error("[Typebot] Error al guardar video saliente en BD:", errVideo);
+                            }
+                        }
                     }
                 }
                 
@@ -364,7 +543,7 @@ const typebotListener = async ({
                         await delay(typebotDelayMessage || 1000);
                         await safePresence('paused');
                         
-                        await wbot.sendMessage(msg.key.remoteJid, { text: formattedText });
+                        await sendAndSaveMessage(formattedText);
                     }
                 }
             }
@@ -376,7 +555,7 @@ const typebotListener = async ({
                 typebotSessionId: null
             });
             await ticket.reload();
-            await wbot.sendMessage(msg.key.remoteJid, { text: typebotRestartMessage || "Reiniciando..." });
+            await sendAndSaveMessage(typebotRestartMessage || "Reiniciando...");
         }
         
         if (body === typebotKeywordFinish) {
