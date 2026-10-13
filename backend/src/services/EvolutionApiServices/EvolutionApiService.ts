@@ -1,5 +1,7 @@
 import Setting from "../../models/Setting";
 import Whatsapp from "../../models/Whatsapp";
+import Message from "../../models/Message";
+import Ticket from "../../models/Ticket";
 import { logger } from "../../utils/logger";
 import AppError from "../../errors/AppError";
 
@@ -298,6 +300,19 @@ export class EvolutionApiService {
   }
 
   /**
+   * Limpia el número o JID para enviarlo a Evolution API v2
+   * Para grupos mantiene @g.us; para chats individuales devuelve solo los dígitos (ej. 51999999999).
+   */
+  public static cleanNumberForEvolution(number: string): string {
+    if (!number) return "";
+    const trimmed = number.trim();
+    if (trimmed.endsWith("@g.us")) {
+      return trimmed;
+    }
+    return trimmed.replace(/@.*$/, "").replace(/[^0-9]/g, "");
+  }
+
+  /**
    * Envía un mensaje de texto a través de Evolution API v2
    */
   public static async sendTextMessage(
@@ -307,7 +322,7 @@ export class EvolutionApiService {
     options?: { quotedMessageId?: string; delay?: number }
   ): Promise<any> {
     const instanceName = this.getInstanceName(whatsapp);
-    const cleanNumber = number.includes("@") ? number.trim() : number.replace(/[^0-9]/g, "");
+    const cleanNumber = this.cleanNumberForEvolution(number);
 
     const payload: any = {
       number: cleanNumber,
@@ -346,7 +361,7 @@ export class EvolutionApiService {
     }
   ): Promise<any> {
     const instanceName = this.getInstanceName(whatsapp);
-    const cleanNumber = number.includes("@") ? number.trim() : number.replace(/[^0-9]/g, "");
+    const cleanNumber = this.cleanNumberForEvolution(number);
 
     const cleanMedia = (mediaData.media.startsWith("http://") || mediaData.media.startsWith("https://"))
       ? mediaData.media
@@ -392,6 +407,51 @@ export class EvolutionApiService {
       "POST",
       payload
     );
+  }
+
+  /**
+   * Elimina un mensaje para todos en WhatsApp vía Evolution API v2
+   */
+  public static async deleteMessage(
+    whatsapp: Whatsapp,
+    message: Message
+  ): Promise<any> {
+    try {
+      const instanceName = this.getInstanceName(whatsapp);
+      const companyId = whatsapp.companyId || 1;
+
+      let remoteJid = message.remoteJid;
+      if (!remoteJid) {
+        const ticket = message.ticket || await Ticket.findByPk(message.ticketId, { include: ["contact"] });
+        remoteJid = ticket?.isGroup ? `${ticket?.contact?.number}@g.us` : `${ticket?.contact?.number}@s.whatsapp.net`;
+      }
+
+      const payload = {
+        id: message.id,
+        remoteJid,
+        fromMe: message.fromMe,
+        participant: message.participant
+      };
+
+      try {
+        return await this.request(
+          companyId,
+          `/chat/deleteMessageForEveryone/${encodeURIComponent(instanceName)}`,
+          "DELETE",
+          payload
+        );
+      } catch (err: any) {
+        logger.warn(`[Evolution] Error en deleteMessageForEveryone (${err?.message}), probando endpoint alternativo...`);
+        return await this.request(
+          companyId,
+          `/message/delete/${encodeURIComponent(instanceName)}`,
+          "DELETE",
+          payload
+        );
+      }
+    } catch (err: any) {
+      logger.warn(`[Evolution] No se pudo eliminar el mensaje en WhatsApp vía Evolution API: ${err?.message}`);
+    }
   }
 
   /**

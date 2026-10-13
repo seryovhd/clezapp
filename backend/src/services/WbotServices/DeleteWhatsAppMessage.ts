@@ -1,68 +1,101 @@
-import { proto, WASocket } from "@whiskeysockets/baileys";
-import WALegacySocket from "@whiskeysockets/baileys"
+import { WASocket } from "@whiskeysockets/baileys";
 import AppError from "../../errors/AppError";
 import GetTicketWbot from "../../helpers/GetTicketWbot";
-import GetWbotMessage from "../../helpers/GetWbotMessage";
 import Message from "../../models/Message";
 import Ticket from "../../models/Ticket";
+import Whatsapp from "../../models/Whatsapp";
+import EvolutionApiService from "../EvolutionApiServices/EvolutionApiService";
 
 const DeleteWhatsAppMessage = async (messageId: string): Promise<Message> => {
-  /* console.log("🚨 Entró a DeleteWhatsAppMessage:", messageId); */
   const message = await Message.findByPk(messageId, {
     include: [
       {
         model: Ticket,
         as: "ticket",
-        include: ["contact"]
+        include: ["contact", "whatsapp"]
       }
     ]
   });
 
   if (!message) {
-    throw new AppError("No message found with this ID.");
+    throw new AppError("No message found with this ID.", 404);
   }
-/* console.log("✅ Mensaje encontrado:", {
-  id: message.id,
-  body: message.body,
-  fromMe: message.fromMe,
-  isDeleted: message.isDeleted
-}); */
 
+  // Si es un mensaje interno/privado, solo se marca como eliminado en BD
   if (message.isPrivate) {
-    console.log("📌 Mensaje privado: se marcará como eliminado en BD.");
     await message.update({ isDeleted: true });
     return message;
   }
-  
+
   const { ticket } = message;
 
-  const messageToDelete = await GetWbotMessage(ticket, messageId);
-
+  // Intentar eliminar el mensaje en WhatsApp (vía Evolution API o Baileys)
   try {
-    const wbot = await GetTicketWbot(ticket);
-    const messageDelete = messageToDelete as proto.WebMessageInfo;
+    let whatsapp = ticket?.whatsapp;
+    if (!whatsapp && ticket?.whatsappId) {
+      whatsapp = await Whatsapp.findByPk(ticket.whatsappId);
+    }
 
-    const menssageDelete = messageToDelete as Message;
-/* console.log("✉️ Enviando delete a WhatsApp con:", {
-  remoteJid: menssageDelete.remoteJid,
-  id: menssageDelete.id,
-  participant: menssageDelete.participant,
-  fromMe: menssageDelete.fromMe
-}); */
-    await (wbot as WASocket).sendMessage(menssageDelete.remoteJid, {
-      delete: {
-        id: menssageDelete.id,
-        remoteJid: menssageDelete.remoteJid,
-        participant: menssageDelete.participant,
-        fromMe: menssageDelete.fromMe
+    const isEvolution =
+      whatsapp &&
+      (whatsapp.type === "evolution" ||
+        whatsapp.connectionType === "evolution" ||
+        (process.env.EVOLUTION_API_ENABLED === "true" && whatsapp.instanceName));
+
+    if (isEvolution && whatsapp) {
+      // 1. Eliminar vía Evolution API v2
+      await EvolutionApiService.deleteMessage(whatsapp, message);
+    } else if (ticket) {
+      // 2. Eliminar vía Baileys si la sesión está disponible
+      try {
+        const wbot = await GetTicketWbot(ticket);
+        const remoteJid =
+          message.remoteJid ||
+          (ticket.isGroup
+            ? `${ticket.contact?.number}@g.us`
+            : `${ticket.contact?.number}@s.whatsapp.net`);
+
+        if (wbot && remoteJid) {
+          await (wbot as WASocket).sendMessage(remoteJid, {
+            delete: {
+              id: message.id,
+              remoteJid,
+              participant: message.participant,
+              fromMe: message.fromMe
+            }
+          });
+        }
+      } catch (baileysErr: any) {
+        console.warn(
+          `[DeleteWhatsAppMessage] No se pudo revocar en Baileys (${baileysErr?.message || "Sesión no disponible"}), pero se marcará como eliminado en Chasap.`
+        );
       }
-    });
-
-  } catch (err) {
-    throw new AppError("ERR_DELETE_WAPP_MSG");
+    }
+  } catch (err: any) {
+    console.warn(
+      `[DeleteWhatsAppMessage] Error al intentar revocar mensaje en WhatsApp: ${err?.message || err}. Se procederá a marcar como eliminado en Chasap.`
+    );
   }
-  await message.update({ isDeleted: true, body: null });
-  /* console.log("🗑️ Mensaje marcado como eliminado en BD:", message.id); */
+
+  // Preservar el contenido original del mensaje (NO poner body: null) y marcar como eliminado
+  await message.update({ isDeleted: true });
+
+  await message.reload({
+    include: [
+      "contact",
+      {
+        model: Message,
+        as: "quotedMsg",
+        include: ["contact"]
+      },
+      {
+        model: Ticket,
+        as: "ticket",
+        include: ["contact", "whatsapp"]
+      }
+    ]
+  });
+
   return message;
 };
 

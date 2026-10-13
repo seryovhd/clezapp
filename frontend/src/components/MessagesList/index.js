@@ -214,8 +214,6 @@ const useStyles = makeStyles((theme) => ({
     borderLeft: "3px solid #6bcbef",
   },
   textContentItemDeleted: {
-    fontStyle: "italic",
-    color: "rgba(0, 0, 0, 0.36)",
     overflowWrap: "break-word",
     padding: "3px 80px 6px 6px",
   },
@@ -269,7 +267,8 @@ const useStyles = makeStyles((theme) => ({
   deletedIcon: {
     fontSize: 18,
     verticalAlign: "middle",
-    marginRight: 4,
+    marginLeft: 4,
+    color: "#d32f2f"
   },
   ackDoneAllIcon: {
     color: green[500],
@@ -328,9 +327,11 @@ const useStyles = makeStyles((theme) => ({
   messageDeleted: {
     fontWeight: "bold !important",
     fontStyle: "italic",
-    color: "#444",
+    color: "#b03a2e",
     display: "inline-flex",
-    alignItems: "center"
+    alignItems: "center",
+    fontSize: "0.88rem",
+    marginBottom: 2
   }
 }));
 
@@ -1026,25 +1027,25 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
     [classes.textContentItemDeleted]: message.isDeleted,
   })}
 >
-  {/* Si el mensaje fue eliminado, mostramos solo el aviso */}
-  {message.isDeleted ? (
-  <span className={"message-deleted"} style={{ display: "flex", alignItems: "center" }}>
-    <MarkdownWrapper>**Este mensaje fue eliminado por el contacto**</MarkdownWrapper>
-    &nbsp;
-    <Block
-      color="error"
-      fontSize="small"
-      className={classes.deletedIcon}
-    />
-  </span>
-  ) : (
-    <>
-      {message.quotedMsg && renderQuotedMessage(message)}
+  {message.isDeleted && (
+    <div>
+      <span className={classes.messageDeleted}>
+        Este mensaje fue eliminado por el contacto&nbsp;
+        <Block
+          color="error"
+          fontSize="small"
+          className={classes.deletedIcon}
+        />
+      </span>
+    </div>
+  )}
 
-      {/* Contenido del mensaje normal */}
-      {message.mediaType !== "reactionMessage" && message.body && (
-        <MarkdownWrapper>{message.body}</MarkdownWrapper>
-      )}
+  {message.quotedMsg && renderQuotedMessage(message)}
+
+  {/* Contenido del mensaje normal */}
+  {message.mediaType !== "reactionMessage" && message.body && (
+    <MarkdownWrapper>{message.body}</MarkdownWrapper>
+  )}
 
       {/* Reacción a un mensaje citado */}
       {message.quotedMsg && message.mediaType === "reactionMessage" && message.body && (

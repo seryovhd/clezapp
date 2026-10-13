@@ -1375,47 +1375,58 @@ const verifyQueue = async (
       chatbot = firstQueue.options.length > 0;
     }
 
-    if (
-      !msg.key.fromMe &&
-      !ticket.isGroup &&
-      !isNil(queues[0]?.integrationId)
-    ) {
-      const integrations = await ShowQueueIntegrationService(
-        queues[0].integrationId,
-        companyId
-      );
-
-      await handleMessageIntegration(
-        msg,
-        wbot,
-        integrations,
-        ticket,
-        companyId,
-        false,
-        undefined,
-        contact
-      );
-
-      await ticket.update({
-        useIntegration: true,
-        integrationId: integrations.id
-      });
-    }
-
-    if (!msg.key.fromMe && !ticket.isGroup && !isNil(queues[0]?.promptId)) {
-      await handleOpenAi(msg, wbot, ticket, contact, mediaSent);
-
-      await ticket.update({
-        useIntegration: true,
-        promptId: queues[0]?.promptId
-      });
-    }
-
+    // 1. Asignar de inmediato el departamento (fila) al ticket para derivarlo
     await UpdateTicketService({
       ticketData: { queueId: firstQueue.id, chatbot, status: "pending" },
       ticketId: ticket.id,
       companyId: ticket.companyId
     });
+
+    await ticket.reload();
+
+    // 2. Si la fila única asignada tiene integración (Typebot), ejecutarla
+    if (
+      !msg.key.fromMe &&
+      !ticket.isGroup &&
+      !isNil(firstQueue?.integrationId)
+    ) {
+      try {
+        const integrations = await ShowQueueIntegrationService(
+          firstQueue.integrationId,
+          companyId
+        );
+
+        await ticket.update({
+          useIntegration: true,
+          integrationId: integrations.id
+        });
+
+        await handleMessageIntegration(
+          msg,
+          wbot,
+          integrations,
+          ticket,
+          companyId,
+          false,
+          undefined,
+          contact
+        );
+      } catch (errInteg) {
+        logger.error(`[verifyQueue] Error al ejecutar integración de la fila ${firstQueue.name}:`, errInteg);
+      }
+    }
+
+    if (!msg.key.fromMe && !ticket.isGroup && !isNil(firstQueue?.promptId)) {
+      try {
+        await ticket.update({
+          useIntegration: true,
+          promptId: firstQueue?.promptId
+        });
+        await handleOpenAi(msg, wbot, ticket, contact, mediaSent);
+      } catch (errAi) {
+        logger.error(`[verifyQueue] Error al ejecutar OpenAI en fila ${firstQueue.name}:`, errAi);
+      }
+    }
 
     return;
   }

@@ -117,10 +117,25 @@ export const handleWebhook = async (req: Request, res: Response): Promise<Respon
       }
 
       // Crear objeto de sesión simulada para compatibilidad con los servicios de Chasap
+      const cleanWappNumber = whatsapp.number ? whatsapp.number.replace(/\D/g, "") : "";
       const fakeSession: any = {
         id: whatsapp.id,
         type: "evolution",
-        sendMessage: async (jid: string, content: any, options: any) => {
+        user: {
+          id: cleanWappNumber ? `${cleanWappNumber}@s.whatsapp.net` : "bot@s.whatsapp.net",
+          name: whatsapp.name || "Chasap"
+        },
+        presenceSubscribe: async (jid: string) => {
+          // No-op seguro
+        },
+        sendPresenceUpdate: async (type: string, jid: string) => {
+          // No-op seguro
+        },
+        groupMetadata: async (jid: string) => {
+          return { id: jid, subject: "Grupo" };
+        },
+        sendMessage: async (jid: string, content: any, options?: any) => {
+          if (!content) return;
           if (content.text) {
             return await EvolutionApiService.sendTextMessage(whatsapp!, jid, content.text, {
               quotedMessageId: options?.quoted?.key?.id
@@ -186,6 +201,87 @@ export const handleWebhook = async (req: Request, res: Response): Promise<Respon
       }
 
       return res.status(200).json({ status: "ack_processed" });
+    }
+
+    // 5. EVENTO: ELIMINACIÓN DE MENSAJES (MESSAGES.DELETE / MESSAGES_DELETE / MESSAGE.DELETE)
+    if (
+      event === "messages.delete" ||
+      event === "messages_delete" ||
+      event === "message.delete" ||
+      event === "chats.delete"
+    ) {
+      logger.info(`[Evolution Webhook] Procesando evento de eliminación: "${event}" para WhatsApp ID ${whatsapp.id}`);
+      const data = body.data;
+      const messageIds: string[] = [];
+
+      const extractId = (obj: any): string | null => {
+        if (!obj) return null;
+        if (typeof obj === "string") return obj;
+        return obj.id || obj.key?.id || obj.message?.key?.id || obj.message?.id || null;
+      };
+
+      if (Array.isArray(data)) {
+        for (const item of data) {
+          const id = extractId(item);
+          if (id) messageIds.push(id);
+        }
+      } else if (data) {
+        if (Array.isArray(data.keys)) {
+          for (const k of data.keys) {
+            const id = extractId(k);
+            if (id) messageIds.push(id);
+          }
+        } else if (Array.isArray(data.ids)) {
+          for (const id of data.ids) {
+            if (typeof id === "string") messageIds.push(id);
+          }
+        } else {
+          const id = extractId(data);
+          if (id) messageIds.push(id);
+        }
+      }
+
+      for (const msgId of messageIds) {
+        try {
+          const msg = await Message.findOne({
+            where: { id: msgId, companyId },
+            include: [
+              "contact",
+              {
+                model: Message,
+                as: "quotedMsg",
+                include: ["contact"]
+              }
+            ]
+          });
+
+          if (msg) {
+            // Preservar el contenido original del mensaje (NO borrar el body) y marcar como eliminado
+            await msg.update({ isDeleted: true });
+            await msg.reload({
+              include: [
+                "contact",
+                {
+                  model: Message,
+                  as: "quotedMsg",
+                  include: ["contact"]
+                }
+              ]
+            });
+
+            const io = getIO();
+            io.to(String(msg.ticketId)).emit(`company-${companyId}-appMessage`, {
+              action: "update",
+              message: msg
+            });
+            logger.info(`[Evolution Webhook] Mensaje ${msgId} marcado como eliminado (isDeleted: true) preservando el cuerpo.`);
+          }
+        } catch (delErr) {
+          logger.error(`[Evolution Webhook] Error actualizando mensaje eliminado ${msgId}:`, delErr);
+        }
+      }
+
+      return res.status(200).json({ status: "delete_processed", count: messageIds.length });
     }
 
     return res.status(200).json({ status: "event_ignored", event });

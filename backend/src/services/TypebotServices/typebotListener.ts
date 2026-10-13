@@ -38,14 +38,38 @@ const typebotListener = async ({
         typebotRestartMessage
     } = typebot;
 
+    if (!url || !typebotSlug) {
+        logger.warn(`[Typebot] Integración ID ${typebot.id} (${typebot.name}) no tiene URL o Slug configurado.`);
+        return;
+    }
+
+    const cleanUrl = url.trim().replace(/\/+$/, "");
     const number = msg.key.remoteJid.replace(/\D/g, '');
+
+    const safePresence = async (presence: 'composing' | 'paused') => {
+        try {
+            if (typeof wbot?.sendPresenceUpdate === 'function') {
+                await wbot.sendPresenceUpdate(presence, msg.key.remoteJid);
+            }
+        } catch (e) {
+            // Ignorar fallas de presencia
+        }
+    };
+
+    const safeSubscribe = async () => {
+        try {
+            if (typeof wbot?.presenceSubscribe === 'function') {
+                await wbot.presenceSubscribe(msg.key.remoteJid);
+            }
+        } catch (e) {
+            // Ignorar
+        }
+    };
 
     let body = getBodyMessage(msg);
 
     async function createSession(msg: proto.IWebMessageInfo, typebot: QueueIntegrations, number: string) {
         try {
-            const id = Math.floor(Math.random() * 10000000000).toString();
-
             const reqData = JSON.stringify({
                 "isStreamEnabled": true,
                 "message": "string",
@@ -60,7 +84,7 @@ const typebotListener = async ({
             const config: AxiosRequestConfig = {
                 method: 'post',
                 maxBodyLength: Infinity,
-                url: `${url}/api/v1/typebots/${typebotSlug}/startChat`,
+                url: `${cleanUrl}/api/v1/typebots/${encodeURIComponent(typebotSlug)}/startChat`,
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
@@ -69,10 +93,11 @@ const typebotListener = async ({
             };
 
             const request = await axios.request(config);
+            logger.info(`[Typebot] Sesión creada con éxito para ${number}. Mensajes recibidos: ${request.data?.messages?.length || 0}`);
             return request.data;
 
         } catch (err) {
-            logger.info("❌ ERROR AL CREAR SESIÓN DEL TYPEBOT: ", err);
+            logger.error("❌ ERROR AL CREAR SESIÓN DEL TYPEBOT: ", err);
             throw err;
         }
     }
@@ -95,7 +120,7 @@ const typebotListener = async ({
 
         if (isNil(ticket.typebotSessionId)) {            
             dataStart = await createSession(msg, typebot, number);
-            sessionId = dataStart.sessionId;
+            sessionId = dataStart?.sessionId;
             status = true;
             await ticket.update({
                 typebotSessionId: sessionId,
@@ -108,14 +133,14 @@ const typebotListener = async ({
             status = ticket.typebotStatus;
         }
 
-        if (!status) return;
+        if (!status || !sessionId) return;
 
         if (body !== typebotKeywordFinish && body !== typebotKeywordRestart) {
             let requestContinue: any;
             let messages: any[];
             let input: any;
             
-            if (dataStart?.messages.length === 0 || dataStart === undefined) {
+            if (dataStart?.messages?.length === 0 || dataStart === undefined) {
                 const reqData = JSON.stringify({
                     "message": body
                 });
@@ -123,7 +148,7 @@ const typebotListener = async ({
                 const config: AxiosRequestConfig = {
                     method: 'post',
                     maxBodyLength: Infinity,
-                    url: `${url}/api/v1/sessions/${sessionId}/continueChat`,
+                    url: `${cleanUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/continueChat`,
                     headers: {
                         'Content-Type': 'application/json',
                         'Accept': 'application/json'
@@ -134,104 +159,109 @@ const typebotListener = async ({
                 requestContinue = await axios.request(config);
                 messages = requestContinue.data?.messages;
                 input = requestContinue.data?.input;
+                logger.info(`[Typebot] Continuación para ${number}. Mensajes devueltos: ${messages?.length || 0}`);
             } else {
                 messages = dataStart?.messages;
                 input = dataStart?.input;
             }
 
             if (messages?.length === 0) {
-                await wbot.sendMessage(`${number}@c.us`, { text: typebotUnknownMessage });
-            } else {
+                if (typebotUnknownMessage) {
+                    await wbot.sendMessage(msg.key.remoteJid, { text: typebotUnknownMessage });
+                }
+            } else if (messages) {
                 for (const message of messages) {
                     if (message.type === 'text') {
                         let formattedText = '';
                         let linkPreview = false;
                         
-                        for (const richText of message.content.richText) {
-                            for (const element of richText.children) {
-                                let text = '';
+                        if (message.content?.richText) {
+                            for (const richText of message.content.richText) {
+                                for (const element of richText.children) {
+                                    let text = '';
 
-                                if (element.text) {
-                                    text = element.text;
-                                }
-                                
-                                if (element.type && element.children) {
-                                    for (const subelement of element.children) {
-                                        let text = '';
-
-                                        if (subelement.text) {
-                                            text = subelement.text;
-                                        }
-
-                                        if (subelement.type && subelement.children) {
-                                            for (const subelement2 of subelement.children) {
-                                                let text = '';
-
-                                                if (subelement2.text) {
-                                                    text = subelement2.text;
-                                                }
-
-                                                if (subelement2.bold) {
-                                                    text = `*${text}*`;
-                                                }
-                                                if (subelement2.italic) {
-                                                    text = `_${text}_`;
-                                                }
-                                                if (subelement2.underline) {
-                                                    text = `~${text}~`;
-                                                }
-                                                if (subelement2.url) {
-                                                    const linkText = subelement2.children[0].text;
-                                                    text = `[${linkText}](${subelement2.url})`;
-                                                    linkPreview = true;
-                                                }
-                                                formattedText += text;
-                                            }
-                                        }
-                                        
-                                        if (subelement.bold) {
-                                            text = `*${text}*`;
-                                        }
-                                        if (subelement.italic) {
-                                            text = `_${text}_`;
-                                        }
-                                        if (subelement.underline) {
-                                            text = `~${text}~`;
-                                        }
-                                        if (subelement.url) {
-                                            const linkText = subelement.children[0].text;
-                                            text = `[${linkText}](${subelement.url})`;
-                                            linkPreview = true;
-                                        }
-                                        formattedText += text;
+                                    if (element.text) {
+                                        text = element.text;
                                     }
-                                }
+                                    
+                                    if (element.type && element.children) {
+                                        for (const subelement of element.children) {
+                                            let text = '';
 
-                                if (element.bold) {
-                                    text = `*${text}*`;
-                                }
-                                if (element.italic) {
-                                    text = `_${text}_`;
-                                }
-                                if (element.underline) {
-                                    text = `~${text}~`;
-                                }
+                                            if (subelement.text) {
+                                                text = subelement.text;
+                                            }
 
-                                if (element.url) {
-                                    const linkText = element.children[0].text;
-                                    text = `[${linkText}](${element.url})`;
-                                    linkPreview = true;
-                                }
+                                            if (subelement.type && subelement.children) {
+                                                for (const subelement2 of subelement.children) {
+                                                    let text = '';
 
-                                formattedText += text;
+                                                    if (subelement2.text) {
+                                                        text = subelement2.text;
+                                                    }
+
+                                                    if (subelement2.bold) {
+                                                        text = `*${text}*`;
+                                                    }
+                                                    if (subelement2.italic) {
+                                                        text = `_${text}_`;
+                                                    }
+                                                    if (subelement2.underline) {
+                                                        text = `~${text}~`;
+                                                    }
+                                                    if (subelement2.url) {
+                                                        const linkText = subelement2.children[0]?.text || subelement2.url;
+                                                        text = `[${linkText}](${subelement2.url})`;
+                                                        linkPreview = true;
+                                                    }
+                                                    formattedText += text;
+                                                }
+                                            }
+                                            
+                                            if (subelement.bold) {
+                                                text = `*${text}*`;
+                                            }
+                                            if (subelement.italic) {
+                                                text = `_${text}_`;
+                                            }
+                                            if (subelement.underline) {
+                                                text = `~${text}~`;
+                                            }
+                                            if (subelement.url) {
+                                                const linkText = subelement.children[0]?.text || subelement.url;
+                                                text = `[${linkText}](${subelement.url})`;
+                                                linkPreview = true;
+                                            }
+                                            formattedText += text;
+                                        }
+                                    }
+
+                                    if (element.bold) {
+                                        text = `*${text}*`;
+                                    }
+                                    if (element.italic) {
+                                        text = `_${text}_`;
+                                    }
+                                    if (element.underline) {
+                                        text = `~${text}~`;
+                                    }
+
+                                    if (element.url) {
+                                        const linkText = element.children[0]?.text || element.url;
+                                        text = `[${linkText}](${element.url})`;
+                                        linkPreview = true;
+                                    }
+
+                                    formattedText += text;
+                                }
+                                formattedText += '\n';
                             }
-                            formattedText += '\n';
                         }
                         
                         formattedText = formattedText.replace('**', '').replace(/\n$/, '');
 
                         if (formattedText === "Invalid message. Please, try again.") {
-                            formattedText = typebotUnknownMessage;
+                            formattedText = typebotUnknownMessage || formattedText;
                         }
 
                         if (formattedText.startsWith("#")) {
@@ -247,7 +277,7 @@ const typebotListener = async ({
                                     });
                                     return;
                                 }
-                                
+
                                 if (!isNil(jsonGatilho.queueId) && jsonGatilho.queueId > 0 && isNil(jsonGatilho.userId)) {
                                     await UpdateTicketService({
                                         ticketData: {
@@ -281,19 +311,19 @@ const typebotListener = async ({
                             }
                         }
 
-                        await wbot.presenceSubscribe(msg.key.remoteJid);
-                        await wbot.sendPresenceUpdate('composing', msg.key.remoteJid);
-                        await delay(typebotDelayMessage);
-                        await wbot.sendPresenceUpdate('paused', msg.key.remoteJid);
+                        await safeSubscribe();
+                        await safePresence('composing');
+                        await delay(typebotDelayMessage || 1000);
+                        await safePresence('paused');
 
                         await wbot.sendMessage(msg.key.remoteJid, { text: formattedText });
                     }
 
                     if (message.type === 'audio') {
-                        await wbot.presenceSubscribe(msg.key.remoteJid);
-                        await wbot.sendPresenceUpdate('composing', msg.key.remoteJid);
-                        await delay(typebotDelayMessage);
-                        await wbot.sendPresenceUpdate('paused', msg.key.remoteJid);
+                        await safeSubscribe();
+                        await safePresence('composing');
+                        await delay(typebotDelayMessage || 1000);
+                        await safePresence('paused');
                         
                         const media = {
                             audio: {
@@ -306,10 +336,10 @@ const typebotListener = async ({
                     }
 
                     if (message.type === 'image') {
-                        await wbot.presenceSubscribe(msg.key.remoteJid);
-                        await wbot.sendPresenceUpdate('composing', msg.key.remoteJid);
-                        await delay(typebotDelayMessage);
-                        await wbot.sendPresenceUpdate('paused', msg.key.remoteJid);
+                        await safeSubscribe();
+                        await safePresence('composing');
+                        await delay(typebotDelayMessage || 1000);
+                        await safePresence('paused');
                         
                         const media = {
                             image: {
@@ -323,16 +353,16 @@ const typebotListener = async ({
                 if (input) {
                     if (input.type === 'choice input') {
                         let formattedText = '';
-                        const items = input.items;
+                        const items = input.items || [];
                         for (const item of items) {
                             formattedText += `▶️ ${item.content}\n`;
                         }
                         formattedText = formattedText.replace(/\n$/, '');
                         
-                        await wbot.presenceSubscribe(msg.key.remoteJid);
-                        await wbot.sendPresenceUpdate('composing', msg.key.remoteJid);
-                        await delay(typebotDelayMessage);
-                        await wbot.sendPresenceUpdate('paused', msg.key.remoteJid);
+                        await safeSubscribe();
+                        await safePresence('composing');
+                        await delay(typebotDelayMessage || 1000);
+                        await safePresence('paused');
                         
                         await wbot.sendMessage(msg.key.remoteJid, { text: formattedText });
                     }
@@ -346,7 +376,7 @@ const typebotListener = async ({
                 typebotSessionId: null
             });
             await ticket.reload();
-            await wbot.sendMessage(`${number}@c.us`, { text: typebotRestartMessage });
+            await wbot.sendMessage(msg.key.remoteJid, { text: typebotRestartMessage || "Reiniciando..." });
         }
         
         if (body === typebotKeywordFinish) {
@@ -362,7 +392,7 @@ const typebotListener = async ({
             return;
         }
     } catch (error) {
-        logger.info("Error on typebotListener: ", error);
+        logger.error("Error on typebotListener: ", error);
         await ticket.update({
             typebotSessionId: null
         });
