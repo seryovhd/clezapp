@@ -2,7 +2,7 @@
   "name": "frontend",
   "version": "3.0.0",
   "versionSystem": "v3.0.0",
-  "company": "Chasap",
+  "company": "Clezapp",
   "private": true,
   "proxy": "http://localhost:4000",
   "dependencies": {

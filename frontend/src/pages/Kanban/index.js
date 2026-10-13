@@ -16,7 +16,8 @@ import {
   DialogContent,
   DialogActions,
   Button,
-  Tooltip
+  Tooltip,
+  useTheme
 } from "@material-ui/core";
 import { MoreVert, Archive } from "@material-ui/icons";
 
@@ -25,7 +26,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     padding: theme.spacing(2),
     height: "calc(100vh - 64px)",
-    backgroundColor: "#f5f7fa",
+    backgroundColor: theme.palette.background.default,
     fontFamily: "'Roboto', sans-serif",
     overflow: "hidden",
     [theme.breakpoints.down("sm")]: {
@@ -36,20 +37,32 @@ const useStyles = makeStyles((theme) => ({
   },
   boardContainer: {
     width: "100%",
+    "& .react-trello-board": {
+      backgroundColor: "transparent !important",
+    },
     "& .react-trello-lane": {
-      backgroundColor: "white",
+      backgroundColor: theme.palette.background.paper,
       borderRadius: "8px",
       boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
       margin: "0 8px",
+      color: theme.palette.text.primary,
       [theme.breakpoints.down("sm")]: {
         margin: "8px 0",
         width: "100% !important",
       },
+      "& header": {
+        color: theme.palette.text.primary,
+        "& span": {
+          color: theme.palette.text.primary,
+        }
+      }
     },
   },
 }));
 
 const Kanban = () => {
+  const theme = useTheme();
+  const isDark = (theme.palette?.type || theme.mode) === "dark";
   const classes = useStyles();
   const { user } = useContext(AuthContext);
   const queueIds = user.queues?.map((q) => q.id || q.UserQueue?.queueId) || [];
@@ -145,8 +158,9 @@ const Kanban = () => {
         id: "0",
         title: "Abiertos", // <- ahora es string
         style: {
-          backgroundColor: "#f0f2f5",
-          borderTop: "4px solid #6c757d",
+          backgroundColor: isDark ? "#182229" : "#f0f2f5",
+          borderTop: "4px solid #00a884",
+          color: isDark ? "#e9edef" : "#111b21",
         },
         cards: tickets.filter(t => t.tags.length === 0).map(ticket => ({
           id: ticket.id.toString(),
@@ -157,10 +171,11 @@ const Kanban = () => {
           customCard: (
             <div style={{
               borderRadius: 5,
-              backgroundColor: "#e3f2fd",
+              backgroundColor: isDark ? "#202c33" : "#e3f2fd",
               marginBottom: 5,
               marginTop: 5,
-              padding: 10
+              padding: 10,
+              boxShadow: isDark ? "0 1px 3px rgba(0,0,0,0.3)" : "none"
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <CardTitle ticket={ticket} userProfile={user.profile} />
@@ -179,8 +194,9 @@ const Kanban = () => {
         id: tag.id.toString(),
         title: tag.name, // <- ahora es string
         style: {
-          backgroundColor: `${tag.color}10`,
+          backgroundColor: isDark ? "#182229" : `${tag.color}10`,
           borderTop: `4px solid ${tag.color}`,
+          color: isDark ? "#e9edef" : "#111b21",
         },
         cards: tickets.filter(t =>
           t.tags.some(tg => tg.id === tag.id)
@@ -193,10 +209,11 @@ const Kanban = () => {
           customCard: (
             <div style={{
               borderRadius: 5,
-              backgroundColor: "#e3f2fd",
+              backgroundColor: isDark ? "#202c33" : "#e3f2fd",
               marginBottom: 5,
               marginTop: 5,
-              padding: 10
+              padding: 10,
+              boxShadow: isDark ? "0 1px 3px rgba(0,0,0,0.3)" : "none"
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <CardTitle ticket={ticket} userProfile={user.profile} />

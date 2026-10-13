@@ -18,12 +18,14 @@ const useStyles = makeStyles(theme => ({
     subtitle: {
         fontSize: "12px",
         fontWeight: "normal",
-        color: "#4d4d4d",
+        color: (theme.palette?.type || theme.mode) === 'dark' ? "#8696a0" : "#667781",
         textOverflow: "ellipsis",
         whiteSpace: "nowrap",
         overflow: "hidden"
     },
     title: {
+        color: (theme.palette?.type || theme.mode) === 'dark' ? "#e9edef" : "#111b21",
+        fontWeight: 600,
         textOverflow: "ellipsis",
         whiteSpace: "nowrap",
         overflow: "hidden"

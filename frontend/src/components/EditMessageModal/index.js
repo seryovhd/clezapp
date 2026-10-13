@@ -31,7 +31,7 @@ import CloseIcon from '@material-ui/icons/Close';
 import CheckCircleIcon from "@material-ui/icons/CheckCircle";
 import whatsBackground from "../../assets/wa-background-light.webp";
 import whatsBackgroundDark from "../../assets/wa-background-dark.webp";
-import { makeStyles } from "@material-ui/core";
+import { makeStyles, useTheme } from "@material-ui/core";
 import MarkdownWrapper from "../MarkdownWrapper";
 import MoodIcon from "@material-ui/icons/Mood";
 import api from "../../services/api";
@@ -141,6 +141,9 @@ const EditMessageModal = ({ open, onClose, onSave, message }) => {
     setShowEmoji(false); // 👈 Cierra al seleccionar
   };
 
+  const theme = useTheme();
+  const isDark = (theme.palette?.type || theme.mode) === 'dark';
+
   return (
     <Dialog
       open={open}
@@ -166,10 +169,14 @@ const EditMessageModal = ({ open, onClose, onSave, message }) => {
             <Box
               component="div"
               className={classes.messageRight}
-              style={{ fontStyle: "italic", backgroundColor: "#d9fdd3" }}
+              style={{
+                fontStyle: "italic",
+                backgroundColor: isDark ? "#005c4b" : "#d9fdd3",
+                color: isDark ? "#e9edef" : "#111b21"
+              }}
             >
               <Box className={classes.textContentItem}>
-                <Box component="div" style={{ color: "#212B36" }}>
+                <Box component="div" style={{ color: isDark ? "#e9edef" : "#111b21" }}>
                   <MarkdownWrapper>{message?.body}</MarkdownWrapper>
                 </Box>
               </Box>
@@ -182,7 +189,7 @@ const EditMessageModal = ({ open, onClose, onSave, message }) => {
               display: "flex",
               alignItems: "center",
               borderRadius: "0px",
-              backgroundColor: "#f0f2f5",
+              backgroundColor: isDark ? "#202c33" : "#f0f2f5",
               position: "relative"
             }}
             onSubmit={(e) => {

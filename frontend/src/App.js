@@ -4,6 +4,7 @@ import { ToastContainer } from 'react-toastify';
 import { QueryClient, QueryClientProvider } from "react-query";
 import { esES } from "@material-ui/core/locale";
 import { createTheme, ThemeProvider } from "@material-ui/core/styles";
+import CssBaseline from "@material-ui/core/CssBaseline";
 import { useMediaQuery } from "@material-ui/core";
 import ColorModeContext from "./layout/themeContext";
 import { SocketContext, SocketManager } from './context/Socket/SocketContext';
@@ -31,6 +32,132 @@ const App = () => {
     const theme = createTheme(
         {
             overrides: {
+                MuiCssBaseline: {
+                    "@global": {
+                        body: {
+                            backgroundColor: mode === "light" ? "#f0f2f5" : "#0b141a",
+                            color: mode === "light" ? "#111b21" : "#e9edef",
+                            transition: "background-color 0.2s ease, color 0.2s ease",
+                        },
+                    },
+                },
+                MuiTypography: {
+                    root: {
+                        color: mode === "light" ? "#111b21" : "#e9edef",
+                    },
+                    colorTextPrimary: {
+                        color: mode === "light" ? "#111b21" : "#e9edef",
+                    },
+                    colorTextSecondary: {
+                        color: mode === "light" ? "#667781" : "#8696a0",
+                    },
+                },
+                MuiTableCell: {
+                    root: {
+                        color: mode === "light" ? "#111b21" : "#e9edef",
+                        borderBottom: mode === "light" ? "1px solid #e9edef" : "1px solid #222d34",
+                    },
+                    head: {
+                        color: mode === "light" ? "#111b21" : "#e9edef",
+                        fontWeight: 600,
+                        backgroundColor: mode === "light" ? "#f0f2f5" : "#111b21",
+                    },
+                },
+                MuiInputBase: {
+                    root: {
+                        color: mode === "light" ? "#111b21" : "#e9edef",
+                    },
+                    input: {
+                        color: mode === "light" ? "#111b21" : "#e9edef",
+                        "&::placeholder": {
+                            color: mode === "light" ? "#8696a0" : "#8696a0",
+                            opacity: 0.8,
+                        },
+                    },
+                },
+                MuiFormLabel: {
+                    root: {
+                        color: mode === "light" ? "#54656f" : "#8696a0",
+                        "&$focused": {
+                            color: "#00a884",
+                        },
+                    },
+                },
+                MuiInputLabel: {
+                    root: {
+                        color: mode === "light" ? "#54656f" : "#8696a0",
+                        "&$focused": {
+                            color: "#00a884",
+                        },
+                    },
+                },
+                MuiListItemIcon: {
+                    root: {
+                        color: mode === "light" ? "#54656f" : "#aebac1",
+                    },
+                },
+                MuiListSubheader: {
+                    root: {
+                        color: mode === "light" ? "#54656f" : "#8696a0",
+                    },
+                },
+                MuiListItemText: {
+                    primary: {
+                        color: mode === "light" ? "#111b21" : "#e9edef",
+                    },
+                    secondary: {
+                        color: mode === "light" ? "#667781" : "#8696a0",
+                    },
+                },
+                MuiIconButton: {
+                    root: {
+                        color: mode === "light" ? "#54656f" : "#aebac1",
+                    },
+                },
+                MuiSelect: {
+                    icon: {
+                        color: mode === "light" ? "#54656f" : "#aebac1",
+                    },
+                    select: {
+                        color: mode === "light" ? "#111b21" : "#e9edef",
+                    },
+                },
+                MuiTab: {
+                    root: {
+                        color: mode === "light" ? "#54656f" : "#aebac1",
+                        "&$selected": {
+                            color: mode === "light" ? "#008069" : "#00a884",
+                        },
+                    },
+                },
+                MuiPaper: {
+                    root: {
+                        color: mode === "light" ? "#111b21" : "#e9edef",
+                    },
+                },
+                MuiCardHeader: {
+                    title: {
+                        color: mode === "light" ? "#111b21" : "#e9edef",
+                    },
+                    subheader: {
+                        color: mode === "light" ? "#667781" : "#8696a0",
+                    },
+                },
+                MuiDialogTitle: {
+                    root: {
+                        color: mode === "light" ? "#111b21" : "#e9edef",
+                    },
+                },
+                MuiDialogContentText: {
+                    root: {
+                        color: mode === "light" ? "#667781" : "#8696a0",
+                    },
+                },
+                MuiMenuItem: {
+                    root: {
+                        color: mode === "light" ? "#111b21" : "#e9edef",
+                    },
+                },
                 MuiButton: {
                     root: {
                         textTransform: "none", 
@@ -135,6 +262,7 @@ const App = () => {
     return (
         <ColorModeContext.Provider value={{ colorMode }}>
             <ThemeProvider theme={theme}>
+                <CssBaseline />
                 <QueryClientProvider client={queryClient}>
                     <SocketContext.Provider value={SocketManager}>
                         <NotificationHandler />

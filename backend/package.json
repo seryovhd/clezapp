@@ -1,7 +1,7 @@
 {
   "name": "backend",
   "version": "3.0.0",
-  "company": "CHASAP BACKEND",
+  "company": "CLEZAPP BACKEND",
   "main": "index.js",
   "scripts": {
     "build": "tsc --sourceMap false",

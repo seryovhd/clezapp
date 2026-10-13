@@ -35,9 +35,16 @@ class ManagedSocket {
   }
   
   off(event, callback) {
-    const i = this.callbacks.findIndex((c) => c.event === event && c.callback === callback);
-    this.callbacks.splice(i, 1);
-    return this.rawSocket.off(event, callback);
+    if (callback) {
+      const i = this.callbacks.findIndex((c) => c.event === event && c.callback === callback);
+      if (i !== -1) {
+        this.callbacks.splice(i, 1);
+      }
+      return this.rawSocket.off(event, callback);
+    } else {
+      this.callbacks = this.callbacks.filter((c) => c.event !== event);
+      return this.rawSocket.off(event);
+    }
   }
   
   emit(event, ...params) {

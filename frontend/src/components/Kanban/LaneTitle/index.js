@@ -10,13 +10,14 @@ const useStyles = makeStyles(theme => ({
     container: {
         display: "flex",
         gap: "5px",
-        alignItems: "center"
+        alignItems: "center",
+        color: (theme.palette?.type || theme.mode) === 'dark' ? "#e9edef" : "#111b21",
     },
     quantity: {
         fontSize: ".75rem",
-        fontWeight: "normal",
-        color: "#000000DE",
-        backgroundColor: "#d9d9d9",
+        fontWeight: "bold",
+        color: (theme.palette?.type || theme.mode) === 'dark' ? "#e9edef" : "#111b21",
+        backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "#202c33" : "#d9d9d9",
         padding: "0 8px",
         borderRadius: "5px"
     }

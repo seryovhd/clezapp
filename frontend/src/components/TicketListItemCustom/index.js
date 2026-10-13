@@ -111,7 +111,7 @@ const useStyles = makeStyles((theme) => ({
     textAlign: "right",
     position: "relative",
     top: -28,
-    color: "#black",
+    color: (theme.palette?.type || theme.mode) === 'dark' ? "#8696a0" : "#667781",
     padding: 1,
     paddingLeft: 5,
     paddingRight: 10,

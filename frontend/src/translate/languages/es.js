@@ -1064,7 +1064,7 @@ const messages = {
         delete: "Eliminar",
       },
       qrCodeModal: {
-        title: "CHASAP - QR Code",
+        title: "CLEZAPP - QR Code",
       }
     },
   },

@@ -1,4 +1,4 @@
-import { IconButton, makeStyles, Tooltip } from "@material-ui/core";
+import { IconButton, makeStyles, Tooltip, useTheme } from "@material-ui/core";
 import React, { useState } from "react";
 import { BookOpen, Calendar } from "react-feather";
 import WhatsAppIcon from "@material-ui/icons/WhatsApp";
@@ -15,7 +15,8 @@ const useStyles = makeStyles(theme => ({
 
 export default function FooterButtons({ticket}) {
     const classes = useStyles();
-    const color = "#4d4d4d"
+    const theme = useTheme();
+    const color = (theme.palette?.type || theme.mode) === 'dark' ? "#aebac1" : "#54656f";
     const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
     const [contactNotesModal, setContactNotesModal] = useState(false)
     const history = useHistory();

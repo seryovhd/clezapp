@@ -4,7 +4,7 @@ import { useHistory, useParams } from "react-router-dom";
 import clsx from "clsx";
 import { toast } from "react-toastify";
 
-import { Paper, makeStyles, Typography, Box } from "@material-ui/core";
+import { Paper, makeStyles, Typography, Box, useTheme } from "@material-ui/core";
 import WarningIcon from "@material-ui/icons/Warning";
 
 import { AuthContext } from "../../context/Auth/AuthContext";
@@ -62,6 +62,8 @@ const Ticket = () => {
   const { ticketId } = useParams();
   const history = useHistory();
   const classes = useStyles();
+  const theme = useTheme();
+  const isDark = (theme.palette?.type || theme.mode) === 'dark';
 
   const { user } = useContext(AuthContext);
 
@@ -290,14 +292,14 @@ if (isAssignedToOtherUser && !loading) {
             height: "100%",
             padding: "2rem",
             textAlign: "center",
-            color: "#666"
+            color: isDark ? "#8696a0" : "#666"
           }}
         >
-          <div style={{ fontSize: "3rem", marginBottom: "1rem", color: "#bbb" }}>
+          <div style={{ fontSize: "3rem", marginBottom: "1rem", color: isDark ? "#8696a0" : "#bbb" }}>
             🔒
           </div>
-          <h2 style={{ margin: 0 }}>No tienes permisos para ver ni responder en este ticket.</h2>
-          <p style={{ marginTop: 8, fontStyle: "italic" }}>
+          <h2 style={{ margin: 0, color: isDark ? "#e9edef" : "#111b21" }}>No tienes permisos para ver ni responder en este ticket.</h2>
+          <p style={{ marginTop: 8, fontStyle: "italic", color: isDark ? "#8696a0" : "#666" }}>
             Este ticket está asignado a otro agente.
           </p>
         </div>

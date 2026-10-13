@@ -3479,11 +3479,11 @@ const wbotMessageListener = async (
 
     wbot.ev.on("messages.upsert", async (messageUpsert: ImessageUpsert) => {
       try {
-        //console.log(`messages.upsert recibido: ${messageUpsert.messages.length} mensajes, tipo: ${messageUpsert.type}`);
-        console.log("=== MESSAGE UPSERT COMPLETE STRUCTURE ===");
-        console.log(JSON.stringify(messageUpsert, null, 2));
-        console.log("=========================================");
-        
+        if (messageUpsert.type === "append") {
+          // Ignorar mensajes históricos sincronizados al conectar la sesión
+          return;
+        }
+
         const modifiedMessages = messageUpsert.messages.map(msg => {
           const messageWithAny = msg as any;
 
@@ -3493,7 +3493,6 @@ const wbotMessageListener = async (
               ...msg.key,
               remoteJid: messageWithAny.key.remoteJidAlt
             };
-            console.log(`Normalizando LID JID: ${msg.key.remoteJid} -> ${messageWithAny.key.remoteJidAlt}`);
             return modifiedMsg;
           }
           
@@ -3503,7 +3502,6 @@ const wbotMessageListener = async (
               ...msg.key,
               remoteJid: messageWithAny.key.senderPn
             };
-            console.log(`Normalizando con senderPn: ${msg.key.remoteJid} -> ${messageWithAny.key.senderPn}`);
             return modifiedMsg;
           }
           
@@ -3513,25 +3511,30 @@ const wbotMessageListener = async (
         const messages = modifiedMessages.filter(msg => {
           const messageId = msg.key.id || 'sin-id';
 
+          // Filtrar mensajes antiguos sincronizados por WhatsApp (mayores a 5 minutos)
+          if (msg.messageTimestamp) {
+            const timestampSec = typeof msg.messageTimestamp === "number" ? msg.messageTimestamp : Number(msg.messageTimestamp);
+            const diffSec = (Date.now() / 1000) - timestampSec;
+            if (diffSec > 300) {
+              return false;
+            }
+          }
+
           if (msg.message && "enc" in msg.message) {
-            console.error(`MENSAJE CIFRADO DETECTADO EN FILTRO: ${messageId}`);
             return false;
           }
 
           if (!msg.message || typeof msg.message !== 'object') {
-            console.log(`${messageId}: Sin mensaje válido`);
             return false;
           }
 
           const hasEnc = "enc" in msg.message;
           if (hasEnc) {
-            console.log(`${messageId}: MENSAJE CIFRADO BLOQUEADO (pkmsg)`);
             return false;
           }
 
           const messageKeys = Object.keys(msg.message).filter(key => key !== 'enc');
           if (messageKeys.length === 0) {
-            console.log(`${messageId}: Mensaje vacío después de filtrar`);
             return false;
           }
 
@@ -3543,7 +3546,6 @@ const wbotMessageListener = async (
               return true;
             }
             if (protocolType !== 14) {
-              console.log(`${messageId}: ProtocolMessage tipo ${protocolType} filtrado`);
               return false;
             }
           }
@@ -3555,7 +3557,6 @@ const wbotMessageListener = async (
           }
           
           if (msg.messageStubType && [5, 6, 7, 8, 9].includes(msg.messageStubType as number)) {
-            console.log(`${messageId}: StubType ${msg.messageStubType} filtrado`);
             return false;
           }
 
@@ -3563,7 +3564,6 @@ const wbotMessageListener = async (
         });
 
         if (messages.length === 0) {
-          console.log("Todos los mensajes fueron filtrados correctamente");
           return;
         }
 

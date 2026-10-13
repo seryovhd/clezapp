@@ -126,7 +126,10 @@ const QrcodeModal = ({ open, onClose, whatsAppId }) => {
     const companyId = localStorage.getItem("companyId");
     const socket = socketManager.getSocket(companyId);
 
-    socket.on(`company-${companyId}-whatsappSession`, (data) => {
+    const sessionEvent = `company-${companyId}-whatsappSession`;
+    const whatsappEvent = `company-${companyId}-whatsapp`;
+
+    const handleSessionUpdate = (data) => {
       if (data.action === "update" && data.session.id === whatsAppId) {
         setQrCode(data.session.qrcode);
         setLoading(false);
@@ -135,18 +138,22 @@ const QrcodeModal = ({ open, onClose, whatsAppId }) => {
           onClose();
         }
       }
-    });
+    };
 
-    socket.on(`company-${companyId}-whatsapp`, (data) => {
+    const handleWhatsappUpdate = (data) => {
       if (data.action === "update" && data.whatsapp.id === whatsAppId) {
         if (data.whatsapp.status === "CONNECTED" || data.whatsapp.qrcode === "") {
           onClose();
         }
       }
-    });
+    };
+
+    socket.on(sessionEvent, handleSessionUpdate);
+    socket.on(whatsappEvent, handleWhatsappUpdate);
 
     return () => {
-      socket.disconnect();
+      socket.off(sessionEvent, handleSessionUpdate);
+      socket.off(whatsappEvent, handleWhatsappUpdate);
     };
   }, [whatsAppId, onClose, socketManager]);
 

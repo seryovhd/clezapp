@@ -83,8 +83,34 @@ const typebotListener = async ({
         return sentMessage;
     };
 
-    const downloadMediaBuffer = async (mediaUrl: string): Promise<{ buffer: Buffer; mimetype: string } | null> => {
+    const extractMediaUrl = (content: any): string | null => {
+        if (!content) return null;
+        if (typeof content === 'string') {
+            const trimmed = content.trim();
+            if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('/') || trimmed.startsWith('data:')) {
+                return trimmed;
+            }
+            return trimmed;
+        }
+        if (typeof content === 'object') {
+            if (typeof content.url === 'string') return content.url.trim();
+            if (typeof content.src === 'string') return content.src.trim();
+            if (typeof content.link === 'string') return content.link.trim();
+            if (typeof content.mediaUrl === 'string') return content.mediaUrl.trim();
+            if (Array.isArray(content.richText)) {
+                for (const block of content.richText) {
+                    for (const el of block.children || []) {
+                        if (el.url && typeof el.url === 'string') return el.url.trim();
+                    }
+                }
+            }
+        }
+        return null;
+    };
+
+    const downloadMediaBuffer = async (rawUrl: any): Promise<{ buffer: Buffer; mimetype: string } | null> => {
         try {
+            const mediaUrl = extractMediaUrl(rawUrl);
             if (!mediaUrl) return null;
             let targetUrl = mediaUrl.trim();
             if (targetUrl.startsWith('/') && cleanUrl) {
@@ -92,7 +118,7 @@ const typebotListener = async ({
             }
             const response = await axios.get(targetUrl, {
                 responseType: 'arraybuffer',
-                timeout: 20000,
+                timeout: 25000,
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
                     'Accept': '*/*'
@@ -104,7 +130,7 @@ const typebotListener = async ({
                 mimetype: contentType
             };
         } catch (error: any) {
-            logger.warn(`[Typebot] Error al descargar buffer de media (${mediaUrl}): ${error?.message || error}`);
+            logger.warn(`[Typebot] Error al descargar buffer de media (${rawUrl}): ${error?.message || error}`);
             return null;
         }
     };
@@ -388,8 +414,18 @@ const typebotListener = async ({
                         await delay(typebotDelayMessage || 1000);
                         await safePresence('paused');
                         
-                        const mediaUrl = message.content?.url || message.content;
-                        const downloaded = await downloadMediaBuffer(mediaUrl);
+                        const mediaUrl = extractMediaUrl(message.content) || extractMediaUrl(message);
+                        if (!mediaUrl) {
+                            logger.warn("[Typebot] Mensaje de tipo audio sin URL válida:", message);
+                            continue;
+                        }
+
+                        let targetUrl = mediaUrl;
+                        if (targetUrl.startsWith('/') && cleanUrl) {
+                            targetUrl = `${cleanUrl}${targetUrl}`;
+                        }
+
+                        const downloaded = await downloadMediaBuffer(targetUrl);
                         let sentMessage;
 
                         if (downloaded) {
@@ -399,14 +435,13 @@ const typebotListener = async ({
                                 ptt: true
                             });
                         } else {
-                            const media = {
+                            sentMessage = await wbot.sendMessage(msg.key.remoteJid, {
                                 audio: {
-                                    url: mediaUrl,
+                                    url: targetUrl,
                                     mimetype: 'audio/mp4',
                                     ptt: true
                                 },
-                            };
-                            sentMessage = await wbot.sendMessage(msg.key.remoteJid, media);
+                            });
                         }
 
                         if (sentMessage && contact) {
@@ -418,7 +453,7 @@ const typebotListener = async ({
                                         contactId: undefined,
                                         body: "Audio",
                                         fromMe: true,
-                                        mediaUrl: mediaUrl,
+                                        mediaUrl: targetUrl,
                                         mediaType: "audio",
                                         read: true,
                                         ack: 1
@@ -432,14 +467,24 @@ const typebotListener = async ({
                         }
                     }
 
-                    if (message.type === 'image') {
+                    if (message.type === 'image' || message.type === 'picture') {
                         await safeSubscribe();
                         await safePresence('composing');
                         await delay(typebotDelayMessage || 1000);
                         await safePresence('paused');
                         
-                        const mediaUrl = message.content?.url || message.content;
-                        const downloaded = await downloadMediaBuffer(mediaUrl);
+                        const mediaUrl = extractMediaUrl(message.content) || extractMediaUrl(message);
+                        if (!mediaUrl) {
+                            logger.warn("[Typebot] Mensaje de tipo imagen sin URL válida:", message);
+                            continue;
+                        }
+
+                        let targetUrl = mediaUrl;
+                        if (targetUrl.startsWith('/') && cleanUrl) {
+                            targetUrl = `${cleanUrl}${targetUrl}`;
+                        }
+
+                        const downloaded = await downloadMediaBuffer(targetUrl);
                         let sentMessage;
 
                         if (downloaded) {
@@ -450,12 +495,11 @@ const typebotListener = async ({
                                 mimetype: mime
                             });
                         } else {
-                            const media = {
+                            sentMessage = await wbot.sendMessage(msg.key.remoteJid, {
                                 image: {
-                                    url: mediaUrl,
+                                    url: targetUrl,
                                 },
-                            };
-                            sentMessage = await wbot.sendMessage(msg.key.remoteJid, media);
+                            });
                         }
 
                         if (sentMessage && contact) {
@@ -465,9 +509,9 @@ const typebotListener = async ({
                                         id: sentMessage?.key?.id || `typebot_img_${Date.now()}`,
                                         ticketId: ticket.id,
                                         contactId: undefined,
-                                        body: mediaUrl,
+                                        body: targetUrl,
                                         fromMe: true,
-                                        mediaUrl: mediaUrl,
+                                        mediaUrl: targetUrl,
                                         mediaType: "image",
                                         read: true,
                                         ack: 1
@@ -487,8 +531,18 @@ const typebotListener = async ({
                         await delay(typebotDelayMessage || 1000);
                         await safePresence('paused');
                         
-                        const mediaUrl = message.content?.url || message.content;
-                        const downloaded = await downloadMediaBuffer(mediaUrl);
+                        const mediaUrl = extractMediaUrl(message.content) || extractMediaUrl(message);
+                        if (!mediaUrl) {
+                            logger.warn("[Typebot] Mensaje de tipo video sin URL válida:", message);
+                            continue;
+                        }
+
+                        let targetUrl = mediaUrl;
+                        if (targetUrl.startsWith('/') && cleanUrl) {
+                            targetUrl = `${cleanUrl}${targetUrl}`;
+                        }
+
+                        const downloaded = await downloadMediaBuffer(targetUrl);
                         let sentMessage;
 
                         if (downloaded) {
@@ -497,12 +551,11 @@ const typebotListener = async ({
                                 mimetype: downloaded.mimetype || 'video/mp4'
                             });
                         } else {
-                            const media = {
+                            sentMessage = await wbot.sendMessage(msg.key.remoteJid, {
                                 video: {
-                                    url: mediaUrl,
+                                    url: targetUrl,
                                 },
-                            };
-                            sentMessage = await wbot.sendMessage(msg.key.remoteJid, media);
+                            });
                         }
 
                         if (sentMessage && contact) {
@@ -512,9 +565,9 @@ const typebotListener = async ({
                                         id: sentMessage?.key?.id || `typebot_video_${Date.now()}`,
                                         ticketId: ticket.id,
                                         contactId: undefined,
-                                        body: mediaUrl,
+                                        body: targetUrl,
                                         fromMe: true,
-                                        mediaUrl: mediaUrl,
+                                        mediaUrl: targetUrl,
                                         mediaType: "video",
                                         read: true,
                                         ack: 1

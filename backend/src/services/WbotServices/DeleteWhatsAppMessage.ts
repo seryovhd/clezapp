@@ -67,13 +67,13 @@ const DeleteWhatsAppMessage = async (messageId: string): Promise<Message> => {
         }
       } catch (baileysErr: any) {
         console.warn(
-          `[DeleteWhatsAppMessage] No se pudo revocar en Baileys (${baileysErr?.message || "Sesión no disponible"}), pero se marcará como eliminado en Chasap.`
+          `[DeleteWhatsAppMessage] No se pudo revocar en Baileys (${baileysErr?.message || "Sesión no disponible"}), pero se marcará como eliminado en Clezapp.`
         );
       }
     }
   } catch (err: any) {
     console.warn(
-      `[DeleteWhatsAppMessage] Error al intentar revocar mensaje en WhatsApp: ${err?.message || err}. Se procederá a marcar como eliminado en Chasap.`
+      `[DeleteWhatsAppMessage] Error al intentar revocar mensaje en WhatsApp: ${err?.message || err}. Se procederá a marcar como eliminado en Clezapp.`
     );
   }
 

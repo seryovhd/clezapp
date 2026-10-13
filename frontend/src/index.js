@@ -6,9 +6,7 @@ import { register } from './serviceWorker';  // Importando a função register c
 import App from "./App";
 
 ReactDOM.render(
-	<CssBaseline>
-		<App />
-	</CssBaseline>,
+	<App />,
 	document.getElementById("root"),
 	() => {
 		window.finishProgress();

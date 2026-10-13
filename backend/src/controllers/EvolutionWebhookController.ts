@@ -123,7 +123,7 @@ export const handleWebhook = async (req: Request, res: Response): Promise<Respon
         type: "evolution",
         user: {
           id: cleanWappNumber ? `${cleanWappNumber}@s.whatsapp.net` : "bot@s.whatsapp.net",
-          name: whatsapp.name || "Chasap"
+          name: whatsapp.name || "Clezapp"
         },
         presenceSubscribe: async (jid: string) => {
           // No-op seguro
