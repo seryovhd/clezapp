@@ -11,7 +11,9 @@ const store = async (req: Request, res: Response): Promise<Response> => {
   const { companyId } = req.user;
 
   const whatsapp = await ShowWhatsAppService(whatsappId, companyId);
-  await StartWhatsAppSession(whatsapp, companyId);
+  StartWhatsAppSession(whatsapp, companyId).catch(err => {
+    // Los errores se registran y actualizan en el modelo Whatsapp
+  });
 
   return res.status(200).json({ message: "Starting session." });
 };
@@ -44,8 +46,10 @@ const update = async (req: Request, res: Response): Promise<Response> => {
   // Limpiar sesión en la base de datos
   await whatsapp.update({ session: "", status: "DISCONNECTED", qrcode: "" });
 
-  // Iniciar nueva sesión
-  await StartWhatsAppSession(whatsapp, companyId);
+  // Iniciar nueva sesión de forma no bloqueante
+  StartWhatsAppSession(whatsapp, companyId).catch(err => {
+    // Registrado internamente
+  });
 
   return res.status(200).json({ message: "Starting session." });
 };

@@ -980,13 +980,14 @@ async function handleLoginStatus(job) {
 }
 
 async function handleInvoiceCreate() {
-  logger.info("📝 GENERANDO RECIBO...");
-  const job = new CronJob('*/5 * * * * *', async () => {
-    const companies = await Company.findAll();
-    companies.map(async c => {
-    
-      const status = c.status;
-      const dueDate = c.dueDate; 
+  logger.info("📝 SERVICIO DE EVALUACIÓN DE VENCIMIENTOS INICIADO");
+  const job = new CronJob('*/30 * * * *', async () => {
+    try {
+      const companies = await Company.findAll();
+      companies.map(async c => {
+      
+        const status = c.status;
+        const dueDate = c.dueDate; 
       const date = moment(dueDate).format();
       const timestamp = moment().format();
       const hoy = moment().format("DD/MM/yyyy");
@@ -1081,6 +1082,9 @@ async function handleInvoiceCreate() {
     
 
     });
+    } catch (err) {
+      logger.error("Error en handleInvoiceCreate cronjob:", err);
+    }
   });
 
   job.start();

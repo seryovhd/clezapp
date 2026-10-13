@@ -355,6 +355,8 @@ export const initWASocket = async (whatsapp: Whatsapp): Promise<Session> => {
                   action: "update",
                   session: whatsapp
                 });
+
+                resolve(wsocket);
               }
             }
           }

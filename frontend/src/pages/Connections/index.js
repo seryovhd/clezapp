@@ -425,8 +425,11 @@ const Connections = () => {
     }
   };
 
-  const handleStartWhatsAppSession = async whatsAppId => {
+  const handleStartWhatsAppSession = async (whatsAppId, whatsAppObj) => {
     try {
+      if (whatsAppObj) {
+        handleOpenQrModal(whatsAppObj);
+      }
       await api.post(`/whatsappsession/${whatsAppId}`);
       toast.info(i18n.t("connections.toasts.connecting"));
     } catch (err) {
@@ -434,8 +437,11 @@ const Connections = () => {
     }
   };
 
-  const handleRequestNewQrCode = async whatsAppId => {
+  const handleRequestNewQrCode = async (whatsAppId, whatsAppObj) => {
     try {
+      if (whatsAppObj) {
+        handleOpenQrModal(whatsAppObj);
+      }
       await api.put(`/whatsappsession/${whatsAppId}`);
       toast.info(i18n.t("connections.toasts.requestingQr"));
     } catch (err) {
@@ -657,7 +663,7 @@ const Connections = () => {
                 variant="contained"
                 className={classes.secondaryButton}
                 startIcon={<Refresh />}
-                onClick={() => handleStartWhatsAppSession(whatsApp.id)}
+                onClick={() => handleStartWhatsAppSession(whatsApp.id, whatsApp)}
                 fullWidth
               >
                 {i18n.t("connections.buttons.tryAgain")}
@@ -669,7 +675,7 @@ const Connections = () => {
                 variant="contained"
                 className={classes.primaryButton}
                 startIcon={<CropFree />}
-                onClick={() => handleRequestNewQrCode(whatsApp.id)}
+                onClick={() => handleRequestNewQrCode(whatsApp.id, whatsApp)}
                 fullWidth
               >
                 {i18n.t("connections.buttons.newQr")}
@@ -717,7 +723,7 @@ const Connections = () => {
                 variant="contained"
                 className={classes.secondaryButton}
                 startIcon={<Refresh />}
-                onClick={() => handleStartWhatsAppSession(whatsApp.id)}
+                onClick={() => handleStartWhatsAppSession(whatsApp.id, whatsApp)}
                 fullWidth
               >
                 {i18n.t("connections.buttons.tryAgain")}

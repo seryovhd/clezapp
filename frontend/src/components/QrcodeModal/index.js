@@ -105,13 +105,22 @@ const QrcodeModal = ({ open, onClose, whatsAppId }) => {
   const socketManager = useContext(SocketContext);
 
   useEffect(() => {
+    if (!open) {
+      setQrCode("");
+      setLoading(true);
+      return;
+    }
+
     const fetchSession = async () => {
       if (!whatsAppId) return;
       setLoading(true);
 
       try {
         const { data } = await api.get(`/whatsapp/${whatsAppId}`);
-        setQrCode(data.qrcode);
+        if (data.qrcode) {
+          setQrCode(data.qrcode);
+          setLoading(false);
+        }
       } catch (err) {
         toastError(err);
       } finally {
@@ -119,7 +128,23 @@ const QrcodeModal = ({ open, onClose, whatsAppId }) => {
       }
     };
     fetchSession();
-  }, [whatsAppId]);
+
+    // Polling de respaldo cada 3 segundos si aún no se tiene QR
+    const interval = setInterval(async () => {
+      if (!open || !whatsAppId) return;
+      try {
+        const { data } = await api.get(`/whatsapp/${whatsAppId}`);
+        if (data.qrcode) {
+          setQrCode(data.qrcode);
+          setLoading(false);
+        }
+      } catch (err) {
+        // Ignorar
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [open, whatsAppId]);
 
   useEffect(() => {
     if (!whatsAppId) return;

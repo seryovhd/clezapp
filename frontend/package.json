@@ -120,7 +120,6 @@
   },
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
-    "cache-loader": "^4.1.0",
     "react-refresh": "^0.14.0",
     "source-map-explorer": "^2.5.3",
     "thread-loader": "^3.0.4",
