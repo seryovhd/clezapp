@@ -280,7 +280,6 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "inherit",
     padding: 10,
     backgroundColor: theme.mode === 'light' ? '#2DDD7F' : '#1c1c1c',
     color: theme.mode === 'light' ? '#2DDD7F' : '#FFF',
@@ -1027,7 +1026,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
     [classes.textContentItemDeleted]: message.isDeleted,
   })}
 >
-  {message.isDeleted && (
+  {message.isDeleted ? (
     <div>
       <span className={classes.messageDeleted}>
         Este mensaje fue eliminado por el contacto&nbsp;
@@ -1038,14 +1037,14 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
         />
       </span>
     </div>
-  )}
+  ) : (
+    <>
+      {message.quotedMsg && renderQuotedMessage(message)}
 
-  {message.quotedMsg && renderQuotedMessage(message)}
-
-  {/* Contenido del mensaje normal */}
-  {message.mediaType !== "reactionMessage" && message.body && (
-    <MarkdownWrapper>{message.body}</MarkdownWrapper>
-  )}
+      {/* Contenido del mensaje normal */}
+      {message.mediaType !== "reactionMessage" && message.body && (
+        <MarkdownWrapper>{message.body}</MarkdownWrapper>
+      )}
 
       {/* Reacción a un mensaje citado */}
       {message.quotedMsg && message.mediaType === "reactionMessage" && message.body && (
