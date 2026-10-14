@@ -15,6 +15,7 @@ import ffmpegPath from "ffmpeg-static";
 import formatBody from "../../helpers/Mustache";
 import EvolutionApiService from "../EvolutionApiServices/EvolutionApiService";
 import CreateMessageService from "../MessageServices/CreateMessageService";
+import { getDestinationJid } from "../../helpers/ResolveLidHelper";
 
 interface Request {
   media: Express.Multer.File;
@@ -297,12 +298,7 @@ const SendWhatsAppMedia = async ({
       };
     }
 
-    const cleanLid = ticket.contact.lid ? ticket.contact.lid.replace(/\D/g, "") : "";
-    const cleanDestNumber = ticket.contact.number.replace(/@.*$/, "").replace(/\D/g, "");
-    const isLid = !ticket.isGroup && (cleanDestNumber.length >= 15 || ticket.contact.number.endsWith("@lid") || !!cleanLid);
-    const finalJid = ticket.isGroup
-      ? (ticket.contact.number.includes("@g.us") ? ticket.contact.number : `${ticket.contact.number}@g.us`)
-      : (isLid ? `${cleanLid || cleanDestNumber}@lid` : `${cleanDestNumber}@s.whatsapp.net`);
+    const finalJid = await getDestinationJid(ticket, wbot);
 
     const sentMessage = await wbot.sendMessage(
       finalJid,

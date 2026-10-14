@@ -59,23 +59,27 @@ const CreateOrUpdateContactService = async ({
   }
 
   if (contact) {
-    contact.update({ profilePicUrl });
+    const updateData: any = { profilePicUrl };
     if (lid && !contact.lid) {
-      contact.update({ lid });
+      updateData.lid = lid;
     }
     if (lidWarningAt && !contact.lidWarningAt) {
-      contact.update({ lidWarningAt });
+      updateData.lidWarningAt = lidWarningAt;
+    }
+    if (contact.number.length >= 15 && number.length >= 8 && number.length <= 14) {
+      updateData.number = number;
+      if (!contact.lid) updateData.lid = contact.number;
+    }
+    if (name && (contact.name === contact.number || /^\d+$/.test(contact.name)) && name !== number) {
+      updateData.name = name;
     }
     if (isNil(contact.whatsappId === null)) {
-      contact.update({
-        whatsappId
-      });
+      updateData.whatsappId = whatsappId;
     }
-    // PARCHE 1.3.1 - Webchat 
     if (!contact.canal) {
-      contact.update({ channel: "whatsapp" });
+      updateData.channel = "whatsapp";
     }
-    // PARCHE 1.3.1 - FIN 
+    await contact.update(updateData);
     io.to(`company-${companyId}-mainchannel`).emit(`company-${companyId}-contact`, {
       action: "update",
       contact

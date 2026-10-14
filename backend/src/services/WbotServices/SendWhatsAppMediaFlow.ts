@@ -9,6 +9,7 @@ import GetTicketWbot from "../../helpers/GetTicketWbot";
 import Ticket from "../../models/Ticket";
 import mime from "mime-types";
 import Contact from "../../models/Contact";
+import { getDestinationJid } from "../../helpers/ResolveLidHelper";
 
 interface Request {
   media: Express.Multer.File;
@@ -153,12 +154,7 @@ const SendWhatsAppMediaFlow = async ({
       }
     });
 
-    const cleanLid = contact.lid ? contact.lid.replace(/\D/g, "") : "";
-    const cleanDestNumber = contact.number.replace(/@.*$/, "").replace(/\D/g, "");
-    const isLid = !ticket.isGroup && (cleanDestNumber.length >= 15 || contact.number.endsWith("@lid") || !!cleanLid);
-    const finalJid = ticket.isGroup
-      ? `${contact.number}@g.us`
-      : (isLid ? `${cleanLid || cleanDestNumber}@lid` : `${cleanDestNumber}@s.whatsapp.net`);
+    const finalJid = await getDestinationJid(ticket, wbot);
 
     const sentMessage = await wbot.sendMessage(
       finalJid,

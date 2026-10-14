@@ -425,6 +425,7 @@ export const initWASocket = async (whatsapp: Whatsapp): Promise<Session> => {
         );
 
         store.bind(wsocket.ev);
+        wsocket.store = store as any;
       })();
     } catch (error) {
       Sentry.captureException(error);

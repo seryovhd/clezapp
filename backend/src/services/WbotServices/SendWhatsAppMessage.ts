@@ -10,6 +10,7 @@ import { Op } from "sequelize";
 import formatBody from "../../helpers/Mustache";
 import EvolutionApiService from "../EvolutionApiServices/EvolutionApiService";
 import CreateMessageService from "../MessageServices/CreateMessageService";
+import { getDestinationJid } from "../../helpers/ResolveLidHelper";
 
 interface Request {
   body: string;
@@ -116,12 +117,7 @@ const SendWhatsAppMessage = async ({
 
     let options = {};
     const wbot = await GetTicketWbot(ticket);
-    const cleanLid = ticket.contact.lid ? ticket.contact.lid.replace(/\D/g, "") : "";
-    const cleanDestNum = ticket.contact.number.replace(/\D/g, "");
-    const isLid = !ticket.isGroup && (cleanDestNum.length >= 15 || ticket.contact.number.endsWith("@lid") || !!cleanLid);
-    const number = ticket.isGroup
-      ? `${ticket.contact.number}@g.us`
-      : (isLid ? `${cleanLid || cleanDestNum}@lid` : `${cleanDestNum}@s.whatsapp.net`);
+    const number = await getDestinationJid(ticket, wbot);
 
     console.log("🔢 BOT PARA NÚMERO", number);
 

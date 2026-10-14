@@ -29,6 +29,7 @@ import FindOrCreateTicketService from "../TicketServices/FindOrCreateTicketServi
 import ShowWhatsAppService from "../WhatsappService/ShowWhatsAppService";
 import UpdateTicketService from "../TicketServices/UpdateTicketService";
 import formatBody from "../../helpers/Mustache";
+import { resolveLidToPhone } from "../../helpers/ResolveLidHelper";
 import { Store } from "../../libs/store";
 import TicketTraking from "../../models/TicketTraking";
 import UserRating from "../../models/UserRating";
@@ -685,10 +686,19 @@ const verifyContact = async (
 ): Promise<Contact> => {
   let profilePicUrl: string;
 
-  const isLid = msgContact.id.endsWith('@lid') || (msgContact.id.replace(/\D/g, "").length >= 15 && !msgContact.id.includes('@s.whatsapp.net'));
-  const cleanNumber = isLid
-    ? msgContact.id.replace('@lid', '')
-    : msgContact.id;
+  const rawId = msgContact.id || "";
+  const isLid = rawId.endsWith('@lid') || (rawId.replace(/\D/g, "").length >= 15 && !rawId.includes('@s.whatsapp.net'));
+  const cleanLidNumber = isLid ? rawId.replace('@lid', '').replace(/\D/g, '') : undefined;
+  let cleanNumber = isLid ? cleanLidNumber : rawId.replace('@s.whatsapp.net', '').replace(/\D/g, '');
+
+  if (isLid && cleanLidNumber) {
+    const resolvedPhone = await resolveLidToPhone(cleanLidNumber, wbot, companyId);
+    if (resolvedPhone) {
+      logger.info(`✅ [verifyContact] Contacto LID ${cleanLidNumber} resuelto automáticamente a número real ${resolvedPhone}`);
+      cleanNumber = resolvedPhone;
+      msgContact.id = `${resolvedPhone}@s.whatsapp.net`;
+    }
+  }
 
   try {
     profilePicUrl = await wbot.profilePictureUrl(msgContact.id);
@@ -698,16 +708,16 @@ const verifyContact = async (
   }
 
   const contactData = {
-    name: msgContact?.name || cleanNumber.replace(/\D/g, ""),
-    number: cleanNumber.replace(/\D/g, ""),
+    name: msgContact?.name || cleanNumber,
+    number: cleanNumber,
     profilePicUrl,
     isGroup: msgContact.id.includes("g.us"),
     companyId,
     whatsappId: wbot.id,
-    lid: isLid ? cleanNumber.replace(/\D/g, "") : undefined
+    lid: cleanLidNumber
   };
 
-  const contact = CreateOrUpdateContactService(contactData);
+  const contact = await CreateOrUpdateContactService(contactData);
 
   return contact;
 };
@@ -2590,6 +2600,15 @@ const handleMessage = async (
         detectedRealNumber = msgWithAny.key.remoteJidAlt.replace('@s.whatsapp.net', '').replace(/\D/g, '');
       }
 
+      // Si no viene en metadatos, resolver mediante Baileys lidMapping / DB
+      if (!detectedRealNumber && lidNumber) {
+        const resolved = await resolveLidToPhone(lidNumber, wbot, companyId);
+        if (resolved) {
+          detectedRealNumber = resolved;
+          logger.info(`📱 [LID -> JID] Número real resuelto desde Baileys/DB para LID ${lidNumber}: ${resolved}`);
+        }
+      }
+
       // Si el cliente respondió escribiendo su número de teléfono en el mensaje de texto
       if (!detectedRealNumber && !msg.key.fromMe && bodyMessage) {
         const cleanDigits = bodyMessage.replace(/[\s\-\(\)\+]/g, "").trim();
@@ -2622,6 +2641,19 @@ const handleMessage = async (
           await Ticket.update({ contactId: existingRealContact.id }, { where: { contactId: contact.id } });
           await Message.update({ contactId: existingRealContact.id }, { where: { contactId: contact.id } });
           await existingRealContact.update({ lid: lidNumber });
+
+          const oldContactId = contact.id;
+          try {
+            await ContactCustomField.destroy({ where: { contactId: oldContactId } });
+            await contact.destroy();
+            const io = getIO();
+            io.to(`company-${companyId}-mainchannel`).emit(`company-${companyId}-contact`, {
+              action: "delete",
+              contactId: oldContactId
+            });
+          } catch (eDestroy) {
+            logger.error("Error eliminando contacto duplicado:", eDestroy);
+          }
           contact = existingRealContact;
         } else {
           logger.info(`✅ [LID -> JID] Actualizando número del contacto LID ${contact.id} de ${contact.number} a número real ${detectedRealNumber}`);
