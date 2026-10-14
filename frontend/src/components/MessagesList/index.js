@@ -821,7 +821,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
           iconContainer.style.justifyContent = "center";
 
           const icon = document.createElement("div");
-          icon.innerHTML = message.contact.name[0]?.toUpperCase();
+          icon.innerHTML = (message.contact?.name || "C")[0]?.toUpperCase() || "C";
           icon.style.color = "#555";
 
           iconContainer.appendChild(icon);
@@ -842,7 +842,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
         justifyContent: "center",
       }}
     >
-    { message.contact.name[0]?.toUpperCase() }
+    { (message.contact?.name || "C")[0]?.toUpperCase() || "C" }
     </div>
   )}
 </div>

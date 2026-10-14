@@ -8,6 +8,13 @@ interface IOnWhatsapp {
 }
 
 const checker = async (number: string, wbot: any) => {
+  if (number.length >= 15 || number.includes("@lid")) {
+    const cleanLid = number.replace("@lid", "").replace(/\D/g, "");
+    return {
+      jid: `${cleanLid}@lid`,
+      exists: true
+    };
+  }
   const [validNumber] = await wbot.onWhatsApp(`${number}@s.whatsapp.net`);
 
   logger.info(validNumber);

@@ -1,3 +1,5 @@
+import path from "path";
+import mimeTypes from "mime-types";
 import Setting from "../../models/Setting";
 import Whatsapp from "../../models/Whatsapp";
 import Message from "../../models/Message";
@@ -12,10 +14,17 @@ export interface EvolutionConfig {
 }
 
 export class EvolutionApiService {
+  private static configCache = new Map<number, { config: EvolutionConfig; expiresAt: number }>();
+
   /**
-   * Obtiene la configuración de Evolution API desde la tabla Settings o .env
+   * Obtiene la configuración de Evolution API desde la tabla Settings o .env (con caché en memoria)
    */
   public static async getConfig(companyId: number = 1): Promise<EvolutionConfig> {
+    const cached = this.configCache.get(companyId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.config;
+    }
+
     try {
       const urlSetting = await Setting.findOne({
         where: { key: "evolutionApiUrl", companyId }
@@ -65,7 +74,9 @@ export class EvolutionApiService {
       // Remover barra final de la URL si existe
       url = url.replace(/\/+$/, "");
 
-      return { url, apiKey, enabled };
+      const result: EvolutionConfig = { url, apiKey, enabled };
+      this.configCache.set(companyId, { config: result, expiresAt: Date.now() + 30000 }); // Caché de 30 segundos
+      return result;
     } catch (error) {
       logger.error("Error al obtener la configuración de Evolution API:", error);
       return {
@@ -123,7 +134,7 @@ export class EvolutionApiService {
       headers
     };
 
-    if (body && (method === "POST" || method === "PUT")) {
+    if (body && (method === "POST" || method === "PUT" || method === "DELETE")) {
       options.body = JSON.stringify(body);
     }
 
@@ -306,10 +317,14 @@ export class EvolutionApiService {
   public static cleanNumberForEvolution(number: string): string {
     if (!number) return "";
     const trimmed = number.trim();
-    if (trimmed.endsWith("@g.us")) {
+    if (trimmed.endsWith("@g.us") || trimmed.endsWith("@lid")) {
       return trimmed;
     }
-    return trimmed.replace(/@.*$/, "").replace(/[^0-9]/g, "");
+    const digitsOnly = trimmed.replace(/@.*$/, "").replace(/[^0-9]/g, "");
+    if (digitsOnly.length >= 15) {
+      return `${digitsOnly}@lid`;
+    }
+    return digitsOnly;
   }
 
   /**
@@ -327,7 +342,7 @@ export class EvolutionApiService {
     const payload: any = {
       number: cleanNumber,
       text,
-      delay: options?.delay || 1200
+      delay: options?.delay ?? 0
     };
 
     if (options?.quotedMessageId) {
@@ -347,6 +362,47 @@ export class EvolutionApiService {
   }
 
   /**
+   * Actualiza/edita un mensaje de texto en Evolution API
+   */
+  public static async updateMessage(
+    whatsapp: Whatsapp,
+    number: string,
+    messageId: string,
+    text: string,
+    remoteJid?: string
+  ): Promise<any> {
+    const instanceName = this.getInstanceName(whatsapp);
+    const cleanNumber = this.cleanNumberForEvolution(number);
+    const jid = remoteJid || (number.includes("@") ? number : `${cleanNumber}@s.whatsapp.net`);
+
+    const payload = {
+      number: cleanNumber,
+      text,
+      key: {
+        remoteJid: jid,
+        fromMe: true,
+        id: messageId
+      }
+    };
+
+    try {
+      return await this.request(
+        whatsapp.companyId,
+        `/chat/updateMessage/${encodeURIComponent(instanceName)}`,
+        "POST",
+        payload
+      );
+    } catch (err) {
+      return await this.request(
+        whatsapp.companyId,
+        `/message/update/${encodeURIComponent(instanceName)}`,
+        "POST",
+        payload
+      );
+    }
+  }
+
+  /**
    * Envía un archivo multimedia (imagen, video, audio o documento) a través de Evolution API v2
    */
   public static async sendMediaMessage(
@@ -358,31 +414,45 @@ export class EvolutionApiService {
       caption?: string;
       fileName?: string;
       mimetype?: string;
+      gifPlayback?: boolean;
     }
   ): Promise<any> {
     const instanceName = this.getInstanceName(whatsapp);
     const cleanNumber = this.cleanNumberForEvolution(number);
+    const isUrl = typeof mediaData.media === "string" && (mediaData.media.startsWith("http://") || mediaData.media.startsWith("https://"));
+    
+    // Evolution API v2 usa el validador @IsUrlOrBase64() de class-validator, el cual requiere:
+    // 1. Una URL válida (http/https), O
+    // 2. Base64 PURO (sin prefijo "data:image/...;base64,")
+    const pureMedia = isUrl
+      ? mediaData.media.trim()
+      : mediaData.media.replace(/^data:[^;]+;base64,/, "").trim();
 
-    const cleanMedia = (mediaData.media.startsWith("http://") || mediaData.media.startsWith("https://"))
-      ? mediaData.media
-      : mediaData.media.replace(/^data:[^;]+;base64,/, "");
+    const rawMime = mediaData.mimetype || (
+      mediaData.mediaType === "image" ? "image/jpeg" :
+      mediaData.mediaType === "video" ? "video/mp4" :
+      mediaData.mediaType === "audio" ? "audio/ogg" : "application/octet-stream"
+    );
+    const mime = rawMime.split(";")[0].trim();
 
     // Si es audio de voz (PTT), Evolution API v2 tiene un endpoint dedicado que lo envía como nota de voz
     if (mediaData.mediaType === "audio") {
       const audioPayload = {
         number: cleanNumber,
-        audio: cleanMedia,
-        delay: 1200
+        audio: pureMedia,
+        delay: 0
       };
 
       try {
+        logger.info(`[Evolution] Enviando sendWhatsAppAudio a ${cleanNumber}`);
         const audioRes = await this.request(
           whatsapp.companyId,
           `/message/sendWhatsAppAudio/${encodeURIComponent(instanceName)}`,
           "POST",
           audioPayload
         );
-        if (audioRes && !audioRes.error) {
+        logger.info(`[Evolution] Resultado sendWhatsAppAudio a ${cleanNumber}: ${JSON.stringify(audioRes)}`);
+        if (audioRes && !audioRes.error && audioRes.status !== 400) {
           return audioRes;
         }
       } catch (e) {
@@ -390,23 +460,52 @@ export class EvolutionApiService {
       }
     }
 
+    let defaultExt = ".bin";
+    if (mime.includes("png")) defaultExt = ".png";
+    else if (mime.includes("jpeg") || mime.includes("jpg")) defaultExt = ".jpg";
+    else if (mime.includes("webp")) defaultExt = ".webp";
+    else if (mime.includes("gif")) defaultExt = ".gif";
+    else if (mime.includes("ogg") || mime.includes("opus")) defaultExt = ".ogg";
+    else if (mime.includes("mp4")) defaultExt = ".mp4";
+    else if (mime.includes("mpeg") || mime.includes("mp3")) defaultExt = ".mp3";
+    else if (mime.includes("wav")) defaultExt = ".wav";
+    else if (mime.includes("pdf")) defaultExt = ".pdf";
+    else {
+      const lookedUp = mimeTypes.extension(mime);
+      if (lookedUp) defaultExt = `.${lookedUp}`;
+      else if (mediaData.mediaType === "image") defaultExt = ".jpg";
+      else if (mediaData.mediaType === "video") defaultExt = ".mp4";
+      else if (mediaData.mediaType === "audio") defaultExt = ".ogg";
+    }
+
+    let fileName = mediaData.fileName || (mediaData.gifPlayback ? "animacion.mp4" : `archivo_${Date.now()}`);
+    if (!path.extname(fileName)) {
+      fileName = `${fileName}${defaultExt}`;
+    }
+
     const companyId = whatsapp.companyId || 1;
-    const payload = {
+    const payload: any = {
       number: cleanNumber,
       mediatype: mediaData.mediaType,
-      mediaType: mediaData.mediaType,
-      mimetype: mediaData.mimetype || "application/octet-stream",
+      mimetype: mime,
       caption: mediaData.caption || "",
-      media: cleanMedia,
-      fileName: mediaData.fileName || "archivo"
+      media: pureMedia,
+      fileName
     };
 
-    return await this.request(
+    if (mediaData.gifPlayback) {
+      payload.gifPlayback = true;
+    }
+
+    logger.info(`[Evolution] Enviando sendMedia a ${cleanNumber} (${mediaData.mediaType}): mime=${mime}, isUrl=${isUrl}, mediaLength=${pureMedia.length}`);
+    const res = await this.request(
       companyId,
       `/message/sendMedia/${encodeURIComponent(instanceName)}`,
       "POST",
       payload
     );
+    logger.info(`[Evolution] Respuesta sendMedia de ${cleanNumber}: ${JSON.stringify(res)}`);
+    return res;
   }
 
   /**
@@ -421,33 +520,49 @@ export class EvolutionApiService {
       const companyId = whatsapp.companyId || 1;
 
       let remoteJid = message.remoteJid;
-      if (!remoteJid) {
+      if (!remoteJid || remoteJid.includes("null")) {
         const ticket = message.ticket || await Ticket.findByPk(message.ticketId, { include: ["contact"] });
         remoteJid = ticket?.isGroup ? `${ticket?.contact?.number}@g.us` : `${ticket?.contact?.number}@s.whatsapp.net`;
       }
 
-      const payload = {
+      if (remoteJid?.endsWith("@lid")) {
+        const ticket = message.ticket || await Ticket.findByPk(message.ticketId, { include: ["contact"] });
+        const cleanNumber = ticket?.contact?.number ? ticket.contact.number.replace(/\D/g, "") : "";
+        if (cleanNumber && !ticket?.isGroup) {
+          remoteJid = `${cleanNumber}@s.whatsapp.net`;
+        }
+      }
+
+      const payload: any = {
         id: message.id,
         remoteJid,
-        fromMe: message.fromMe,
-        participant: message.participant
+        fromMe: message.fromMe
       };
 
+      if (message.participant && typeof message.participant === "string" && message.participant.trim() !== "") {
+        payload.participant = message.participant;
+      }
+
+      logger.info(`[Evolution] Solicitando deleteMessageForEveryone para ID: ${message.id} en ${remoteJid}`);
       try {
-        return await this.request(
+        const res = await this.request(
           companyId,
           `/chat/deleteMessageForEveryone/${encodeURIComponent(instanceName)}`,
           "DELETE",
           payload
         );
+        logger.info(`[Evolution] Mensaje ${message.id} revocado para todos con éxito: ${JSON.stringify(res)}`);
+        return res;
       } catch (err: any) {
         logger.warn(`[Evolution] Error en deleteMessageForEveryone (${err?.message}), probando endpoint alternativo...`);
-        return await this.request(
+        const altRes = await this.request(
           companyId,
           `/message/delete/${encodeURIComponent(instanceName)}`,
           "DELETE",
           payload
         );
+        logger.info(`[Evolution] Mensaje ${message.id} eliminado con endpoint alternativo: ${JSON.stringify(altRes)}`);
+        return altRes;
       }
     } catch (err: any) {
       logger.warn(`[Evolution] No se pudo eliminar el mensaje en WhatsApp vía Evolution API: ${err?.message}`);

@@ -25,7 +25,8 @@ import {
   DialogTitle,
   IconButton,
   Paper,
-  InputBase
+  InputBase,
+  CircularProgress
 } from "@material-ui/core";
 import CloseIcon from '@material-ui/icons/Close';
 import CheckCircleIcon from "@material-ui/icons/CheckCircle";
@@ -35,6 +36,7 @@ import { makeStyles, useTheme } from "@material-ui/core";
 import MarkdownWrapper from "../MarkdownWrapper";
 import MoodIcon from "@material-ui/icons/Mood";
 import api from "../../services/api";
+import toastError from "../../errors/toastError";
 
 // 👇 emoji-mart
 import Picker from "@emoji-mart/react";
@@ -108,6 +110,7 @@ const useStyles = makeStyles((theme) => ({
 const EditMessageModal = ({ open, onClose, onSave, message }) => {
   const classes = useStyles();
   const [editedMessage, setEditedMessage] = useState("");
+  const [loading, setLoading] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const emojiOptionsRef = useRef(null);
   const modalRef = useRef(null);
@@ -120,6 +123,7 @@ const EditMessageModal = ({ open, onClose, onSave, message }) => {
 
   const handleSave = async () => {
     if (editedMessage.trim()) {
+      setLoading(true);
       try {
         const updatedMsg = {
           read: 1,
@@ -132,6 +136,9 @@ const EditMessageModal = ({ open, onClose, onSave, message }) => {
         onClose(false);
       } catch (err) {
         console.error("Error al editar el mensaje:", err);
+        toastError(err);
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -218,8 +225,12 @@ const EditMessageModal = ({ open, onClose, onSave, message }) => {
               )}
             </Box>
 
-            <IconButton color="primary" onClick={handleSave}>
-              <CheckCircleIcon style={{ width: 35, height: 35, color: '#00A884' }} />
+            <IconButton color="primary" onClick={handleSave} disabled={loading}>
+              {loading ? (
+                <CircularProgress size={28} style={{ color: '#00A884' }} />
+              ) : (
+                <CheckCircleIcon style={{ width: 35, height: 35, color: '#00A884' }} />
+              )}
             </IconButton>
           </Paper>
         </Box>

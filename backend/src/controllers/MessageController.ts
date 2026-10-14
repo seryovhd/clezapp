@@ -547,17 +547,26 @@ export const edit = async (req: Request, res: Response): Promise<Response> => {
   const { messageId } = req.params;
   const { companyId } = req.user;
   const { body }: MessageData = req.body;
-  const { ticket, message } = await EditWhatsAppMessage({ messageId, body });
 
-  const io = getIO();
-  io.emit(`company-${companyId}-appMessage`, {
-    action: "update",
-    message,
-    ticket: ticket,
-    contact: ticket.contact,
-  });
+  try {
+    const { ticket, message } = await EditWhatsAppMessage({ messageId, body });
 
-  return res.send();
+    const io = getIO();
+    io.to(String(ticket.id))
+      .to(`company-${companyId}-${ticket.status}`)
+      .to(`company-${companyId}-notification`)
+      .emit(`company-${companyId}-appMessage`, {
+        action: "update",
+        message,
+        ticket: ticket,
+        contact: ticket.contact,
+      });
+
+    return res.send();
+  } catch (err: any) {
+    console.error("❌ ERROR EDIT MESSAGE:", err);
+    throw new AppError(err.message || "ERR_EDITING_WAPP_MSG", 400);
+  }
 };
 
 function getMediaTypeFromFile(mimetype: string): string {

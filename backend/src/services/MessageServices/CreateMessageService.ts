@@ -16,7 +16,14 @@ export interface MessageData {
   queueId?: number;
   isForwarded?: boolean;
   // PARCHE MENSAJE PRIVADO 
-  isPrivate?: boolean; 
+  isPrivate?: boolean;
+  dataJson?: string;
+  remoteJid?: string;
+  participant?: string;
+  quotedMsgId?: string;
+  detectedMediaType?: string;
+  isEdited?: boolean;
+  ticketTrakingId?: number;
 }
 interface Request {
   messageData: MessageData;

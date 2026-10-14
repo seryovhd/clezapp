@@ -11,6 +11,14 @@ const store = async (req: Request, res: Response): Promise<Response> => {
   const { companyId } = req.user;
 
   const whatsapp = await ShowWhatsAppService(whatsappId, companyId);
+
+  // Si no está conectado, limpiar sesión en memoria para forzar nuevo QR limpio
+  if (whatsapp.status !== "CONNECTED") {
+    try {
+      await removeWbot(whatsapp.id, false);
+    } catch (err) {}
+  }
+
   StartWhatsAppSession(whatsapp, companyId).catch(err => {
     // Los errores se registran y actualizan en el modelo Whatsapp
   });

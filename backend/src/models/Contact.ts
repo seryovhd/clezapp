@@ -57,6 +57,16 @@ class Contact extends Model<Contact> {
   @Column
   instagramId?: string;
 
+  @AllowNull(true)
+  @Default(null)
+  @Column
+  lid?: string;
+
+  @AllowNull(true)
+  @Default(null)
+  @Column
+  lidWarningAt?: Date;
+
   @CreatedAt
   createdAt: Date;
 

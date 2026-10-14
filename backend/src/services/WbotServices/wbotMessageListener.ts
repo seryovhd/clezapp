@@ -19,6 +19,7 @@ import {
 import Contact from "../../models/Contact";
 import Ticket from "../../models/Ticket";
 import Message from "../../models/Message";
+import ContactCustomField from "../../models/ContactCustomField";
 
 import { getIO } from "../../libs/socket";
 import CreateMessageService from "../MessageServices/CreateMessageService";
@@ -144,18 +145,39 @@ const writeFileAsync = async (path, data) => {
 
 const normalizeLidJid = (msg: proto.IWebMessageInfo): string => {
   const msgWithAny = msg as any;
-  
+
   if (msg.key.remoteJid?.endsWith('@lid') && msgWithAny.key?.remoteJidAlt) {
     console.log(`Normalizando LID: ${msg.key.remoteJid} -> ${msgWithAny.key.remoteJidAlt}`);
     return msgWithAny.key.remoteJidAlt;
   }
-  
+
   if (msgWithAny.key?.senderPn) {
     console.log(`Usando senderPn: ${msgWithAny.key.senderPn}`);
     return msgWithAny.key.senderPn;
   }
-  
+
   return msg.key.remoteJid;
+};
+
+// Caché en memoria para evitar enviar múltiples advertencias de @alias al mismo LID en corto tiempo
+const lidWarningCache = new Map<string, number>();
+
+// Detecta si un mensaje entrante proviene de un usuario con @alias (LID puro) sin número real
+const isPureLid = (msg: proto.IWebMessageInfo): boolean => {
+  if (msg.key.fromMe) return false;
+  const rawJid = msg.key.remoteJid || "";
+  if (rawJid.endsWith("@g.us")) return false; // Los grupos no son LIDs personales
+
+  const isLid = rawJid.endsWith("@lid") || (rawJid.replace(/\D/g, "").length >= 15 && !rawJid.includes("@s.whatsapp.net"));
+  if (!isLid) return false;
+
+  const msgWithAny = msg as any;
+  const hasRealAlt = !!(
+    (msgWithAny.key?.remoteJidAlt && !msgWithAny.key.remoteJidAlt.endsWith("@lid")) ||
+    (msgWithAny.key?.senderPn && !msgWithAny.key.senderPn.endsWith("@lid"))
+  );
+
+  return !hasRealAlt;
 };
 
 const debugEncryptedMessage = (msg: proto.IWebMessageInfo, functionName: string) => {
@@ -173,7 +195,7 @@ const getTypeMessage = (msg: proto.IWebMessageInfo): string => {
   if (contentType === "senderKeyDistributionMessage") {
     return "system:senderKey";
   }
-  
+
   if (msg.message && "enc" in msg.message) {
     return "encryptedMessage";
   }
@@ -581,7 +603,7 @@ const getSenderMessage = (
 
   const msgWithAny = msg as any;
   const normalizedJid = normalizeLidJid(msg);
-  
+
   let senderId = msg.participant || msg.key.participant || normalizedJid || undefined;
 
   if (msgWithAny.key?.senderPn) {
@@ -595,7 +617,7 @@ const getSenderMessage = (
 const getContactMessage = async (msg: proto.IWebMessageInfo, wbot: Session) => {
   const normalizedJid = normalizeLidJid(msg);
   const isGroup = normalizedJid.includes("g.us");
-  
+
   const msgWithAny = msg as any;
   let senderId = msg.participant || msg.key.participant || normalizedJid || undefined;
 
@@ -662,9 +684,10 @@ const verifyContact = async (
   companyId: number
 ): Promise<Contact> => {
   let profilePicUrl: string;
-  
-  const cleanNumber = msgContact.id.endsWith('@lid') 
-    ? msgContact.id.replace('@lid', '') 
+
+  const isLid = msgContact.id.endsWith('@lid') || (msgContact.id.replace(/\D/g, "").length >= 15 && !msgContact.id.includes('@s.whatsapp.net'));
+  const cleanNumber = isLid
+    ? msgContact.id.replace('@lid', '')
     : msgContact.id;
 
   try {
@@ -680,7 +703,8 @@ const verifyContact = async (
     profilePicUrl,
     isGroup: msgContact.id.includes("g.us"),
     companyId,
-    whatsappId: wbot.id
+    whatsappId: wbot.id,
+    lid: isLid ? cleanNumber.replace(/\D/g, "") : undefined
   };
 
   const contact = CreateOrUpdateContactService(contactData);
@@ -2386,27 +2410,27 @@ const handleMessage = async (
   // También pueden venir con messageStubType === REVOKE
   // Nota: En algunos casos el type puede venir como string "REVOKE" en el JSON serializado
   const protocolType = msg.message?.protocolMessage?.type;
-  const isRevokeMessage = 
-    protocolType === 0 || 
+  const isRevokeMessage =
+    protocolType === 0 ||
     (typeof protocolType === 'string' && protocolType === "REVOKE") ||
     msg.messageStubType === WAMessageStubType.REVOKE;
-  
+
   if (isRevokeMessage) {
     console.log("🔍 [DELETE] Mensaje eliminado detectado:", {
       protocolType: msg.message?.protocolMessage?.type,
       messageStubType: msg.messageStubType,
       key: msg.message?.protocolMessage?.key
     });
-    
+
     const deletedMsgId = msg.message?.protocolMessage?.key?.id;
-    
+
     if (!deletedMsgId) {
       console.log("⚠️ [DELETE] No se encontró el ID del mensaje eliminado en protocolMessage.key.id");
       return;
     }
-    
+
     console.log("🔍 [DELETE] Buscando mensaje con ID:", deletedMsgId);
-    
+
     const deletedMsg = await Message.findOne({
       where: { id: deletedMsgId },
       include: [
@@ -2427,7 +2451,7 @@ const handleMessage = async (
       });
       // Preservar el body original si existe, de lo contrario usar el mensaje por defecto
       const originalBody = deletedMsg.body && deletedMsg.body.trim() !== "" ? deletedMsg.body : "*Este mensaje fue eliminado*";
-      
+
       await deletedMsg.update({
         body: originalBody,
         isDeleted: true
@@ -2447,7 +2471,7 @@ const handleMessage = async (
 
       // Obtener el ticket para saber el companyId
       const ticket = await Ticket.findByPk(deletedMsg.ticketId);
-      
+
       if (ticket) {
         // Emitir evento de socket para notificar al frontend
         const io = getIO();
@@ -2456,7 +2480,7 @@ const handleMessage = async (
             action: "update",
             message: deletedMsg
           });
-        
+
         console.log("✅ Mensaje marcado como eliminado y notificado al frontend:", deletedMsgId);
       } else {
         console.log("⚠️ Mensaje marcado como eliminado pero no se encontró el ticket:", deletedMsgId);
@@ -2496,6 +2520,8 @@ const handleMessage = async (
 
     const normalizedJid = normalizeLidJid(msg);
     const isGroup = normalizedJid?.endsWith("@g.us");
+
+    // Normalizar JID si es LID
 
     const msgIsGroupBlock = await Setting.findOne({
       where: {
@@ -2542,87 +2568,154 @@ const handleMessage = async (
     }
 
     const whatsapp = await ShowWhatsAppService(wbot.id!, companyId);
-    const contact = await verifyContact(msgContact, wbot, companyId);
+    let contact = await verifyContact(msgContact, wbot, companyId);
 
-    // Si el contacto es un LID, buscar si existe un contacto con ese número LID
-    // o si existe un contacto relacionado que pueda ser el mismo
-    if (contact.number.includes('@lid') || msgContact.id?.endsWith('@lid')) {
-      const lidNumber = contact.number.replace('@lid', '').replace(/\D/g, '');
-      
-      // PRIMERO: Buscar contacto con el número LID
-      let existingContact = await Contact.findOne({
-        where: { 
-          number: lidNumber,
-          companyId 
-        },
-        order: [['updatedAt', 'DESC']] // El más reciente primero
-      });
-      
-      // SEGUNDO: Si no se encuentra, buscar contactos relacionados recientemente
-      // (contactos creados en los últimos 5 minutos que puedan estar relacionados)
-      if (!existingContact) {
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-        
-        // Buscar contactos creados recientemente con el mismo nombre o similares
-        const recentContacts = await Contact.findAll({
-          where: {
-            companyId,
-            createdAt: {
-              [Op.gte]: fiveMinutesAgo
-            },
-            name: {
-              [Op.like]: `%${contact.name}%`
-            }
-          },
-          order: [['createdAt', 'DESC']],
-          limit: 5
-        });
-        
-        if (recentContacts.length > 0) {
-          // Usar el contacto más reciente que no sea un LID
-          existingContact = recentContacts.find(c => !c.number.includes('@lid') && c.number !== lidNumber) || recentContacts[0];
-          console.log(`✅ Contacto relacionado encontrado recientemente: ${existingContact.number}`);
-        }
+    // Si el contacto proviene de un LID (@alias), o tiene LID guardado
+    const rawJid = msg.key.remoteJid || msgContact?.id || "";
+    const isLidContact = contact.number.includes('@lid') || 
+                         rawJid.includes('@lid') || 
+                         contact.number.length >= 15 || 
+                         !!contact.lid;
+
+    if (isLidContact) {
+      const lidFromJid = rawJid.includes('@lid') ? rawJid.replace('@lid', '').replace(/\D/g, '') : "";
+      const lidNumber = contact.lid || lidFromJid || (contact.number.length >= 15 ? contact.number.replace(/\D/g, '') : "");
+
+      // Intentar obtener el número real del mensaje si viene en metadatos
+      const msgWithAny = msg as any;
+      let detectedRealNumber = "";
+      if (msgWithAny.key?.senderPn) {
+        detectedRealNumber = msgWithAny.key.senderPn.replace('@s.whatsapp.net', '').replace(/\D/g, '');
+      } else if (msgWithAny.key?.remoteJidAlt && !msgWithAny.key.remoteJidAlt.endsWith('@lid')) {
+        detectedRealNumber = msgWithAny.key.remoteJidAlt.replace('@s.whatsapp.net', '').replace(/\D/g, '');
       }
-      
-      // TERCERO: Intentar obtener el número real del mensaje si está disponible
-      if (!existingContact) {
-        const msgWithAny = msg as any;
-        if (msgWithAny.key?.senderPn) {
-          const realNumber = msgWithAny.key.senderPn.replace('@s.whatsapp.net', '').replace(/\D/g, '');
-          existingContact = await Contact.findOne({
-            where: { 
-              number: realNumber,
-              companyId 
-            }
-          });
-          
-          if (existingContact) {
-            console.log(`✅ Contacto encontrado por número real (LID): ${existingContact.number}`);
+
+      // Si el cliente respondió escribiendo su número de teléfono en el mensaje de texto
+      if (!detectedRealNumber && !msg.key.fromMe && bodyMessage) {
+        const cleanDigits = bodyMessage.replace(/[\s\-\(\)\+]/g, "").trim();
+        const phoneMatch = cleanDigits.match(/\b(\d{9,14})\b/) || bodyMessage.replace(/[\s\-\(\)]/g, "").match(/(?:\+)?(\d{9,14})/);
+        const candidate = phoneMatch ? (phoneMatch[1] || phoneMatch[0]) : "";
+        if (candidate && candidate !== lidNumber && candidate.length >= 9 && candidate.length <= 14) {
+          detectedRealNumber = candidate;
+          logger.info(`📱 [LID -> JID] Número real detectado en el texto del mensaje para contacto LID ${lidNumber}: ${candidate}`);
+
+          // Enviar confirmación al usuario
+          const confirmNotice = `✅ ¡Muchas gracias! Tu número *${candidate}* ha sido registrado correctamente en tu ficha de cliente.`;
+          try {
+            await wbot.sendMessage(msg.key.remoteJid!, { text: confirmNotice }, { quoted: msg as any });
+          } catch (eNotice) {
+            logger.error("Error enviando confirmación de número:", eNotice);
           }
         }
       }
-      
-      if (existingContact) {
-        console.log(`✅ Usando contacto existente en lugar de LID: ${existingContact.number}`);
-        
-        // Si el contacto existente tiene un número real (no LID), actualizar el contacto LID
-        if (existingContact.number !== lidNumber && !existingContact.number.includes('@lid')) {
-          // Actualizar el contacto LID para que use el número real
-          await contact.update({ 
-            number: existingContact.number,
-            name: contact.name !== 'Contacto WhatsApp' && contact.name !== 'Contacto LinkedIn' ? contact.name : existingContact.name
+
+      if (detectedRealNumber) {
+        const existingRealContact = await Contact.findOne({
+          where: {
+            number: detectedRealNumber,
+            companyId
+          }
+        });
+
+        if (existingRealContact && existingRealContact.id !== contact.id) {
+          logger.info(`✅ [LID -> JID] Fusionando contacto LID ${contact.id} (${contact.number}) en contacto real ${existingRealContact.id} (${existingRealContact.number})`);
+          await Ticket.update({ contactId: existingRealContact.id }, { where: { contactId: contact.id } });
+          await Message.update({ contactId: existingRealContact.id }, { where: { contactId: contact.id } });
+          await existingRealContact.update({ lid: lidNumber });
+          contact = existingRealContact;
+        } else {
+          logger.info(`✅ [LID -> JID] Actualizando número del contacto LID ${contact.id} de ${contact.number} a número real ${detectedRealNumber}`);
+          await contact.update({
+            number: detectedRealNumber,
+            lid: lidNumber,
+            name: contact.name !== 'Contacto WhatsApp' && contact.name !== 'Contacto LinkedIn' ? contact.name : detectedRealNumber
           });
-          contact.number = existingContact.number;
+          contact.number = detectedRealNumber;
+          contact.lid = lidNumber;
         }
-        
-        Object.assign(contact, existingContact);
+
+        // Guardar en campos adicionales visibles en el panel lateral del chat
+        try {
+          const [customFieldLid] = await ContactCustomField.findOrCreate({
+            where: { contactId: contact.id, name: "LID WhatsApp" },
+            defaults: { contactId: contact.id, name: "LID WhatsApp", value: lidNumber }
+          });
+          if (customFieldLid && customFieldLid.value !== lidNumber) {
+            await customFieldLid.update({ value: lidNumber });
+          }
+
+          const [customFieldPhone] = await ContactCustomField.findOrCreate({
+            where: { contactId: contact.id, name: "Número Vinculado" },
+            defaults: { contactId: contact.id, name: "Número Vinculado", value: detectedRealNumber }
+          });
+          if (customFieldPhone && customFieldPhone.value !== detectedRealNumber) {
+            await customFieldPhone.update({ value: detectedRealNumber });
+          }
+
+          // Emitir actualización en tiempo real por socket para que el frontend refresque la ficha del contacto al instante
+          const io = getIO();
+          await contact.reload({ include: ["extraInfo"] });
+          io.to(`company-${companyId}-mainchannel`).emit(`company-${companyId}-contact`, {
+            action: "update",
+            contact
+          });
+        } catch (eField) {}
       } else {
-        // Si no se encuentra, actualizar el contacto LID para que no tenga @lid en el número
+        // Asegurar que el LID esté guardado en contact.lid
+        if (!contact.lid && lidNumber) {
+          await contact.update({ lid: lidNumber });
+          contact.lid = lidNumber;
+        }
+
         if (contact.number.includes('@lid')) {
-          const cleanLidNumber = contact.number.replace('@lid', '').replace(/\D/g, '');
-          await contact.update({ number: cleanLidNumber });
-          contact.number = cleanLidNumber;
+          await contact.update({ number: lidNumber });
+          contact.number = lidNumber;
+        }
+
+        if (lidNumber) {
+          try {
+            await ContactCustomField.findOrCreate({
+              where: { contactId: contact.id, name: "LID WhatsApp" },
+              defaults: { contactId: contact.id, name: "LID WhatsApp", value: lidNumber }
+            });
+          } catch (eField) {}
+        }
+
+        // ✅ REGLA EXACTA:
+        // 1. Si ya registró su número: NO ENVIAR NUNCA MÁS el mensaje de advertencia.
+        // 2. Si NO ha registrado número: solo enviar UNA VEZ.
+        // 3. Si pasan 24 horas y el cliente VUELVE A ESCRIBIR sin haber registrado número, volver a enviar (solo cuando escriba, nunca automáticamente).
+        const hasRealNumber = Boolean(
+          contact.number &&
+          contact.number.length >= 8 &&
+          contact.number.length <= 14 &&
+          !contact.number.includes('@lid') &&
+          contact.number !== lidNumber
+        );
+
+        if (!hasRealNumber && !msg.key.fromMe && !isGroup) {
+          const now = Date.now();
+          const lastWarningTime = contact.lidWarningAt ? new Date(contact.lidWarningAt).getTime() : 0;
+          const twentyFourHours = 24 * 60 * 60 * 1000;
+
+          if (!contact.lidWarningAt || (now - lastWarningTime > twentyFourHours)) {
+            await contact.update({ lidWarningAt: new Date(now) });
+            contact.lidWarningAt = new Date(now);
+
+            const warningText = `¡Hola! Verficamos que usas *@alias*. Por favor, brindanos tu número de WhatsApp para registrar tu ficha de cliente incluir el código de país:\n_Ejem: *51920383448*_`;
+            try {
+              await wbot.sendMessage(
+                msg.key.remoteJid!,
+                { text: warningText },
+                { quoted: msg as any }
+              );
+              logger.info(`📢 [LID] Mensaje de advertencia enviado a ${msg.key.remoteJid}. Próximo aviso solo si vuelve a escribir después de 24 horas sin haber puesto número.`);
+            } catch (errWarning) {
+              logger.error(`Error enviando advertencia a ${msg.key.remoteJid}:`, errWarning);
+            }
+          } else {
+            logger.info(`ℹ️ [LID] Cliente ${msg.key.remoteJid} aún no registra número, pero ya se le envió aviso hace menos de 24h. No se reenvía.`);
+          }
         }
       }
     }
@@ -3480,8 +3573,15 @@ const wbotMessageListener = async (
     wbot.ev.on("messages.upsert", async (messageUpsert: ImessageUpsert) => {
       try {
         if (messageUpsert.type === "append") {
-          // Ignorar mensajes históricos sincronizados al conectar la sesión
-          return;
+          // Ignorar mensajes históricos sincronizados al conectar la sesión (antigüedad > 120s)
+          const nowSec = Math.floor(Date.now() / 1000);
+          const hasRecent = messageUpsert.messages.some(m => {
+            const ts = typeof m.messageTimestamp === "number" ? m.messageTimestamp : Number(m.messageTimestamp || 0);
+            return (nowSec - ts) < 120;
+          });
+          if (!hasRecent) {
+            return;
+          }
         }
 
         const modifiedMessages = messageUpsert.messages.map(msg => {
@@ -3495,7 +3595,7 @@ const wbotMessageListener = async (
             };
             return modifiedMsg;
           }
-          
+
           if (messageWithAny.key?.senderPn) {
             const modifiedMsg = { ...msg };
             modifiedMsg.key = {
@@ -3504,7 +3604,7 @@ const wbotMessageListener = async (
             };
             return modifiedMsg;
           }
-          
+
           return msg;
         });
 
@@ -3555,7 +3655,7 @@ const wbotMessageListener = async (
             // No filtrar, permitir que pase para procesar el mensaje eliminado
             return true;
           }
-          
+
           if (msg.messageStubType && [5, 6, 7, 8, 9].includes(msg.messageStubType as number)) {
             return false;
           }

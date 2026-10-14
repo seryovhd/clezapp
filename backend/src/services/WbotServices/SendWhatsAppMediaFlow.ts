@@ -153,8 +153,15 @@ const SendWhatsAppMediaFlow = async ({
       }
     });
 
+    const cleanLid = contact.lid ? contact.lid.replace(/\D/g, "") : "";
+    const cleanDestNumber = contact.number.replace(/@.*$/, "").replace(/\D/g, "");
+    const isLid = !ticket.isGroup && (cleanDestNumber.length >= 15 || contact.number.endsWith("@lid") || !!cleanLid);
+    const finalJid = ticket.isGroup
+      ? `${contact.number}@g.us`
+      : (isLid ? `${cleanLid || cleanDestNumber}@lid` : `${cleanDestNumber}@s.whatsapp.net`);
+
     const sentMessage = await wbot.sendMessage(
-      `${contact.number}@${ticket.isGroup ? "g.us" : "s.whatsapp.net"}`,
+      finalJid,
       {
         ...options
       }

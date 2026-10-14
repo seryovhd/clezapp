@@ -16,9 +16,11 @@ const SetTicketMessagesAsRead = async (ticket: Ticket): Promise<void> => {
       await ticket.$get("whatsapp");
     }
 
-    // ✅ NO INTENTAR MARCAR COMO LEÍDO PARA BUSINESS API O FACEBOOK
+    // ✅ NO INTENTAR MARCAR COMO LEÍDO CON GetTicketWbot PARA BUSINESS API, FACEBOOK O EVOLUTION API
     if (ticket.whatsapp?.type === "whatsapp_business" || 
-        ticket.whatsapp?.type === "facebook_messenger") {
+        ticket.whatsapp?.type === "facebook_messenger" ||
+        ticket.whatsapp?.type === "evolution" ||
+        ticket.whatsapp?.connectionType === "evolution") {
       
       await Message.update(
         { read: true },
@@ -39,7 +41,7 @@ const SetTicketMessagesAsRead = async (ticket: Ticket): Promise<void> => {
       return;
     }
 
-    // ✅ SOLO WHATSAPP-WEB.JS USA GetTicketWbot
+    // ✅ SOLO WHATSAPP-WEB.JS (BAILEYS) USA GetTicketWbot
     const wbot = await GetTicketWbot(ticket);
 
     const getJsonMessage = await Message.findAll({

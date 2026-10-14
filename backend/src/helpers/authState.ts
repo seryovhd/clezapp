@@ -25,33 +25,52 @@ const authState = async (
   let creds: AuthenticationCreds;
   let keys: any = {};
 
-  // ✅ GUARDADO ROBUSTO CON REINTENTOS
-  const saveState = async () => {
-    const maxRetries = 3;
-    let retries = 0;
+  let saveTimeout: NodeJS.Timeout | null = null;
+  let isSaving = false;
+  let hasPendingChanges = false;
 
-    while (retries < maxRetries) {
-      try {
-        const sessionData = JSON.stringify({ creds, keys }, BufferJSON.replacer, 0);
+  // ✅ GUARDADO ROBUSTO CON DEBOUNCE (Evita saturar heap de memoria con JSON.stringify masivos)
+  const doSave = async () => {
+    if (isSaving) {
+      hasPendingChanges = true;
+      return;
+    }
 
-        await whatsapp.update({
-          session: sessionData
-        });
+    isSaving = true;
+    hasPendingChanges = false;
 
-        logger.info(`✅ Sesión guardada para WhatsApp: ${whatsapp.name}`);
-        break; // Éxito, salir del loop
-      } catch (error) {
-        retries++;
-        logger.error(`⚠️ Error guardando sesión (intento ${retries}/${maxRetries}):`, error);
+    try {
+      const sessionData = JSON.stringify({ creds, keys }, BufferJSON.replacer, 0);
 
-        if (retries === maxRetries) {
-          logger.error('❌ No se pudo guardar la sesión después de múltiples intentos');
-        } else {
-          // Esperar antes de reintentar
-          await new Promise(resolve => setTimeout(resolve, 1000 * retries));
-        }
+      await whatsapp.update({
+        session: sessionData
+      });
+
+      logger.info(`✅ Sesión guardada para WhatsApp: ${whatsapp.name}`);
+    } catch (error) {
+      logger.error(`⚠️ Error guardando sesión para ${whatsapp.name}:`, error);
+    } finally {
+      isSaving = false;
+      if (hasPendingChanges) {
+        hasPendingChanges = false;
+        scheduleSave(1000);
       }
     }
+  };
+
+  const scheduleSave = (delay = 2000) => {
+    hasPendingChanges = true;
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+    }
+    saveTimeout = setTimeout(() => {
+      saveTimeout = null;
+      doSave().catch(err => logger.error("Error en doSave:", err));
+    }, delay);
+  };
+
+  const saveState = () => {
+    scheduleSave(2000);
   };
 
   // ✅ CARGA DE SESIÓN CON VALIDACIÓN
@@ -103,10 +122,8 @@ const authState = async (
             keys[key] = keys[key] || {};
             Object.assign(keys[key], data[i]);
           }
-          // ✅ GUARDADO ASINCRÓNICO SIN BLOQUEAR
-          saveState().catch(error => {
-            logger.error('Error en guardado asíncrono:', error);
-          });
+          // Debounced save para evitar leak de memoria y freeze
+          scheduleSave(2500);
         }
       }
     },

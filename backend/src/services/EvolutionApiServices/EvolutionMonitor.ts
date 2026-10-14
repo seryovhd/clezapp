@@ -1,4 +1,5 @@
 import Whatsapp from "../../models/Whatsapp";
+import Ticket from "../../models/Ticket";
 import { getIO } from "../../libs/socket";
 import { logger } from "../../utils/logger";
 import EvolutionApiService from "./EvolutionApiService";
@@ -9,7 +10,7 @@ import { WAMessage } from "@whiskeysockets/baileys";
 class EvolutionMonitorService {
   private timer: NodeJS.Timeout | null = null;
   private isChecking = false;
-  private lastPolledTimestamp: number = Math.floor(Date.now() / 1000) - 300;
+  private lastPolledTimestamp: number = Math.floor(Date.now() / 1000) - 5;
   private processedMessageIds: Set<string> = new Set();
   private deletedMessageIds: Set<string> = new Set();
 
@@ -173,12 +174,23 @@ class EvolutionMonitorService {
       const records = res?.messages?.records || res?.records || [];
       if (!Array.isArray(records) || records.length === 0) return;
 
+      const cleanWappNumber = whatsapp.number ? whatsapp.number.replace(/\D/g, "") : "";
       const fakeSession: any = {
         id: whatsapp.id,
         type: "evolution",
+        user: {
+          id: cleanWappNumber ? `${cleanWappNumber}@s.whatsapp.net` : "bot@s.whatsapp.net",
+          name: whatsapp.name || "Clezapp"
+        },
+        presenceSubscribe: async () => {},
+        sendPresenceUpdate: async () => {},
+        groupMetadata: async (jid: string) => ({ id: jid, subject: "Grupo" }),
         sendMessage: async (jid: string, content: any, options: any) => {
+          if (!content) return;
+          const destination = jid;
+
           if (content.text) {
-            return await EvolutionApiService.sendTextMessage(whatsapp, jid, content.text, {
+            return await EvolutionApiService.sendTextMessage(whatsapp, destination, content.text, {
               quotedMessageId: options?.quoted?.key?.id
             });
           } else if (content.image || content.video || content.audio || content.document) {
@@ -195,12 +207,13 @@ class EvolutionMonitorService {
             } else {
               media = content.image?.url || content.video?.url || content.audio?.url || content.document?.url || content.image || content.video || content.audio || content.document;
             }
-            return await EvolutionApiService.sendMediaMessage(whatsapp, jid, {
+            return await EvolutionApiService.sendMediaMessage(whatsapp, destination, {
               media,
               mediaType: mediaType as any,
               caption: content.caption,
               mimetype: content.mimetype,
-              fileName: content.fileName
+              fileName: content.fileName || (mediaType === "video" && content.gifPlayback ? "animation.mp4" : undefined),
+              gifPlayback: !!content.gifPlayback
             });
           }
         }
@@ -235,8 +248,48 @@ class EvolutionMonitorService {
           where: { id: messageId, companyId }
         });
 
+        // Verificar si Evolution API reporta el mensaje como eliminado (deleted: true, message: null o status DELETED)
+        const isDeletedInEvolution =
+          item.key?.deleted === true ||
+          item.message === null ||
+          (item.status || "").toString().toUpperCase() === "DELETED" ||
+          (Array.isArray(item.MessageUpdate) &&
+            item.MessageUpdate.some(
+              (u: any) => (u.status || "").toString().toUpperCase() === "DELETED"
+            ));
+
         if (existingMsg) {
-          if (existingMsg.ack < calculatedAck) {
+          if (isDeletedInEvolution && !existingMsg.isDeleted) {
+            if (!existingMsg.contactId && existingMsg.ticketId) {
+              const t = await Ticket.findByPk(existingMsg.ticketId);
+              if (t?.contactId) {
+                await existingMsg.update({ contactId: t.contactId });
+              }
+            }
+            await existingMsg.update({ isDeleted: true });
+            await existingMsg.reload({
+              include: [
+                "contact",
+                {
+                  model: Message,
+                  as: "quotedMsg",
+                  include: ["contact"]
+                }
+              ]
+            });
+            if (!existingMsg.contact && existingMsg.ticketId) {
+              const t = await Ticket.findByPk(existingMsg.ticketId, { include: ["contact"] });
+              if (t?.contact) {
+                (existingMsg as any).contact = t.contact;
+              }
+            }
+            const io = getIO();
+            io.to(existingMsg.ticketId.toString()).emit(`company-${companyId}-appMessage`, {
+              action: "update",
+              message: existingMsg
+            });
+            logger.info(`[Evolution Monitor] Mensaje ${messageId} detectado como eliminado en WhatsApp. Actualizado en Clezapp.`);
+          } else if (existingMsg.ack < calculatedAck) {
             await existingMsg.update({ ack: calculatedAck });
             const io = getIO();
             io.to(existingMsg.ticketId.toString()).emit(`company-${companyId}-appMessage`, {
@@ -248,20 +301,90 @@ class EvolutionMonitorService {
           continue;
         }
 
+        // Si el mensaje es un ProtocolMessage de tipo REVOKE recibido desde el receptor
+        const protocolType = item.message?.protocolMessage?.type;
+        const targetDeletedId = item.message?.protocolMessage?.key?.id;
+        const isRevokeType = protocolType === 0 || protocolType === "REVOKE" || protocolType === "revoke" || item.messageStubType === 1;
+
+        if (targetDeletedId && isRevokeType) {
+          const targetMsg = await Message.findOne({
+            where: { id: targetDeletedId, companyId },
+            include: [
+              "contact",
+              {
+                model: Message,
+                as: "quotedMsg",
+                include: ["contact"]
+              }
+            ]
+          });
+
+          if (targetMsg && !targetMsg.isDeleted) {
+            if (!targetMsg.contactId && targetMsg.ticketId) {
+              const t = await Ticket.findByPk(targetMsg.ticketId);
+              if (t?.contactId) {
+                await targetMsg.update({ contactId: t.contactId });
+              }
+            }
+            await targetMsg.update({ isDeleted: true });
+            await targetMsg.reload({
+              include: [
+                "contact",
+                {
+                  model: Message,
+                  as: "quotedMsg",
+                  include: ["contact"]
+                }
+              ]
+            });
+            if (!targetMsg.contact && targetMsg.ticketId) {
+              const t = await Ticket.findByPk(targetMsg.ticketId, { include: ["contact"] });
+              if (t?.contact) {
+                (targetMsg as any).contact = t.contact;
+              }
+            }
+            const io = getIO();
+            io.to(targetMsg.ticketId.toString()).emit(`company-${companyId}-appMessage`, {
+              action: "update",
+              message: targetMsg
+            });
+            logger.info(`[Evolution Monitor] Mensaje ${targetDeletedId} revocado por el contacto. Notificado al frontend.`);
+          }
+          this.processedMessageIds.add(messageId);
+          continue;
+        }
+
+        if (isDeletedInEvolution) {
+          this.processedMessageIds.add(messageId);
+          continue;
+        }
+
         // Si el mensaje fue explícitamente eliminado por el usuario o ya fue procesado, NUNCA recrearlo
         if (this.deletedMessageIds.has(messageId) || this.processedMessageIds.has(messageId)) {
           continue;
         }
 
-        // Solo procesar como nuevo si es un mensaje entrante (!fromMe) y su fecha es reciente (>= lastPolledTimestamp)
+        // Procesar tanto mensajes entrantes como salientes (enviados desde el móvil o WhatsApp Web)
         const msgTimestamp = item.messageTimestamp || 0;
-        if (!item.key.fromMe && msgTimestamp >= this.lastPolledTimestamp) {
+        if (msgTimestamp >= this.lastPolledTimestamp) {
           this.processedMessageIds.add(messageId);
           item.status = calculatedAck;
-          logger.info(`[Evolution Monitor] Nuevo mensaje entrante ID ${messageId} desde ${item.key.remoteJid}: "${item.message?.conversation || item.message?.extendedTextMessage?.text || 'media'}"`);
+
+          // Normalizar JID si viene con LID pero contiene remoteJidAlt o senderPn
+          const itemAny = item as any;
+          if (item.key?.remoteJid?.endsWith('@lid')) {
+            if (itemAny.key?.remoteJidAlt && !itemAny.key.remoteJidAlt.endsWith('@lid')) {
+              item.key.remoteJid = itemAny.key.remoteJidAlt;
+            } else if (itemAny.senderPn && !itemAny.senderPn.endsWith('@lid')) {
+              item.key.remoteJid = itemAny.senderPn.includes('@') ? itemAny.senderPn : `${itemAny.senderPn}@s.whatsapp.net`;
+            }
+          }
+
+          const direction = item.key.fromMe ? "saliente (móvil/web)" : "entrante";
+          logger.info(`[Evolution Monitor] Nuevo mensaje ${direction} ID ${messageId} en ${item.key.remoteJid}: "${item.message?.conversation || item.message?.extendedTextMessage?.text || 'media'}"`);
           await handleMessage(item as WAMessage, fakeSession, companyId);
         } else {
-          // Es un mensaje histórico antiguo o saliente: marcarlo para no reevaluarlo
+          // Es un mensaje histórico antiguo: marcarlo para no reevaluarlo
           this.processedMessageIds.add(messageId);
         }
       }

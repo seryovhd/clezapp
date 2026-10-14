@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useRef } from "react";
 import { makeStyles } from "@material-ui/core/styles";
 import List from "@material-ui/core/List";
 import Paper from "@material-ui/core/Paper";
@@ -68,10 +68,13 @@ const TicketsListCustom = (props) => {
   const [loading, setLoading] = useState(false);
   const { user } = useContext(AuthContext);
   const socketManager = useContext(SocketContext);
+  const socketReloadTimer = useRef(null);
 
-  // CARGA MANUAL DE TICKETS
-  const loadTickets = async (page = 1, shouldReset = true) => {
-    setLoading(true);
+  // CARGA DE TICKETS (Permite modo silencioso para evitar parpadeos / flash)
+  const loadTickets = async (page = 1, shouldReset = true, isSilent = false) => {
+    if (!isSilent) {
+      setLoading(true);
+    }
 
     try {
       const params = {
@@ -103,26 +106,6 @@ const TicketsListCustom = (props) => {
 
       const { data } = await api.get("/tickets", { params });
 
-      // DEBUG: Mostrar información de los tickets recibidos
-      //console.log("=== DEBUG TICKETS LIST ===");
-      //console.log("Status filtrado:", status);
-      //console.log("Total tickets recibidos:", data.tickets?.length || 0);
-      //console.log("Tickets recibidos:", data.tickets);
-      
-/*       if (data.tickets && data.tickets.length > 0) {
-        data.tickets.forEach(ticket => {
-          console.log(`Ticket ${ticket.id}:`, {
-            id: ticket.id,
-            contact: ticket.contact?.name,
-            status: ticket.status,
-            isGroup: ticket.isGroup,
-            userId: ticket.userId,
-            whatsappId: ticket.whatsappId,
-            whatsappName: ticket.whatsapp?.name
-          });
-        });
-      } */
-
       if (shouldReset) {
         setTicketsList(data.tickets || []);
       } else {
@@ -138,47 +121,96 @@ const TicketsListCustom = (props) => {
       }
       setHasMore(false);
     } finally {
-      setLoading(false);
+      if (!isSilent) {
+        setLoading(false);
+      }
     }
   };
 
   // CARGA INICIAL Y AL CAMBIAR DEPENDENCIAS
   useEffect(() => {
     setPageNumber(1);
-    loadTickets(1, true);
+    loadTickets(1, true, false);
   }, [status, selectedQueueIds, showAll, searchParam, tags, users, dateRange]);
 
   // CARGA MÁS TICKETS CUANDO CAMBIA pageNumber
   useEffect(() => {
     if (pageNumber > 1) {
-      loadTickets(pageNumber, false);
+      loadTickets(pageNumber, false, false);
     }
   }, [pageNumber]);
 
-  // LISTENERS DE SOCKET PARA ACTUALIZACIONES EN TIEMPO REAL
+  // LISTENERS DE SOCKET PARA ACTUALIZACIONES EN TIEMPO REAL (ESTILO WHATSAPP WEB)
   useEffect(() => {
     const companyId = localStorage.getItem("companyId");
     const socket = socketManager.getSocket(companyId);
 
     const handleSocketEvent = (data) => {
-      loadTickets(1, true);
+      // 1. Actualización reactiva instantánea en memoria
+      if (data?.ticket) {
+        setTicketsList((prev) => {
+          const ticket = data.ticket;
+          const isGroupTicket = ticket.isGroup === true || ticket.isGroup === "true";
+          if (isGroupTicket) return prev;
+
+          const existsIndex = prev.findIndex((t) => t.id === ticket.id);
+
+          // Si el ticket cambió a otro estado (por ejemplo, cerrado o resuelto), remover de este tab
+          if (status && ticket.status !== status) {
+            if (existsIndex !== -1) {
+              const updated = [...prev];
+              updated.splice(existsIndex, 1);
+              return updated;
+            }
+            return prev;
+          }
+
+          // Si ya existe en la lista, actualizar sus datos in-place
+          if (existsIndex !== -1) {
+            const updated = [...prev];
+            updated[existsIndex] = { ...updated[existsIndex], ...ticket };
+            // Si llegó un nuevo mensaje, subirlo a la cabecera suavemente
+            if (data.action === "create" || data.message) {
+              const [movedItem] = updated.splice(existsIndex, 1);
+              updated.unshift(movedItem);
+            }
+            return updated;
+          }
+
+          // Si es un ticket nuevo de este mismo status, insertarlo arriba
+          if (!status || ticket.status === status) {
+            return [ticket, ...prev];
+          }
+
+          return prev;
+        });
+      }
+
+      // 2. Sincronización silenciosa en background (sin loader visual ni parpadeos)
+      if (socketReloadTimer.current) {
+        clearTimeout(socketReloadTimer.current);
+      }
+      socketReloadTimer.current = setTimeout(() => {
+        loadTickets(1, true, true);
+      }, 400);
     };
 
     socket.on(`company-${companyId}-ticket`, handleSocketEvent);
     socket.on(`company-${companyId}-appMessage`, handleSocketEvent);
 
     return () => {
+      if (socketReloadTimer.current) {
+        clearTimeout(socketReloadTimer.current);
+      }
       socket.off(`company-${companyId}-ticket`, handleSocketEvent);
       socket.off(`company-${companyId}-appMessage`, handleSocketEvent);
     };
   }, [status, socketManager, selectedQueueIds, showAll, searchParam, tags, users, dateRange]);
 
-  // SOLUCIÓN: ACTUALIZAR CONTADOR EXCLUYENDO TICKETS DE GRUPO
+  // ACTUALIZAR CONTADOR EXCLUYENDO TICKETS DE GRUPO
   useEffect(() => {
     if (updateCount) {
-      // Filtrar tickets que NO son grupos antes de contar
       const nonGroupTickets = ticketsList.filter(ticket => {
-        // Excluir tickets de grupo
         const isGroupTicket = ticket.isGroup === true || ticket.isGroup === 'true';
         return !isGroupTicket;
       });
@@ -201,27 +233,11 @@ const TicketsListCustom = (props) => {
     }
   };
 
-  // DEBUG: Mostrar información del filtrado
+  // Filtrado de tickets que no son de grupo
   const nonGroupTickets = ticketsList.filter(ticket => {
     const isGroupTicket = ticket.isGroup === true || ticket.isGroup === 'true';
-    const isBusinessWhatsapp = ticket.whatsapp?.type === "whatsapp_business";
-    
-    //console.log(`Filtrado ticket ${ticket.id}:`, {
-    //  id: ticket.id,
-    //  isGroup: ticket.isGroup,
-    //  isGroupTicket: isGroupTicket,
-    //  whatsappType: ticket.whatsapp?.type,
-    //  incluido: !isGroupTicket
-    //});
-    
     return !isGroupTicket;
   });
-
-
-  //console.log("=== RESULTADO FILTRADO ===");
-  //console.log("Total tickets antes de filtrar:", ticketsList.length);
-  //console.log("Total tickets después de filtrar:", nonGroupTickets.length);
-  //console.log("Tickets filtrados:", nonGroupTickets.map(t => ({ id: t.id, contact: t.contact?.name })));
 
   return (
     <Paper className={classes.ticketsListWrapper} style={style}>
@@ -235,7 +251,7 @@ const TicketsListCustom = (props) => {
           ) : (
             nonGroupTickets.map((ticket) => <TicketListItem ticket={ticket} key={ticket.id} />)
           )}
-          {loading && <TicketsListSkeleton />}
+          {loading && nonGroupTickets.length === 0 && <TicketsListSkeleton />}
         </List>
       </Paper>
     </Paper>

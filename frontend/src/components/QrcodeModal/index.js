@@ -113,23 +113,22 @@ const QrcodeModal = ({ open, onClose, whatsAppId }) => {
 
     const fetchSession = async () => {
       if (!whatsAppId) return;
-      setLoading(true);
-
       try {
         const { data } = await api.get(`/whatsapp/${whatsAppId}`);
         if (data.qrcode) {
           setQrCode(data.qrcode);
           setLoading(false);
         }
+        if (data.status === "CONNECTED") {
+          onClose();
+        }
       } catch (err) {
         toastError(err);
-      } finally {
-        setLoading(false);
       }
     };
     fetchSession();
 
-    // Polling de respaldo cada 3 segundos si aún no se tiene QR
+    // Polling de respaldo cada 2 segundos si aún no se tiene QR
     const interval = setInterval(async () => {
       if (!open || !whatsAppId) return;
       try {
@@ -138,13 +137,16 @@ const QrcodeModal = ({ open, onClose, whatsAppId }) => {
           setQrCode(data.qrcode);
           setLoading(false);
         }
+        if (data.status === "CONNECTED") {
+          onClose();
+        }
       } catch (err) {
         // Ignorar
       }
-    }, 3000);
+    }, 2000);
 
     return () => clearInterval(interval);
-  }, [open, whatsAppId]);
+  }, [open, whatsAppId, onClose]);
 
   useEffect(() => {
     if (!whatsAppId) return;
@@ -155,19 +157,25 @@ const QrcodeModal = ({ open, onClose, whatsAppId }) => {
     const whatsappEvent = `company-${companyId}-whatsapp`;
 
     const handleSessionUpdate = (data) => {
-      if (data.action === "update" && data.session.id === whatsAppId) {
-        setQrCode(data.session.qrcode);
-        setLoading(false);
+      if (data.action === "update" && String(data.session?.id) === String(whatsAppId)) {
+        if (data.session.qrcode) {
+          setQrCode(data.session.qrcode);
+          setLoading(false);
+        }
 
-        if (data.session.qrcode === "" || data.session.status === "CONNECTED") {
+        if (data.session.status === "CONNECTED") {
           onClose();
         }
       }
     };
 
     const handleWhatsappUpdate = (data) => {
-      if (data.action === "update" && data.whatsapp.id === whatsAppId) {
-        if (data.whatsapp.status === "CONNECTED" || data.whatsapp.qrcode === "") {
+      if (data.action === "update" && String(data.whatsapp?.id) === String(whatsAppId)) {
+        if (data.whatsapp.qrcode) {
+          setQrCode(data.whatsapp.qrcode);
+          setLoading(false);
+        }
+        if (data.whatsapp.status === "CONNECTED") {
           onClose();
         }
       }

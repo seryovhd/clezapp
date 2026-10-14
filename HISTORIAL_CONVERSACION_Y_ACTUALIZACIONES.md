@@ -1,6 +1,6 @@
 # 📝 Registro Completo de Conversación y Actualizaciones - CLEZAPP PRO (CHASAP)
 **Fecha:** 13 de Octubre de 2026  
-**Versión del Sistema:** Clezapp-PRO 3.5.1  
+**Versión del Sistema:** Clezapp-PRO 3.5.5  
 **Repositorio:** `d:\PROYECTOS\PHP\chasap-pro`
 
 ---

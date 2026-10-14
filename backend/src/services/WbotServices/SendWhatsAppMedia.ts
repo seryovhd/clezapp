@@ -140,25 +140,12 @@ const SendWhatsAppMedia = async ({
 
     if (isEvolution && ticket.whatsapp) {
       let destination = ticket.contact.number;
-      if (!destination.includes("@")) {
-        const lastMsg = await Message.findOne({
-          where: { ticketId: ticket.id },
-          order: [["createdAt", "DESC"]]
-        });
-        if (lastMsg?.remoteJid?.endsWith("@lid") || lastMsg?.remoteJid?.includes("@")) {
-          destination = lastMsg.remoteJid;
-        } else if (destination.length > 13) {
-          const lidMsg = await Message.findOne({
-            where: {
-              ticketId: ticket.id,
-              remoteJid: { [Op.like]: "%@lid%" }
-            }
-          });
-          if (lidMsg?.remoteJid) {
-            destination = lidMsg.remoteJid;
-          }
-        }
-      }      const fileBuffer = fs.readFileSync(media.path);
+      if (ticket.isGroup) {
+        destination = destination.includes("@g.us") ? destination : `${destination}@g.us`;
+      } else {
+        destination = destination.replace(/@.*$/, "").replace(/\D/g, "");
+      }
+      const fileBuffer = fs.readFileSync(media.path);
       const base64Media = fileBuffer.toString("base64");
       const typeMsg = media.mimetype.split("/")[0];
       const mediaType = typeMsg === "audio" ? "audio" : typeMsg === "video" ? "video" : typeMsg === "image" ? "image" : "document";
@@ -310,32 +297,12 @@ const SendWhatsAppMedia = async ({
       };
     }
 
-    // Resolver destino correctamente (soportando números regulares y LID)
-    let destination = ticket.contact.number;
-    if (!destination.includes("@")) {
-      const lastMsg = await Message.findOne({
-        where: { ticketId: ticket.id },
-        order: [["createdAt", "DESC"]]
-      });
-      if (lastMsg?.remoteJid?.endsWith("@lid") || lastMsg?.remoteJid?.includes("@")) {
-        destination = lastMsg.remoteJid;
-      } else if (destination.length > 13) {
-        const lidMsg = await Message.findOne({
-          where: {
-            ticketId: ticket.id,
-            remoteJid: { [Op.like]: "%@lid%" }
-          }
-        });
-        if (lidMsg?.remoteJid) {
-          destination = lidMsg.remoteJid;
-        }
-      }
-    }
-
-    const cleanDestNumber = destination.replace(/\D/g, "");
-    const finalJid = destination.includes("@")
-      ? destination
-      : (ticket.isGroup ? `${ticket.contact.number}@g.us` : `${cleanDestNumber}@s.whatsapp.net`);
+    const cleanLid = ticket.contact.lid ? ticket.contact.lid.replace(/\D/g, "") : "";
+    const cleanDestNumber = ticket.contact.number.replace(/@.*$/, "").replace(/\D/g, "");
+    const isLid = !ticket.isGroup && (cleanDestNumber.length >= 15 || ticket.contact.number.endsWith("@lid") || !!cleanLid);
+    const finalJid = ticket.isGroup
+      ? (ticket.contact.number.includes("@g.us") ? ticket.contact.number : `${ticket.contact.number}@g.us`)
+      : (isLid ? `${cleanLid || cleanDestNumber}@lid` : `${cleanDestNumber}@s.whatsapp.net`);
 
     const sentMessage = await wbot.sendMessage(
       finalJid,

@@ -10,6 +10,10 @@ const CheckIsValidContact = async (
 
   const wbot = getWbot(defaultWhatsapp.id);
 
+  if (number.length >= 15 || number.includes("@lid")) {
+    return;
+  }
+
   try {
     const isValidNumber = await wbot.onWhatsApp(`${number}`);
     if (!isValidNumber) {

@@ -136,8 +136,10 @@ export const handleWebhook = async (req: Request, res: Response): Promise<Respon
         },
         sendMessage: async (jid: string, content: any, options?: any) => {
           if (!content) return;
+          const destination = jid;
+
           if (content.text) {
-            return await EvolutionApiService.sendTextMessage(whatsapp!, jid, content.text, {
+            return await EvolutionApiService.sendTextMessage(whatsapp!, destination, content.text, {
               quotedMessageId: options?.quoted?.key?.id
             });
           } else if (content.image || content.video || content.audio || content.document) {
@@ -154,12 +156,15 @@ export const handleWebhook = async (req: Request, res: Response): Promise<Respon
             } else {
               media = content.image?.url || content.video?.url || content.audio?.url || content.document?.url || content.image || content.video || content.audio || content.document;
             }
-            return await EvolutionApiService.sendMediaMessage(whatsapp!, jid, {
+
+            logger.info(`[Evolution fakeSession] sendMessage media llamado para ${destination}: mediaType=${mediaType}`);
+            return await EvolutionApiService.sendMediaMessage(whatsapp!, destination, {
               media,
               mediaType: mediaType as any,
               caption: content.caption,
               mimetype: content.mimetype,
-              fileName: content.fileName
+              fileName: content.fileName || (mediaType === "video" && content.gifPlayback ? "animation.mp4" : undefined),
+              gifPlayback: !!content.gifPlayback
             });
           }
         }
@@ -168,8 +173,50 @@ export const handleWebhook = async (req: Request, res: Response): Promise<Respon
       for (const item of rawMessages) {
         if (!item || !item.key) continue;
 
+        // Normalizar JID si viene con LID pero contiene remoteJidAlt o senderPn
+        const itemAny = item as any;
+        if (item.key.remoteJid?.endsWith('@lid')) {
+          if (itemAny.key?.remoteJidAlt && !itemAny.key.remoteJidAlt.endsWith('@lid')) {
+            item.key.remoteJid = itemAny.key.remoteJidAlt;
+          } else if (itemAny.senderPn && !itemAny.senderPn.endsWith('@lid')) {
+            item.key.remoteJid = itemAny.senderPn.includes('@') ? itemAny.senderPn : `${itemAny.senderPn}@s.whatsapp.net`;
+          }
+        }
+
         try {
           const messageId = item.key.id;
+
+          // Si el mensaje es un ProtocolMessage de tipo REVOKE recibido desde el receptor
+          const protocolType = item.message?.protocolMessage?.type;
+          const targetDeletedId = item.message?.protocolMessage?.key?.id;
+          const isRevokeType = protocolType === 0 || protocolType === "REVOKE" || protocolType === "revoke" || item.messageStubType === 1;
+
+          if (targetDeletedId && isRevokeType) {
+            const targetMsg = await Message.findOne({
+              where: { id: targetDeletedId, companyId }
+            });
+            if (targetMsg && !targetMsg.isDeleted) {
+              await targetMsg.update({ isDeleted: true });
+              await targetMsg.reload({
+                include: [
+                  "contact",
+                  {
+                    model: Message,
+                    as: "quotedMsg",
+                    include: ["contact"]
+                  }
+                ]
+              });
+              const io = getIO();
+              io.to(targetMsg.ticketId.toString()).emit(`company-${companyId}-appMessage`, {
+                action: "update",
+                message: targetMsg
+              });
+              logger.info(`[Evolution Webhook] Mensaje ${targetDeletedId} revocado por el contacto.`);
+            }
+            continue;
+          }
+
           const messageExists = await Message.count({
             where: { id: messageId, companyId }
           });

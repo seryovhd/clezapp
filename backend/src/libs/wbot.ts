@@ -146,11 +146,20 @@ export const initWASocket = async (whatsapp: Whatsapp): Promise<Session> => {
       (async () => {
         const io = getIO();
 
+        retriesQrCodeMap.delete(whatsapp.id);
+
         const existingSessionIndex = sessions.findIndex(s => s.id === whatsapp.id);
         if (existingSessionIndex !== -1) {
-          logger.info(`✅ Reutilizando sesión existente para: ${whatsapp.name}`);
-          resolve(sessions[existingSessionIndex]);
-          return;
+          const existing = sessions[existingSessionIndex];
+          if ((existing as any)?.user?.id) {
+            logger.info(`✅ Reutilizando sesión conectada para: ${whatsapp.name}`);
+            resolve(existing);
+            return;
+          } else {
+            logger.info(`🔄 Limpiando sesión pendiente anterior para: ${whatsapp.name}`);
+            try { (existing as any).ws?.close(); } catch (e) {}
+            sessions.splice(existingSessionIndex, 1);
+          }
         }
 
         const whatsappUpdate = await Whatsapp.findOne({
@@ -188,10 +197,10 @@ export const initWASocket = async (whatsapp: Whatsapp): Promise<Session> => {
           printQRInTerminal: false,
           auth: {
             creds: state.creds,
-            keys: makeCacheableSignalKeyStore(state.keys, logger),
+            keys: makeCacheableSignalKeyStore(state.keys, loggerBaileys),
           },
           version,
-          browser: Browsers.appropriate("Desktop"),
+          browser: ["Mac OS", "Chrome", "14.4.1"],
           defaultQueryTimeoutMs: undefined,
           msgRetryCounterCache,
           markOnlineOnConnect: false,
@@ -203,6 +212,8 @@ export const initWASocket = async (whatsapp: Whatsapp): Promise<Session> => {
           transactionOpts: { maxCommitRetries: 10, delayBetweenTriesMs: 3000 },
           shouldIgnoreJid: jid => isJidBroadcast(jid),
         });
+
+        wsocket.ev.on("creds.update", saveState);
 
         wsocket.ev.on('messages.upsert', async (m) => {
           try {
@@ -256,7 +267,11 @@ export const initWASocket = async (whatsapp: Whatsapp): Promise<Session> => {
         wsocket.ev.on(
           "connection.update",
           async ({ connection, lastDisconnect, qr }) => {
-            logger.info(`Socket ${name} Connection Update ${connection || ""} ${lastDisconnect || ""}`);
+            logger.info(`Socket ${name} Connection Update: ${connection || "sin_estado"}`);
+            if (lastDisconnect?.error) {
+              const err = lastDisconnect.error;
+              logger.error(`❌ Detalle Error Baileys (${name}): status=${(err as any)?.output?.statusCode} message=${err.message} stack=${err.stack}`);
+            }
 
             const disconect = (lastDisconnect?.error as Boom)?.output?.statusCode;
 
@@ -342,21 +357,14 @@ export const initWASocket = async (whatsapp: Whatsapp): Promise<Session> => {
                   retries: 0,
                   number: ""
                 });
-                const sessionIndex = sessions.findIndex(
-                  s => s.id === whatsapp.id
-                );
-
-                if (sessionIndex === -1) {
-                  wsocket.id = whatsapp.id;
-                  sessions.push(wsocket);
-                }
-
                 io.emit(`company-${whatsapp.companyId}-whatsappSession`, {
                   action: "update",
                   session: whatsapp
                 });
-
-                resolve(wsocket);
+                io.to(`company-${whatsapp.companyId}-mainchannel`).emit(`company-${whatsapp.companyId}-whatsapp`, {
+                  action: "update",
+                  whatsapp
+                });
               }
             }
           }

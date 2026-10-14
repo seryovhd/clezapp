@@ -74,24 +74,10 @@ const SendWhatsAppMessage = async ({
 
     if (isEvolution) {
       let destination = ticket.contact.number;
-      if (!destination.includes("@")) {
-        const lastMsg = await Message.findOne({
-          where: { ticketId: ticket.id },
-          order: [["createdAt", "DESC"]]
-        });
-        if (lastMsg?.remoteJid?.endsWith("@lid") || lastMsg?.remoteJid?.includes("@")) {
-          destination = lastMsg.remoteJid;
-        } else if (destination.length > 13) {
-          const lidMsg = await Message.findOne({
-            where: {
-              ticketId: ticket.id,
-              remoteJid: { [Op.like]: "%@lid%" }
-            }
-          });
-          if (lidMsg?.remoteJid) {
-            destination = lidMsg.remoteJid;
-          }
-        }
+      if (ticket.isGroup) {
+        destination = destination.includes("@g.us") ? destination : `${destination}@g.us`;
+      } else {
+        destination = destination.replace(/@.*$/, "").replace(/\D/g, "");
       }
 
       console.log("🚀 [Evolution API] Enviando mensaje de texto al destino:", destination);
@@ -114,7 +100,8 @@ const SendWhatsAppMessage = async ({
             read: true,
             mediaType: "chat",
             ack: 1,
-            queueId: ticket.queueId
+            queueId: ticket.queueId,
+            remoteJid: destination.includes("@") ? destination : `${destination}@s.whatsapp.net`
           },
           companyId: ticket.companyId
         });
@@ -129,7 +116,12 @@ const SendWhatsAppMessage = async ({
 
     let options = {};
     const wbot = await GetTicketWbot(ticket);
-    const number = `${ticket.contact.number}@${ticket.isGroup ? "g.us" : "s.whatsapp.net"}`;
+    const cleanLid = ticket.contact.lid ? ticket.contact.lid.replace(/\D/g, "") : "";
+    const cleanDestNum = ticket.contact.number.replace(/\D/g, "");
+    const isLid = !ticket.isGroup && (cleanDestNum.length >= 15 || ticket.contact.number.endsWith("@lid") || !!cleanLid);
+    const number = ticket.isGroup
+      ? `${ticket.contact.number}@g.us`
+      : (isLid ? `${cleanLid || cleanDestNum}@lid` : `${cleanDestNum}@s.whatsapp.net`);
 
     console.log("🔢 BOT PARA NÚMERO", number);
 
@@ -153,16 +145,40 @@ const SendWhatsAppMessage = async ({
       }
     }
 
+    const formattedText = formatBody(body, ticket.contact);
+
     const sentMessage = await wbot.sendMessage(number, {
-      text: formatBody(body, ticket.contact),
+      text: formattedText,
       contextInfo: { forwardingScore: isForwarded ? 2 : 0, isForwarded: isForwarded ? true : false }
     }, options);
 
-    await ticket.update({ lastMessage: formatBody(body, ticket.contact) });
+    const messageId = sentMessage?.key?.id || `wbot_${Date.now()}`;
+
+    try {
+      await CreateMessageService({
+        messageData: {
+          id: messageId,
+          ticketId: ticket.id,
+          body: formattedText,
+          fromMe: true,
+          read: true,
+          mediaType: "chat",
+          ack: 1,
+          queueId: ticket.queueId,
+          dataJson: JSON.stringify(sentMessage),
+          remoteJid: number
+        },
+        companyId: ticket.companyId
+      });
+    } catch (saveErr) {
+      logger.warn("[Baileys] Error guardando mensaje saliente en BD:", saveErr);
+    }
+
+    await ticket.update({ lastMessage: formattedText });
 
     const botResponse = sentMessage.message?.conversation ||
       sentMessage.message?.extendedTextMessage?.text ||
-      formatBody(body, ticket.contact);
+      formattedText;
 
     logger.info(`BOT RESPONDIO AL TICKET ${ticket.id} - NUMERO: ${ticket.contact.number}`);
 
