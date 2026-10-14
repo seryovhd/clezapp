@@ -135,29 +135,36 @@ export const getDestinationJid = async (
     return groupNum.includes("@g.us") ? groupNum : `${groupNum}@g.us`;
   }
 
-  const cleanDestNumber = ticket.contact.number
-    ? ticket.contact.number.replace(/@.*$/, "").replace(/\D/g, "")
-    : "";
+  const rawNumber = ticket.contact.number || "";
+  const cleanDestNumber = rawNumber.replace(/@.*$/, "").replace(/\D/g, "");
   const cleanLid = ticket.contact.lid
     ? ticket.contact.lid.replace(/@.*$/, "").replace(/\D/g, "")
     : "";
 
-  // 1. Si el contacto tiene un número telefónico real (8 a 14 dígitos), SIEMPRE enviar a @s.whatsapp.net
-  if (cleanDestNumber.length >= 8 && cleanDestNumber.length <= 14) {
-    return `${cleanDestNumber}@s.whatsapp.net`;
-  }
+  // Determinar si el destino es un LID:
+  // - rawNumber termina en @lid
+  // - cleanLid está definido y es igual a cleanDestNumber
+  // - cleanDestNumber tiene 14 dígitos o más (los LIDs son típicamente 14-16 dígitos)
+  const isLid =
+    rawNumber.endsWith("@lid") ||
+    (Boolean(cleanLid) && cleanDestNumber === cleanLid) ||
+    cleanDestNumber.length >= 14;
 
-  // 2. Si el número guardado es un LID (15+ dígitos), intentar resolver el número real
-  const lidCandidate = cleanLid || (cleanDestNumber.length >= 15 ? cleanDestNumber : "");
-  if (lidCandidate) {
+  if (isLid) {
+    const lidCandidate = cleanLid || cleanDestNumber;
+
+    // Intentar resolver a número real si está mapeado en Baileys authState o en la base de datos
     const resolvedPhone = await resolveLidToPhone(lidCandidate, wbot, ticket.companyId);
     if (resolvedPhone) {
       logger.info(`📲 [DestJid] Redirigiendo envío de LID ${lidCandidate} al número real ${resolvedPhone}@s.whatsapp.net`);
       return `${resolvedPhone}@s.whatsapp.net`;
     }
-    // Solo si no se pudo resolver el número real, enviar al LID
+
+    // Si NO se puede resolver a número real, enviar directamente al @lid
+    logger.info(`📲 [DestJid] Enviando mensaje directamente al LID: ${lidCandidate}@lid`);
     return `${lidCandidate}@lid`;
   }
 
+  // Si tiene un número telefónico real estándar (8 a 13 dígitos y no es LID):
   return `${cleanDestNumber}@s.whatsapp.net`;
 };
