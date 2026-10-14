@@ -3,6 +3,7 @@ import GetWhatsappWbot from "./GetWhatsappWbot";
 import fs from "fs";
 import path from "path";
 import EvolutionApiService from "../services/EvolutionApiServices/EvolutionApiService";
+import { resolveLidToPhone } from "./ResolveLidHelper";
 
 import { getMessageOptions } from "../services/WbotServices/SendWhatsAppMedia";
 
@@ -76,7 +77,16 @@ export const SendMessage = async (
     const isEvolution = whatsapp.connectionType === "evolution" || (evolutionConfig.enabled && whatsapp.connectionType !== "baileys");
 
     if (isEvolution) {
-      const numStr = messageData.number.toString();
+      let numStr = messageData.number.toString();
+      const cleanNum = numStr.replace(/@.*$/, "").replace(/\D/g, "");
+      if (numStr.endsWith("@lid") || cleanNum.length >= 14) {
+        const resolved = await resolveLidToPhone(cleanNum, undefined, companyIdNumber);
+        if (resolved) {
+          numStr = `${resolved}@s.whatsapp.net`;
+        } else {
+          numStr = `${cleanNum}@lid`;
+        }
+      }
 
       // Si tiene archivo o url multimedia
       if (messageData.mediaUrl || messageData.mediaPath || messageData.documentUrl || messageData.documentPath) {
@@ -107,7 +117,16 @@ export const SendMessage = async (
     }
 
     const wbot = await GetWhatsappWbot(whatsapp);
-    const chatId = `${messageData.number}@s.whatsapp.net`;
+    let chatId = `${messageData.number}@s.whatsapp.net`;
+    const cleanNum = messageData.number.toString().replace(/@.*$/, "").replace(/\D/g, "");
+    if (messageData.number.toString().endsWith("@lid") || cleanNum.length >= 14) {
+      const resolved = await resolveLidToPhone(cleanNum, wbot, companyIdNumber);
+      if (resolved) {
+        chatId = `${resolved}@s.whatsapp.net`;
+      } else {
+        chatId = `${cleanNum}@lid`;
+      }
+    }
 
     if (!messageData.companyId) {
       throw new Error("companyId está indefinido en SendMessage");

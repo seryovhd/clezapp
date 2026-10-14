@@ -74,12 +74,7 @@ const SendWhatsAppMessage = async ({
       (evolutionConfig.enabled && ticket.whatsapp.connectionType !== "baileys" && ticket.whatsapp.type !== "baileys");
 
     if (isEvolution) {
-      let destination = ticket.contact.number;
-      if (ticket.isGroup) {
-        destination = destination.includes("@g.us") ? destination : `${destination}@g.us`;
-      } else {
-        destination = destination.replace(/@.*$/, "").replace(/\D/g, "");
-      }
+      const destination = await getDestinationJid(ticket);
 
       console.log("🚀 [Evolution API] Enviando mensaje de texto al destino:", destination);
       const formattedText = formatBody(body, ticket.contact);

@@ -321,7 +321,7 @@ export class EvolutionApiService {
       return trimmed;
     }
     const digitsOnly = trimmed.replace(/@.*$/, "").replace(/[^0-9]/g, "");
-    if (digitsOnly.length >= 15) {
+    if (digitsOnly.length >= 14) {
       return `${digitsOnly}@lid`;
     }
     return digitsOnly;

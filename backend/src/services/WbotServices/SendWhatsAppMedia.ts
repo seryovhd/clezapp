@@ -140,12 +140,7 @@ const SendWhatsAppMedia = async ({
       (evolutionConfig.enabled && ticket.whatsapp?.connectionType !== "baileys" && ticket.whatsapp?.type !== "baileys");
 
     if (isEvolution && ticket.whatsapp) {
-      let destination = ticket.contact.number;
-      if (ticket.isGroup) {
-        destination = destination.includes("@g.us") ? destination : `${destination}@g.us`;
-      } else {
-        destination = destination.replace(/@.*$/, "").replace(/\D/g, "");
-      }
+      const destination = await getDestinationJid(ticket);
       const fileBuffer = fs.readFileSync(media.path);
       const base64Media = fileBuffer.toString("base64");
       const typeMsg = media.mimetype.split("/")[0];

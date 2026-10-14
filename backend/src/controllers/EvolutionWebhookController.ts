@@ -6,6 +6,7 @@ import EvolutionApiService from "../services/EvolutionApiServices/EvolutionApiSe
 import { handleMessage, handleMsgAck } from "../services/WbotServices/wbotMessageListener";
 import { WAMessage } from "@whiskeysockets/baileys";
 import Message from "../models/Message";
+import { resolveLidToPhone } from "../helpers/ResolveLidHelper";
 
 export const handleWebhook = async (req: Request, res: Response): Promise<Response> => {
   try {
@@ -136,7 +137,16 @@ export const handleWebhook = async (req: Request, res: Response): Promise<Respon
         },
         sendMessage: async (jid: string, content: any, options?: any) => {
           if (!content) return;
-          const destination = jid;
+          let destination = jid;
+          if (jid.endsWith("@lid") || (jid.replace(/\D/g, "").length >= 14 && !jid.includes("@s.whatsapp.net") && !jid.includes("@g.us"))) {
+            const cleanLid = jid.replace("@lid", "").replace(/\D/g, "");
+            const resolved = await resolveLidToPhone(cleanLid, undefined, whatsapp?.companyId);
+            if (resolved) {
+              destination = `${resolved}@s.whatsapp.net`;
+            } else {
+              destination = `${cleanLid}@lid`;
+            }
+          }
 
           if (content.text) {
             return await EvolutionApiService.sendTextMessage(whatsapp!, destination, content.text, {
@@ -173,13 +183,20 @@ export const handleWebhook = async (req: Request, res: Response): Promise<Respon
       for (const item of rawMessages) {
         if (!item || !item.key) continue;
 
-        // Normalizar JID si viene con LID pero contiene remoteJidAlt o senderPn
+        // Normalizar JID si viene con LID
         const itemAny = item as any;
-        if (item.key.remoteJid?.endsWith('@lid')) {
+        if (item.key.remoteJid?.endsWith('@lid') || (item.key.remoteJid?.replace(/\D/g, "").length >= 14 && !item.key.remoteJid.includes('@s.whatsapp.net') && !item.key.remoteJid.includes('@g.us'))) {
           if (itemAny.key?.remoteJidAlt && !itemAny.key.remoteJidAlt.endsWith('@lid')) {
             item.key.remoteJid = itemAny.key.remoteJidAlt;
           } else if (itemAny.senderPn && !itemAny.senderPn.endsWith('@lid')) {
             item.key.remoteJid = itemAny.senderPn.includes('@') ? itemAny.senderPn : `${itemAny.senderPn}@s.whatsapp.net`;
+          } else {
+            const cleanLid = item.key.remoteJid.replace('@lid', '').replace(/\D/g, '');
+            const resolvedPhone = await resolveLidToPhone(cleanLid, undefined, companyId);
+            if (resolvedPhone) {
+              logger.info(`🔍 [Evolution Webhook] Resuelto LID ${cleanLid} -> ${resolvedPhone}@s.whatsapp.net`);
+              item.key.remoteJid = `${resolvedPhone}@s.whatsapp.net`;
+            }
           }
         }
 
