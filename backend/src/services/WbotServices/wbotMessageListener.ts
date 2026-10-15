@@ -2582,10 +2582,10 @@ const handleMessage = async (
 
     // Si el contacto proviene de un LID (@alias), o tiene LID guardado
     const rawJid = msg.key.remoteJid || msgContact?.id || "";
-    const isLidContact = contact.number.includes('@lid') || 
-                         rawJid.includes('@lid') || 
-                         contact.number.length >= 15 || 
-                         !!contact.lid;
+    const isLidContact = contact.number.includes('@lid') ||
+      rawJid.includes('@lid') ||
+      contact.number.length >= 15 ||
+      !!contact.lid;
 
     if (isLidContact) {
       const lidFromJid = rawJid.includes('@lid') ? rawJid.replace('@lid', '').replace(/\D/g, '') : "";
@@ -2691,7 +2691,7 @@ const handleMessage = async (
             action: "update",
             contact
           });
-        } catch (eField) {}
+        } catch (eField) { }
       } else {
         // Asegurar que el LID esté guardado en contact.lid
         if (!contact.lid && lidNumber) {
@@ -2710,7 +2710,7 @@ const handleMessage = async (
               where: { contactId: contact.id, name: "LID WhatsApp" },
               defaults: { contactId: contact.id, name: "LID WhatsApp", value: lidNumber }
             });
-          } catch (eField) {}
+          } catch (eField) { }
         }
 
         // ✅ REGLA EXACTA:
@@ -2734,7 +2734,7 @@ const handleMessage = async (
             await contact.update({ lidWarningAt: new Date(now) });
             contact.lidWarningAt = new Date(now);
 
-            const warningText = `¡Hola! Verficamos que usas *@alias*. Por favor, brindanos tu número de WhatsApp para registrar tu ficha de cliente incluir el código de país:\n_Ejem: *51920383448*_`;
+            const warningText = `Mensaje Automático:\n⚠️¡Hola! Verificamos que usas 🚨*@alias*🚨. Por favor, brindanos tu número de WhatsApp para registrar tu ficha de cliente incluir el código de país:\n_Ejem: *51920383448*_`;
             try {
               await wbot.sendMessage(
                 msg.key.remoteJid!,
