@@ -349,6 +349,7 @@ const messages = {
 			password: "Password",
 			profile: "Profile",
 			whatsapp: "Default Connection",
+			SuperIs: "Define Superuser (Admin only)",
   
 			allTicket: "Queue-less Ticket [Invisible]",
 			allTicketEnabled: "Enabled",

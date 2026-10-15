@@ -368,6 +368,7 @@ const messages = {
           password: "Contraseña",
           profile: "Perfil",
           whatsapp: "Conexión predeterminada",
+          SuperIs: "Permiso Super Admin",
           allTicket: "Ticket Sin Fila [PERMITIR]",
           allTicketEnabled: "Habilitado",
           allTicketDisabled: "Deshabilitado",
@@ -495,6 +496,7 @@ const messages = {
       },
       newTicketModal: {
         title: "Crear Ticket",
+        fieldLabel: "Escriba para buscar el contacto",
         fieldlabel: "Escriba para buscar el contacto",
         add: "Agregar",
         buttons: {
