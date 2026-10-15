@@ -78,6 +78,13 @@ const useStyles = makeStyles((theme) => ({
     padding: "10px 20px 10px 20px",
     overflowY: "scroll",
     ...theme.scrollbarStyles,
+    "& a": {
+      color: (theme.palette?.type || theme.mode) === 'dark' ? "#21c063" : "#027eb5",
+      textDecoration: "underline",
+      "&:hover": {
+        color: (theme.palette?.type || theme.mode) === 'dark' ? "#25d366" : "#015b82",
+      },
+    },
   },
   circleLoading: {
     color: green[500],
@@ -122,6 +129,13 @@ const useStyles = makeStyles((theme) => ({
     paddingTop: 5,
     paddingBottom: 0,
     boxShadow: "0 1px 0.5px rgba(11,20,26,.13)",
+    "& a": {
+      color: (theme.palette?.type || theme.mode) === 'dark' ? "#21c063" : "#027eb5",
+      textDecoration: "underline",
+      "&:hover": {
+        color: (theme.palette?.type || theme.mode) === 'dark' ? "#25d366" : "#015b82",
+      },
+    },
   },
   quotedContainerLeft: {
     margin: "-3px -80px 6px -6px",
@@ -138,6 +152,13 @@ const useStyles = makeStyles((theme) => ({
     display: "block",
     whiteSpace: "pre-wrap",
     overflow: "hidden",
+    "& a": {
+      color: (theme.palette?.type || theme.mode) === 'dark' ? "#21c063" : "#027eb5",
+      textDecoration: "underline",
+      "&:hover": {
+        color: (theme.palette?.type || theme.mode) === 'dark' ? "#25d366" : "#015b82",
+      },
+    },
   },
   quotedSideColorLeft: {
     flex: "none",
@@ -171,6 +192,13 @@ const useStyles = makeStyles((theme) => ({
     paddingTop: 5,
     paddingBottom: 0,
     boxShadow: "0 1px 0.5px rgba(11,20,26,.13)",
+    "& a": {
+      color: (theme.palette?.type || theme.mode) === 'dark' ? "#21c063" : "#027eb5",
+      textDecoration: "underline",
+      "&:hover": {
+        color: (theme.palette?.type || theme.mode) === 'dark' ? "#25d366" : "#015b82",
+      },
+    },
   },
   quotedContainerRight: {
     margin: "-3px -80px 6px -6px",
@@ -185,6 +213,13 @@ const useStyles = makeStyles((theme) => ({
     maxWidth: 300,
     height: "auto",
     whiteSpace: "pre-wrap",
+    "& a": {
+      color: (theme.palette?.type || theme.mode) === 'dark' ? "#21c063" : "#027eb5",
+      textDecoration: "underline",
+      "&:hover": {
+        color: (theme.palette?.type || theme.mode) === 'dark' ? "#25d366" : "#015b82",
+      },
+    },
   },
   quotedSideColorRight: {
     flex: "none",
@@ -208,11 +243,25 @@ const useStyles = makeStyles((theme) => ({
   textContentItem: {
     overflowWrap: "break-word",
     padding: "3px 80px 6px 6px",
+    "& a": {
+      color: (theme.palette?.type || theme.mode) === 'dark' ? "#21c063" : "#027eb5",
+      textDecoration: "underline",
+      "&:hover": {
+        color: (theme.palette?.type || theme.mode) === 'dark' ? "#25d366" : "#015b82",
+      },
+    },
   },
   textContentItemEdited: {
     overflowWrap: "break-word",
     padding: "3px 120px 6px 6px",
     borderLeft: "3px solid #6bcbef",
+    "& a": {
+      color: (theme.palette?.type || theme.mode) === 'dark' ? "#21c063" : "#027eb5",
+      textDecoration: "underline",
+      "&:hover": {
+        color: (theme.palette?.type || theme.mode) === 'dark' ? "#25d366" : "#015b82",
+      },
+    },
   },
   textContentItemDeleted: {
     overflowWrap: "break-word",

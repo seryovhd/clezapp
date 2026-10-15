@@ -2,6 +2,8 @@ import Avatar from "@material-ui/core/Avatar";
 import Markdown from "markdown-to-jsx";
 import React from "react";
 
+import { makeStyles } from "@material-ui/core/styles";
+
 const elements = [
 	"a",
 	"abbr",
@@ -144,11 +146,26 @@ const elements = [
 
 const allowedElements = ["a", "b", "strong", "em", "u", "code", "del"];
 
-const CustomLink = ({ children, ...props }) => (
-	<a {...props} target="_blank" rel="noopener noreferrer">
-		{children}
-	</a>
-);
+const useStyles = makeStyles((theme) => ({
+	link: {
+		color: (theme.palette?.type || theme.mode) === "dark" ? "#21c063" : "#027eb5",
+		textDecoration: "underline",
+		wordBreak: "break-word",
+		"&:hover": {
+			color: (theme.palette?.type || theme.mode) === "dark" ? "#25d366" : "#015b82",
+			textDecoration: "underline",
+		},
+	},
+}));
+
+const CustomLink = ({ children, ...props }) => {
+	const classes = useStyles();
+	return (
+		<a {...props} className={classes.link} target="_blank" rel="noopener noreferrer">
+			{children}
+		</a>
+	);
+};
 
 const MarkdownWrapper = ({ children, message }) => {
 	let type = message?.mediaType;
