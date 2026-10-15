@@ -34,7 +34,7 @@ const typebotListener = async ({
 
     if (msg.key.remoteJid === 'status@broadcast') return;
 
-    const { 
+    const {
         urlN8N: url,
         typebotExpires,
         typebotKeywordFinish,
@@ -58,17 +58,17 @@ const typebotListener = async ({
     const cleanLid = contact?.lid ? contact.lid.replace(/\D/g, "") : "";
     const rawDigits = (contact?.number || "").replace(/\D/g, "");
     const isLid = !isGroup && (
-      msg.key.remoteJid?.endsWith("@lid") ||
-      !!cleanLid ||
-      rawDigits.length >= 15 ||
-      contact?.number?.endsWith("@lid")
+        msg.key.remoteJid?.endsWith("@lid") ||
+        !!cleanLid ||
+        rawDigits.length >= 15 ||
+        contact?.number?.endsWith("@lid")
     );
 
     const lidTarget = (msg.key.remoteJid?.endsWith("@lid") ? msg.key.remoteJid.replace("@lid", "").replace(/\D/g, "") : "") || cleanLid || (rawDigits.length >= 15 ? rawDigits : "");
 
     const targetRemoteJid = isGroup
-      ? msg.key.remoteJid
-      : (isLid && lidTarget ? `${lidTarget}@lid` : (rawDigits ? `${rawDigits}@s.whatsapp.net` : msg.key.remoteJid));
+        ? msg.key.remoteJid
+        : (isLid && lidTarget ? `${lidTarget}@lid` : (rawDigits ? `${rawDigits}@s.whatsapp.net` : msg.key.remoteJid));
     const number = rawDigits || msg.key.remoteJid.replace(/\D/g, "");
 
     const sendAndSaveMessage = async (text: string) => {
@@ -255,9 +255,9 @@ const typebotListener = async ({
         const msgType = (message.type || '').toLowerCase();
 
         const isGif = mimeType.includes('gif') ||
-                      cleanExtUrl.endsWith('.gif') ||
-                      msgType === 'animation' ||
-                      msgType === 'gif';
+            cleanExtUrl.endsWith('.gif') ||
+            msgType === 'animation' ||
+            msgType === 'gif';
 
         const isAudio = !isGif && (
             mimeType.includes('audio') ||
@@ -343,7 +343,7 @@ const typebotListener = async ({
                 });
             } finally {
                 if (fs.existsSync(tempGif)) {
-                    try { fs.unlinkSync(tempGif); } catch (e) {}
+                    try { fs.unlinkSync(tempGif); } catch (e) { }
                 }
             }
         }
@@ -394,7 +394,7 @@ const typebotListener = async ({
                 logger.error(`[Typebot] Error enviando audio:`, errAudio);
             } finally {
                 if (fs.existsSync(tempAudio)) {
-                    try { fs.unlinkSync(tempAudio); } catch (e) {}
+                    try { fs.unlinkSync(tempAudio); } catch (e) { }
                 }
             }
         }
@@ -446,7 +446,7 @@ const typebotListener = async ({
                     logger.error(`[Typebot] Error procesando video:`, errVid);
                 } finally {
                     if (fs.existsSync(tempVid)) {
-                        try { fs.unlinkSync(tempVid); } catch (e) {}
+                        try { fs.unlinkSync(tempVid); } catch (e) { }
                     }
                 }
             } else {
@@ -574,7 +574,7 @@ const typebotListener = async ({
     let sessionId: string;
     let dataStart: any;
     let status = false;
-    
+
     try {
         const dataLimite = new Date();
         dataLimite.setMinutes(dataLimite.getMinutes() - Number(typebotExpires));
@@ -587,7 +587,7 @@ const typebotListener = async ({
             await ticket.reload();
         }
 
-        if (isNil(ticket.typebotSessionId)) {            
+        if (isNil(ticket.typebotSessionId)) {
             dataStart = await createSession(msg, typebot, number);
             sessionId = dataStart?.sessionId;
             status = true;
@@ -608,7 +608,7 @@ const typebotListener = async ({
             let requestContinue: any;
             let messages: any[];
             let input: any;
-            
+
             if (dataStart?.messages?.length === 0 || dataStart === undefined) {
                 const reqData = JSON.stringify({
                     "message": body
@@ -624,7 +624,7 @@ const typebotListener = async ({
                     },
                     data: reqData
                 };
-                
+
                 requestContinue = await axios.request(config);
                 messages = requestContinue.data?.messages;
                 input = requestContinue.data?.input;
@@ -643,7 +643,7 @@ const typebotListener = async ({
                     if (message.type === 'text') {
                         let formattedText = '';
                         let linkPreview = false;
-                        
+
                         if (message.content?.richText) {
                             for (const richText of message.content.richText) {
                                 for (const element of richText.children) {
@@ -652,7 +652,7 @@ const typebotListener = async ({
                                     if (element.text) {
                                         text = element.text;
                                     }
-                                    
+
                                     if (element.type && element.children) {
                                         for (const subelement of element.children) {
                                             let text = '';
@@ -686,7 +686,7 @@ const typebotListener = async ({
                                                     formattedText += text;
                                                 }
                                             }
-                                            
+
                                             if (subelement.bold) {
                                                 text = `*${text}*`;
                                             }
@@ -726,7 +726,7 @@ const typebotListener = async ({
                                 formattedText += '\n';
                             }
                         }
-                        
+
                         formattedText = formattedText.replace('**', '').replace(/\n$/, '');
 
                         if (formattedText === "Invalid message. Please, try again.") {
@@ -790,27 +790,27 @@ const typebotListener = async ({
                         await sendMediaMessage(message);
                     }
                 }
-                }
-                
-                if (input) {
-                    if (input.type === 'choice input') {
-                        let formattedText = '';
-                        const items = input.items || [];
-                        for (const item of items) {
-                            formattedText += `▶️ ${item.content}\n`;
-                        }
-                        formattedText = formattedText.replace(/\n$/, '');
-                        
-                        await safeSubscribe();
-                        await safePresence('composing');
-                        await delay(typebotDelayMessage || 1000);
-                        await safePresence('paused');
-                        
-                        await sendAndSaveMessage(formattedText);
+            }
+
+            if (input) {
+                if (input.type === 'choice input') {
+                    let formattedText = '';
+                    const items = input.items || [];
+                    for (const item of items) {
+                        formattedText += `▶️ ${item.content}\n`;
                     }
+                    formattedText = formattedText.replace(/\n$/, '');
+
+                    await safeSubscribe();
+                    await safePresence('composing');
+                    await delay(typebotDelayMessage || 1000);
+                    await safePresence('paused');
+
+                    await sendAndSaveMessage(formattedText);
                 }
             }
-        
+        }
+
         if (body === typebotKeywordRestart) {
             await ticket.update({
                 isBot: true,
@@ -819,13 +819,13 @@ const typebotListener = async ({
             await ticket.reload();
             await sendAndSaveMessage(typebotRestartMessage || "Reiniciando...");
         }
-        
+
         if (body === typebotKeywordFinish) {
             await UpdateTicketService({
                 ticketData: {
                     status: "closed",
                     useIntegration: false,
-                    integrationId: null                   
+                    integrationId: null
                 },
                 ticketId: ticket.id,
                 companyId: ticket.companyId

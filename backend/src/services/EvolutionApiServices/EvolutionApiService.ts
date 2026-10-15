@@ -321,7 +321,7 @@ export class EvolutionApiService {
       return trimmed;
     }
     const digitsOnly = trimmed.replace(/@.*$/, "").replace(/[^0-9]/g, "");
-    if (digitsOnly.length >= 14) {
+    if (digitsOnly.length >= 15) {
       return `${digitsOnly}@lid`;
     }
     return digitsOnly;
@@ -334,7 +334,7 @@ export class EvolutionApiService {
     whatsapp: Whatsapp,
     number: string,
     text: string,
-    options?: { quotedMessageId?: string; delay?: number }
+    options?: { quoted?: any; quotedMessageId?: string; delay?: number }
   ): Promise<any> {
     const instanceName = this.getInstanceName(whatsapp);
     const cleanNumber = this.cleanNumberForEvolution(number);
@@ -345,7 +345,9 @@ export class EvolutionApiService {
       delay: options?.delay ?? 0
     };
 
-    if (options?.quotedMessageId) {
+    if (options?.quoted) {
+      payload.quoted = options.quoted;
+    } else if (options?.quotedMessageId) {
       payload.quoted = {
         key: {
           id: options.quotedMessageId

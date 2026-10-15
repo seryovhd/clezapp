@@ -22,7 +22,8 @@ interface Request {
   ticket: Ticket;
   companyId?: number;
   body?: string;
-  isForwarded?: boolean;  
+  isForwarded?: boolean;
+  quotedMsg?: Message;
 }
 
 ffmpeg.setFfmpegPath(ffmpegPath);
@@ -127,7 +128,8 @@ const SendWhatsAppMedia = async ({
   media,
   ticket,
   body,
-  isForwarded = false
+  isForwarded = false,
+  quotedMsg
 }: Request): Promise<WAMessage> => {
   try {
     if (!ticket.whatsapp) {
@@ -175,7 +177,8 @@ const SendWhatsAppMedia = async ({
             mediaUrl: media.filename,
             mediaType: mediaType,
             ack: 1,
-            queueId: ticket.queueId
+            queueId: ticket.queueId,
+            quotedMsgId: quotedMsg?.id
           },
           companyId: ticket.companyId
         });
@@ -295,12 +298,79 @@ const SendWhatsAppMedia = async ({
 
     const finalJid = await getDestinationJid(ticket, wbot);
 
-    const sentMessage = await wbot.sendMessage(
-      finalJid,
-      {
-        ...options
+    let quotedOptions: any = undefined;
+    if (quotedMsg) {
+      try {
+        const chatMessages = await Message.findOne({ where: { id: quotedMsg.id } });
+        if (chatMessages) {
+          let msgFound: any = null;
+          if (chatMessages.dataJson) {
+            try {
+              msgFound = JSON.parse(chatMessages.dataJson);
+            } catch (e) {
+              msgFound = null;
+            }
+          }
+
+          const isGroup = ticket.isGroup || (chatMessages.remoteJid && chatMessages.remoteJid.includes("@g.us"));
+          const quotedRemoteJid = isGroup ? (chatMessages.remoteJid || finalJid) : finalJid;
+
+          const quotedKey = {
+            remoteJid: quotedRemoteJid,
+            fromMe: msgFound?.key?.fromMe ?? chatMessages.fromMe,
+            id: chatMessages.id,
+            participant: isGroup ? (msgFound?.key?.participant || chatMessages.participant) : undefined
+          };
+
+          let quotedContent = msgFound?.message;
+          if (!quotedContent) {
+            if (chatMessages.mediaType === "image") {
+              quotedContent = { imageMessage: { caption: chatMessages.body || "" } };
+            } else if (chatMessages.mediaType === "video") {
+              quotedContent = { videoMessage: { caption: chatMessages.body || "" } };
+            } else if (chatMessages.mediaType === "audio") {
+              quotedContent = { audioMessage: {} };
+            } else if (chatMessages.mediaType === "sticker") {
+              quotedContent = { stickerMessage: {} };
+            } else {
+              quotedContent = { conversation: chatMessages.body || "" };
+            }
+          }
+
+          quotedOptions = {
+            quoted: {
+              key: quotedKey,
+              message: quotedContent
+            }
+          };
+        }
+      } catch (errQ) {
+        console.warn("[SendWhatsAppMedia] Error preparando cita:", errQ);
       }
-    );
+    }
+
+    let sentMessage: WAMessage;
+    try {
+      sentMessage = await wbot.sendMessage(
+        finalJid,
+        {
+          ...options
+        },
+        quotedOptions
+      );
+    } catch (sendMediaErr: any) {
+      if (quotedOptions) {
+        console.warn(`[SendWhatsAppMedia] Falló envío de media con cita (${sendMediaErr?.message}), reintentando sin cita...`);
+        sentMessage = await wbot.sendMessage(
+          finalJid,
+          {
+            ...options
+          }
+        );
+      } else {
+        throw sendMediaErr;
+      }
+    }
 
     const detectedMediaType = (typeMessage === "image" && isStandardImage)
       ? "image"
@@ -322,7 +392,8 @@ const SendWhatsAppMedia = async ({
           mediaUrl: media.filename,
           mediaType: detectedMediaType,
           ack: 1,
-          queueId: ticket.queueId
+          queueId: ticket.queueId,
+          quotedMsgId: quotedMsg?.id
         },
         companyId: ticket.companyId
       });

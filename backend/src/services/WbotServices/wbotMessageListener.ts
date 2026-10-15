@@ -2734,7 +2734,7 @@ const handleMessage = async (
             await contact.update({ lidWarningAt: new Date(now) });
             contact.lidWarningAt = new Date(now);
 
-            const warningText = `Mensaje Automático:\n⚠️¡Hola! Verificamos que usas 🚨*@alias*🚨. Por favor, brindanos tu número de WhatsApp para registrar tu ficha de cliente incluir el código de país:\n_Ejem: *51920383448*_`;
+            const warningText = `*Mensaje Automático*:\n\n⚠️¡Hola! Verificamos que usas 🚨*@alias*🚨. Por favor, brindanos tu número de WhatsApp para registrar tu ficha de cliente incluir el código de país:\n_Ejem: *51920383448*_`;
             try {
               await wbot.sendMessage(
                 msg.key.remoteJid!,

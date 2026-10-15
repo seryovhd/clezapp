@@ -183,7 +183,8 @@ const handleWhatsAppMessage = async (
         await SendWhatsAppMedia({ 
           media, 
           ticket, 
-          body: messageBody 
+          body: messageBody,
+          quotedMsg
         });
       })
     );

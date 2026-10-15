@@ -78,12 +78,77 @@ const SendWhatsAppMessage = async ({
 
       console.log("🚀 [Evolution API] Enviando mensaje de texto al destino:", destination);
       const formattedText = formatBody(body, ticket.contact);
-      const sentRes = await EvolutionApiService.sendTextMessage(
-        ticket.whatsapp,
-        destination,
-        formattedText,
-        { quotedMessageId: quotedMsg?.id }
-      );
+
+      let quotedPayload: any = undefined;
+      const quotedMsgIdToSave = quotedMsg?.id;
+
+      if (quotedMsg) {
+        try {
+          const quotedChatMsg = await Message.findOne({ where: { id: quotedMsg.id } });
+          if (quotedChatMsg) {
+            let quotedContent: any = undefined;
+            if (quotedChatMsg.dataJson) {
+              try {
+                const parsed = JSON.parse(quotedChatMsg.dataJson);
+                if (parsed?.message) {
+                  quotedContent = parsed.message;
+                }
+              } catch (e) {}
+            }
+            if (!quotedContent) {
+              if (quotedChatMsg.mediaType === "image") {
+                quotedContent = { imageMessage: { caption: quotedChatMsg.body || "" } };
+              } else if (quotedChatMsg.mediaType === "video") {
+                quotedContent = { videoMessage: { caption: quotedChatMsg.body || "" } };
+              } else if (quotedChatMsg.mediaType === "audio") {
+                quotedContent = { audioMessage: {} };
+              } else if (quotedChatMsg.mediaType === "sticker") {
+                quotedContent = { stickerMessage: {} };
+              } else {
+                quotedContent = { conversation: quotedChatMsg.body || "" };
+              }
+            }
+
+            quotedPayload = {
+              key: {
+                id: quotedChatMsg.id,
+                fromMe: quotedChatMsg.fromMe,
+                remoteJid: quotedChatMsg.remoteJid || destination
+              },
+              message: quotedContent
+            };
+            if (quotedChatMsg.participant) {
+              quotedPayload.key.participant = quotedChatMsg.participant;
+            }
+          }
+        } catch (eQuoted) {
+          logger.warn("[Evolution] Error construyendo payload de cita:", eQuoted);
+        }
+      }
+
+      let sentRes: any;
+      try {
+        sentRes = await EvolutionApiService.sendTextMessage(
+          ticket.whatsapp,
+          destination,
+          formattedText,
+          {
+            quoted: quotedPayload,
+            quotedMessageId: quotedMsgIdToSave
+          }
+        );
+      } catch (evoSendErr: any) {
+        if (quotedPayload || quotedMsgIdToSave) {
+          logger.warn(`[Evolution] Falló envío con cita (${evoSendErr?.message}), reintentando sin cita para asegurar entrega...`);
+          sentRes = await EvolutionApiService.sendTextMessage(
+            ticket.whatsapp,
+            destination,
+            formattedText
+          );
+        } else {
+          throw evoSendErr;
+        }
+      }
 
       const messageId = sentRes?.key?.id || sentRes?.id || `evo_${Date.now()}`;
       try {
@@ -97,7 +162,8 @@ const SendWhatsAppMessage = async ({
             mediaType: "chat",
             ack: 1,
             queueId: ticket.queueId,
-            remoteJid: destination.includes("@") ? destination : `${destination}@s.whatsapp.net`
+            remoteJid: destination.includes("@") ? destination : `${destination}@s.whatsapp.net`,
+            quotedMsgId: quotedMsgIdToSave
           },
           companyId: ticket.companyId
         });
@@ -110,38 +176,107 @@ const SendWhatsAppMessage = async ({
       return sentRes as any;
     }
 
-    let options = {};
+    let options: any = undefined;
+    let quotedMsgIdToSave: string | undefined = undefined;
     const wbot = await GetTicketWbot(ticket);
     const number = await getDestinationJid(ticket, wbot);
 
     console.log("🔢 BOT PARA NÚMERO", number);
 
     if (quotedMsg) {
-      const chatMessages = await Message.findOne({
-        where: {
-          id: quotedMsg.id
-        }
-      });
+      quotedMsgIdToSave = quotedMsg.id;
+      try {
+        const chatMessages = await Message.findOne({
+          where: {
+            id: quotedMsg.id
+          }
+        });
 
-      if (chatMessages) {
-        const msgFound = JSON.parse(chatMessages.dataJson);
-        options = {
-          quoted: {
-            key: msgFound.key,
-            message: {
-              extendedTextMessage: msgFound.message.extendedTextMessage
+        if (chatMessages) {
+          let msgFound: any = null;
+          if (chatMessages.dataJson) {
+            try {
+              msgFound = JSON.parse(chatMessages.dataJson);
+            } catch (e) {
+              msgFound = null;
             }
           }
-        };
+
+          // Si es chat 1 a 1 (no grupo), normalizamos el remoteJid del quoted al número de destino
+          // para que Baileys no interprete la cita como proveniente de otro chat diferente
+          // (especialmente cuando uno tiene @lid y el otro @s.whatsapp.net).
+          const isGroup = ticket.isGroup || (chatMessages.remoteJid && chatMessages.remoteJid.includes("@g.us"));
+          const quotedRemoteJid = isGroup
+            ? (chatMessages.remoteJid || number)
+            : number;
+
+          const quotedKey = {
+            remoteJid: quotedRemoteJid,
+            fromMe: msgFound?.key?.fromMe ?? chatMessages.fromMe,
+            id: chatMessages.id,
+            participant: isGroup ? (msgFound?.key?.participant || chatMessages.participant) : undefined
+          };
+
+          // Extraer o generar el content del mensaje citado respetando stickers, fotos, videos, audios y textos
+          let quotedContent = msgFound?.message;
+          if (!quotedContent) {
+            if (chatMessages.mediaType === "image") {
+              quotedContent = { imageMessage: { caption: chatMessages.body || "" } };
+            } else if (chatMessages.mediaType === "video") {
+              quotedContent = { videoMessage: { caption: chatMessages.body || "" } };
+            } else if (chatMessages.mediaType === "audio") {
+              quotedContent = { audioMessage: {} };
+            } else if (chatMessages.mediaType === "sticker") {
+              quotedContent = { stickerMessage: {} };
+            } else {
+              quotedContent = { conversation: chatMessages.body || "" };
+            }
+          }
+
+          options = {
+            quoted: {
+              key: quotedKey,
+              message: quotedContent
+            }
+          };
+        }
+      } catch (errQuote) {
+        logger.warn("[Baileys] Error procesando mensaje a citar:", errQuote);
       }
     }
 
     const formattedText = formatBody(body, ticket.contact);
 
-    const sentMessage = await wbot.sendMessage(number, {
-      text: formattedText,
-      contextInfo: { forwardingScore: isForwarded ? 2 : 0, isForwarded: isForwarded ? true : false }
-    }, options);
+    let sentMessage: WAMessage;
+    try {
+      sentMessage = await wbot.sendMessage(
+        number,
+        {
+          text: formattedText,
+          contextInfo: {
+            forwardingScore: isForwarded ? 2 : 0,
+            isForwarded: isForwarded ? true : false
+          }
+        },
+        options
+      );
+    } catch (sendErr: any) {
+      if (options) {
+        logger.warn(`[Baileys] Error enviando mensaje con cita al ticket ${ticket.id} (${sendErr?.message}), reintentando sin cita para asegurar entrega...`);
+        sentMessage = await wbot.sendMessage(
+          number,
+          {
+            text: formattedText,
+            contextInfo: {
+              forwardingScore: isForwarded ? 2 : 0,
+              isForwarded: isForwarded ? true : false
+            }
+          }
+        );
+      } else {
+        throw sendErr;
+      }
+    }
 
     const messageId = sentMessage?.key?.id || `wbot_${Date.now()}`;
 
@@ -157,7 +292,8 @@ const SendWhatsAppMessage = async ({
           ack: 1,
           queueId: ticket.queueId,
           dataJson: JSON.stringify(sentMessage),
-          remoteJid: number
+          remoteJid: number,
+          quotedMsgId: quotedMsgIdToSave
         },
         companyId: ticket.companyId
       });

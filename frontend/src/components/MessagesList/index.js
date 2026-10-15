@@ -138,7 +138,7 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   quotedContainerLeft: {
-    margin: "-3px -80px 6px -6px",
+    margin: "0 0 5px 0",
     overflow: "hidden",
     backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "#182229" : "#f5f6f6",
     borderRadius: "7.5px",
@@ -201,8 +201,8 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   quotedContainerRight: {
-    margin: "-3px -80px 6px -6px",
-    overflowY: "hidden",
+    margin: "0 0 5px 0",
+    overflow: "hidden",
     backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "#025144" : "#d1f4cc",
     borderRadius: "7.5px",
     display: "flex",
@@ -422,13 +422,12 @@ const reducer = (state, action) => {
     const messageIndex = state.findIndex((m) => m.id === messageToUpdate.id);
   
     if (messageIndex !== -1) {
-      state[messageIndex] = messageToUpdate;
-/*       const prevMessage = state[messageIndex];
+      const prevMessage = state[messageIndex];
       state[messageIndex] = {
         ...prevMessage,
         ...messageToUpdate,
         quotedMsg: messageToUpdate.quotedMsg || prevMessage.quotedMsg,
-      }; */
+      };
     }
   
     return [...state];
@@ -750,56 +749,62 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
               {message.quotedMsg?.contact?.name}
             </span>
           )}
+          {message.quotedMsg?.fromMe && (
+            <span className={classes.messageContactName} style={{ color: "#25d366" }}>
+              Usted
+            </span>
+          )}
 
-          {message.quotedMsg.mediaType === "audio"
-            && (
-              <div className={classes.downloadMedia}>
-                <audio controls>
-                  <source src={message.quotedMsg.mediaUrl} type="audio/ogg"></source>
-                </audio>
-              </div>
+          {message.quotedMsg.mediaType === "audio" && (
+            <div className={classes.downloadMedia}>
+              <audio controls>
+                <source src={message.quotedMsg.mediaUrl} type="audio/ogg" />
+              </audio>
+            </div>
+          )}
+          {message.quotedMsg.mediaType === "video" && (
+            <video
+              className={classes.messageMedia}
+              src={message.quotedMsg.mediaUrl}
+              controls
+            />
+          )}
+          {message.quotedMsg.mediaType === "application" && (
+            <div className={classes.downloadMedia}>
+              <Button 
+                startIcon={<GetApp />}
+                variant="outlined"
+                href={message.quotedMsg.mediaUrl}
+                target="_blank"
+                sx={(theme) => ({
+                  borderColor: theme.palette.mode === 'light' ? '#2DDD7F' : '#FFF',
+                  color: theme.palette.mode === 'light' ? '#2DDD7F' : '#FFF',
+                  backgroundColor: theme.palette.mode === 'light' ? '#2DDD7F10' : '#1c1c1c',
+                  '&:hover': {
+                    backgroundColor: theme.palette.mode === 'light' ? '#2DDD7F20' : '#333',
+                    borderColor: theme.palette.mode === 'light' ? '#2DDD7F' : '#FFF',
+                    color: theme.palette.mode === 'light' ? '#2DDD7F' : '#FFF',
+                  }
+                })}
+              >
+                Download
+              </Button>
+            </div>
+          )}
+
+          {message.quotedMsg.mediaType === "image" && message.quotedMsg.mediaUrl && (
+            <div style={{ maxWidth: 90, maxHeight: 90, overflow: 'hidden', borderRadius: 4, marginBottom: 4 }}>
+              <ModalImageCors imageUrl={message.quotedMsg.mediaUrl} />
+            </div>
+          )}
+
+          {message.quotedMsg.body && (
+            (message.quotedMsg.mediaType === "image" && message.quotedMsg.body === "sticker") ? null : (
+              <span style={{ fontSize: "0.85rem", opacity: 0.9 }}>
+                {message.quotedMsg.body}
+              </span>
             )
-          }
-          {message.quotedMsg.mediaType === "video"
-            && (
-              <video
-                className={classes.messageMedia}
-                src={message.quotedMsg.mediaUrl}
-                controls
-              />
-            )
-          }
-          {message.quotedMsg.mediaType === "application"
-            && (
-<div className={classes.downloadMedia}>
-  <Button 
-    startIcon={<GetApp />}
-    variant="outlined"
-    href={message.quotedMsg.mediaUrl}
-    target="_blank"
-    sx={(theme) => ({
-      borderColor: theme.palette.mode === 'light' ? '#2DDD7F' : '#FFF',
-      color: theme.palette.mode === 'light' ? '#2DDD7F' : '#FFF',
-      backgroundColor: theme.palette.mode === 'light' ? '#2DDD7F10' : '#1c1c1c',
-      '&:hover': {
-        backgroundColor: theme.palette.mode === 'light' ? '#2DDD7F20' : '#333',
-        borderColor: theme.palette.mode === 'light' ? '#2DDD7F' : '#FFF',
-        color: theme.palette.mode === 'light' ? '#2DDD7F' : '#FFF',
-      }
-    })}
-  >
-    Download
-  </Button>
-</div>
-
-            )
-          }
-
-          {message.quotedMsg.mediaType === "image"
-            && (
-              <ModalImageCors imageUrl={message.quotedMsg.mediaUrl} />)
-            || message.quotedMsg?.body}
-
+          )}
         </div>
       </div>
     );
