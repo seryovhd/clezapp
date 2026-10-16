@@ -58,22 +58,28 @@ const useStyles = makeStyles((theme) => ({
     marginBottom: theme.spacing(1),
   },
   appIconWrapper: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: 12,
-    background: "linear-gradient(135deg, #008069 0%, #00a884 100%)",
+    backgroundColor: theme.palette.type === "dark" ? "#2a3942" : "#f0f2f5",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    color: "#fff",
-    boxShadow: "0 4px 10px rgba(0, 168, 132, 0.3)",
+    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
     flexShrink: 0,
     marginRight: theme.spacing(1.5),
+    overflow: "hidden",
+    border: `1px solid ${
+      theme.palette.type === "dark"
+        ? "rgba(255, 255, 255, 0.1)"
+        : "rgba(0, 0, 0, 0.08)"
+    }`,
   },
   appLogoImg: {
-    width: 28,
-    height: 28,
-    objectFit: "contain",
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    borderRadius: 12,
   },
   title: {
     fontWeight: 700,
@@ -257,7 +263,11 @@ const PwaInstallPrompt = () => {
           <div className={classes.header}>
             <Box display="flex" alignItems="center">
               <div className={classes.appIconWrapper}>
-                <GetAppIcon fontSize="medium" />
+                <img
+                  src={`${process.env.PUBLIC_URL}/android-chrome-192x192.png`}
+                  alt="Clezapp"
+                  className={classes.appLogoImg}
+                />
               </div>
               <Box>
                 <Typography className={classes.title}>
