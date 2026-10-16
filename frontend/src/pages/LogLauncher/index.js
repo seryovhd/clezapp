@@ -141,17 +141,38 @@ const VersionLog = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const normalizeGithubUrl = (url) => {
+    if (!url) return url;
+    // Convierte enlaces de navegador github.com/:user/:repo/blob/:branch/:file a raw.githubusercontent.com
+    const blobMatch = url.match(/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)/);
+    if (blobMatch) {
+      const [, owner, repo, branch, path] = blobMatch;
+      return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
+    }
+    return url;
+  };
+
   useEffect(() => {
     const fetchReadme = async () => {
       try {
-        const response = await axios.get(
-          'https://github.com/seryovhd/clezapp/blob/main/LogLauncher.md'
-        );
-        const decodedContent = decodeBase64(response.data.content);
-        const parsedLog = parseVersionLog(decodedContent);
+        const inputUrl = 'https://github.com/seryovhd/clezapp/blob/main/LogLauncher.md';
+        const targetUrl = normalizeGithubUrl(inputUrl);
+        const response = await axios.get(targetUrl);
+
+        let content = '';
+        if (typeof response.data === 'string') {
+          content = response.data;
+        } else if (response.data && response.data.content) {
+          content = decodeBase64(response.data.content);
+        } else {
+          content = JSON.stringify(response.data);
+        }
+
+        const parsedLog = parseVersionLog(content);
         setVersionLog(parsedLog);
         setLoading(false);
       } catch (err) {
+        console.error("Error al cargar LogLauncher:", err);
         setError('Error al cargar el registro de versiones desde GitHub.');
         setLoading(false);
       }
@@ -162,25 +183,49 @@ const VersionLog = () => {
 
   // Función para decodificar Base64 con soporte UTF-8
   const decodeBase64 = (str) => {
-    return decodeURIComponent(
-      Array.prototype.map
-        .call(atob(str), (c) => `%${`00${c.charCodeAt(0).toString(16)}`.slice(-2)}`)
-        .join('')
-    );
+    try {
+      return decodeURIComponent(
+        Array.prototype.map
+          .call(atob(str), (c) => `%${`00${c.charCodeAt(0).toString(16)}`.slice(-2)}`)
+          .join('')
+      );
+    } catch (e) {
+      return atob(str);
+    }
   };
 
   const parseVersionLog = (content) => {
-    const versions = content.split('## ').slice(1);
-    return versions.map(versionText => {
-      const [title, ...changes] = versionText.split('\n').filter(line => line.trim() !== '');
-      return {
-        version: title.trim(),
-        changes: changes.map(change => change.trim().replace(/^[-*]\s*/, '').trim())
-      };
-    }).map(log => ({
-      ...log,
-      changes: log.changes.map(change => formatMarkdown(change))
-    }));
+    if (!content || !content.trim()) return [];
+
+    if (content.includes('## ')) {
+      const versions = content.split('## ').slice(1);
+      return versions.map(versionText => {
+        const [title, ...changes] = versionText.split('\n').filter(line => line.trim() !== '');
+        return {
+          version: title ? title.trim() : '',
+          changes: changes.map(change => formatMarkdown(change.trim().replace(/^[-*•]\s*/, '').trim()))
+        };
+      }).filter(item => item.version);
+    } else if (content.includes('# ')) {
+      const versions = content.split('# ').slice(1);
+      return versions.map(versionText => {
+        const [title, ...changes] = versionText.split('\n').filter(line => line.trim() !== '');
+        return {
+          version: title ? title.trim() : '',
+          changes: changes.map(change => formatMarkdown(change.trim().replace(/^[-*•]\s*/, '').trim()))
+        };
+      }).filter(item => item.version);
+    } else {
+      // Divide por bloques/párrafos si no contiene encabezados ##
+      const paragraphs = content.split(/\n\s*\n/).filter(p => p.trim() !== '');
+      return paragraphs.map((para) => {
+        const lines = para.split('\n').filter(line => line.trim() !== '');
+        return {
+          version: lines[0] ? lines[0].trim() : '',
+          changes: lines.slice(1).map(change => formatMarkdown(change.trim().replace(/^[-*•]\s*/, '').trim()))
+        };
+      }).filter(item => item.version);
+    }
   };
 
   const formatMarkdown = (text) => {

@@ -1,6 +1,6 @@
-# CHASAP PRO
+# CLEZAPP PRO
 
-**Chasap** es una aplicación basada en *Whaticket*, diseñada para la gestión eficiente de mensajes de **WhatsApp** en empresas y negocios. Permite la administración centralizada de conversaciones, optimizando la comunicación con clientes.
+**Clezapp** es una aplicación basada en *Whaticket*, diseñada para la gestión eficiente de mensajes de **WhatsApp** en empresas y negocios. Permite la administración centralizada de conversaciones, optimizando la comunicación con clientes.
 
 > 📚 **Documentación técnica completa:** Consulta [DOCUMENTACION_SISTEMA.md](DOCUMENTACION_SISTEMA.md) para conocer la arquitectura, flujo de ejecución y listado detallado de todas las herramientas y tecnologías utilizadas.
 
@@ -15,14 +15,6 @@
 
 ## 🤝 GRUPO DE SOPORTE
 
-Únete a nuestro grupo de WhatsApp para resolver dudas y compartir experiencias con otros usuarios de Chasap:
-- https://chat.whatsapp.com/JNiua2aMp3NDa5cF5Zw5Se
-
-## 🛠 INSTALACIÓN
-### VIDEO INSTALACIÓN WINDOWS: https://www.youtube.com/watch?v=0NMyzdb_SPQ
-### VIDEO INSTALACIÓN LINUX:
-### VIDEO INSTALACIÓN VPS:
-
 ### ⚡ REQUISITOS PREVIOS
 
 - **Node.js v22+**  
@@ -33,8 +25,8 @@
 
 1. **Clona este repositorio:**  
    ```sh
-   git clone https://github.com/MinoruMX/Chasap.git
-   cd chasap
+   git clone https://github.com/seryovhd/clezapp.git
+   cd Clezapp
    cd backend
    ```
 
@@ -68,23 +60,17 @@
 
 ## ✨ CONTRIBUCIONES
 
-Si deseas contribuir a **Chasap**, puedes hacer un **fork** del proyecto y enviar un **pull request** con mejoras o correcciones.
-
-## ❤️ DONACIÓN
-
-### Quieres comprar un café para no quedarme dormido y seguir programando!!. puedes hacerlo <3
-### ☕ https://buymeacoffee.com/chasap
-
+Si deseas contribuir a **Clezapp**, puedes hacer un **fork** del proyecto y enviar un **pull request** con mejoras o correcciones.
 
 ## 👤 AUTOR
 
-**Luis Cárdenas**  
-📞 938 126 1750  
-📧 l_cardenas83@hotmail.com  
+**Seryov Herrera**  
+📞 +51 935 359 876
+📧 sherrera@sychost.com
 
 ## 🙌 AGRADECIMIENTOS
 
-Agradecemos a todos los colaboradores y usuarios que han apoyado el desarrollo de Chasap. Su retroalimentación y contribuciones han sido clave para mejorar esta herramienta.
+Agradecemos a todos los colaboradores y usuarios que han apoyado el desarrollo de Clezapp. Su retroalimentación y contribuciones han sido clave para mejorar esta herramienta.
 - Calendario (Traducción) : BJAR
   
 
