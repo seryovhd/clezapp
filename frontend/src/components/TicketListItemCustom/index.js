@@ -214,12 +214,28 @@ const useStyles = makeStyles((theme) => ({
     overflowY: "hidden",
     whiteSpace: "nowrap",
     flexWrap: "nowrap",
-    paddingBottom: 2,
+    paddingBottom: 3,
     "-webkit-overflow-scrolling": "touch",
-    scrollbarWidth: "none",
+    scrollbarWidth: "thin",
+    scrollbarColor: (theme.palette?.type || theme.mode) === "dark" 
+      ? "rgba(255, 255, 255, 0.3) transparent" 
+      : "rgba(0, 0, 0, 0.25) transparent",
     "&::-webkit-scrollbar": {
-      display: "none",
-      height: 0,
+      height: 3,
+    },
+    "&::-webkit-scrollbar-track": {
+      background: "transparent",
+    },
+    "&::-webkit-scrollbar-thumb": {
+      backgroundColor: (theme.palette?.type || theme.mode) === "dark" 
+        ? "rgba(255, 255, 255, 0.3)" 
+        : "rgba(0, 0, 0, 0.25)",
+      borderRadius: 3,
+    },
+    "&::-webkit-scrollbar-thumb:hover": {
+      backgroundColor: (theme.palette?.type || theme.mode) === "dark" 
+        ? "rgba(255, 255, 255, 0.45)" 
+        : "rgba(0, 0, 0, 0.4)",
     },
   },
   tagChip: {
