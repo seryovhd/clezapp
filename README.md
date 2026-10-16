@@ -2,8 +2,6 @@
 
 **Clezapp** es una aplicación basada en *Whaticket*, diseñada para la gestión eficiente de mensajes de **WhatsApp** en empresas y negocios. Permite la administración centralizada de conversaciones, optimizando la comunicación con clientes.
 
-> 📚 **Documentación técnica completa:** Consulta [DOCUMENTACION_SISTEMA.md](DOCUMENTACION_SISTEMA.md) para conocer la arquitectura, flujo de ejecución y listado detallado de todas las herramientas y tecnologías utilizadas.
-
 ## ✨ CARACTERÍSTICAS
 
 - **Multiusuario:** Permite a múltiples agentes manejar conversaciones desde una sola plataforma.  
