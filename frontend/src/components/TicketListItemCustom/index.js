@@ -53,6 +53,8 @@ const useStyles = makeStyles((theme) => ({
     height: 74,
     borderRadius: 8,
     margin: "2px 6px",
+    width: "calc(100% - 12px)",
+    boxSizing: "border-box",
     transition: "background-color 0.15s ease",
     "&:hover": {
       backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "#202c33" : "#f5f6f6",
@@ -105,10 +107,13 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     justifyContent: "space-between",
     marginLeft: "5px",
+    minWidth: 0,
+    overflow: "hidden",
   },
   listItemTextCustom: {
-    marginRight: 95,
+    marginRight: 98,
     minWidth: 0,
+    overflow: "hidden",
     [theme.breakpoints.down("xs")]: {
       marginRight: 80,
     },
@@ -202,7 +207,7 @@ const useStyles = makeStyles((theme) => ({
   tagsContainer: {
     display: "flex",
     alignItems: "center",
-    gap: 5,
+    gap: 4,
     marginTop: 3,
     maxWidth: "100%",
     overflowX: "auto",
@@ -211,26 +216,10 @@ const useStyles = makeStyles((theme) => ({
     flexWrap: "nowrap",
     paddingBottom: 2,
     "-webkit-overflow-scrolling": "touch",
-    scrollbarWidth: "thin",
-    scrollbarColor: (theme.palette?.type || theme.mode) === "dark" 
-      ? "rgba(255, 255, 255, 0.25) transparent" 
-      : "rgba(0, 0, 0, 0.2) transparent",
+    scrollbarWidth: "none",
     "&::-webkit-scrollbar": {
-      height: 3,
-    },
-    "&::-webkit-scrollbar-track": {
-      background: "transparent",
-    },
-    "&::-webkit-scrollbar-thumb": {
-      backgroundColor: (theme.palette?.type || theme.mode) === "dark" 
-        ? "rgba(255, 255, 255, 0.25)" 
-        : "rgba(0, 0, 0, 0.2)",
-      borderRadius: 3,
-    },
-    "&::-webkit-scrollbar-thumb:hover": {
-      backgroundColor: (theme.palette?.type || theme.mode) === "dark" 
-        ? "rgba(255, 255, 255, 0.4)" 
-        : "rgba(0, 0, 0, 0.35)",
+      display: "none",
+      height: 0,
     },
   },
   tagChip: {
@@ -359,6 +348,8 @@ const useStyles = makeStyles((theme) => ({
     justifyContent: "center",
     borderTopRightRadius: 8,
     borderBottomRightRadius: 8,
+    minWidth: 50,
+    padding: "3px 8px",
     "&:hover": {
       backgroundColor: "#F44336",
       color: "#fff",

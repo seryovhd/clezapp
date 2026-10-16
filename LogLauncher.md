@@ -29,3 +29,10 @@ Todo lo que necesitas para empezar, en un solo lugar. 🔥
     🔍 Buscador Avanzado: Búsqueda inteligente en conversaciones con filtros avanzados.
     🔄 Reenvío Masivo de Mensajes: Envía mensajes a múltiples contactos de forma rápida y eficiente.
     🧠 ChatIA: Asistente con IA para consultas rápidas y soporte en tiempo real.
+    ⚙️ Configuración del Perfil: Gestión completa de la información personal.
+    🔓 Autenticación de Dos Factores: Seguridad adicional para proteger tu cuenta.
+    🎨 Temas Personalizados: Elige el tema que más te guste para personalizar tu experiencia.
+    📱 Modo Smartphone: Optimizado para dispositivos móviles con acceso rápido a funciones esenciales.
+    🌍 Selector de Idiomas: Configura tu idioma preferido con soporte multilingual.
+    📤 Exportación de Datos: Exporta tus conversaciones y datos importantes a archivos locales.
+    🔄 Reimportación de Datos: Restaura tus datos a partir de archivos locales.

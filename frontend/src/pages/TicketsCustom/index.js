@@ -24,7 +24,8 @@ const useStyles = makeStyles(theme => ({
 		display: "flex",
 		height: "100%",
 		flexDirection: "column",
-		overflowY: "hidden",
+		overflow: "hidden",
+		overflowX: "hidden",
 	},
 	messagesWrapper: {
 		display: "flex",

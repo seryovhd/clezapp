@@ -44,7 +44,8 @@ const useStyles = makeStyles((theme) => ({
     display: 'flex',
     height: '100%',
     flexDirection: 'column',
-    overflow: 'hidden'
+    overflow: 'hidden',
+    overflowX: 'hidden',
   },
   tabsHeader: {
     flex: 'none',
