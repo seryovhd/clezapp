@@ -108,13 +108,7 @@ const ListTicketsService = async ({
         [Op.or]: [
           { userId: userId },
           { status: "pending" }
-        ],
-        queueId: {
-          [Op.or]: [
-            { [Op.in]: [] },
-            { [Op.is]: null }
-          ]
-        }
+        ]
       };
     }
   }
@@ -164,14 +158,7 @@ const ListTicketsService = async ({
         }
       };
     } else {
-      whereCondition = {
-        queueId: {
-          [Op.or]: [
-            { [Op.in]: [] },
-            { [Op.is]: null }
-          ]
-        }
-      };
+      whereCondition = {};
     }
   }
 

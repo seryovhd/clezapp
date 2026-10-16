@@ -121,31 +121,17 @@ const useStyles = makeStyles((theme) => ({
     height: "100%",
     position: "relative",
     paddingRight: 6,
-    minWidth: 40,
-  },
-  timeAndBadgeWrapper: {
-    position: "absolute",
-    top: 8,
-    right: 6,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: 4,
-    whiteSpace: "nowrap",
-    [theme.breakpoints.down("xs")]: {
-      flexDirection: "column",
-      alignItems: "flex-end",
-      gap: 1,
-      top: 5,
-    },
+    minWidth: 45,
   },
   lastMessageTime: {
+    position: "absolute",
+    top: 8,
+    right: 8,
     color: (theme.palette?.type || theme.mode) === 'dark' ? "#8696a0" : "#667781",
-    fontSize: "0.72rem",
+    fontSize: "0.74rem",
     fontWeight: 500,
     lineHeight: 1,
     whiteSpace: "nowrap",
-    display: "inline-block",
   },
   waitTimeBadge: {
     display: "inline-flex",
@@ -671,6 +657,7 @@ const TicketListItemCustom = ({ ticket }) => {
                           {ticketUser}
                         </span>
                       )}
+                      {renderWaitTimeBadge()}
                       {profile === "admin" && !ticket.isGroup && ticket.status === "pending" && (
                         <Tooltip title="Ver mensajes">
                           <button
@@ -714,23 +701,20 @@ const TicketListItemCustom = ({ ticket }) => {
           alignItems: "stretch"
         }}>
           <div className={classes.secondaryInfoCol}>
-            {/* Hora de último mensaje + Tiempo de espera (Fijo arriba a la derecha) */}
-            <div className={classes.timeAndBadgeWrapper}>
-              {renderWaitTimeBadge()}
-              {ticket.updatedAt && (
-                <Typography
-                  className={classes.lastMessageTime}
-                  component="span"
-                  variant="body2"
-                >
-                  {isSameDay(parseISO(ticket.updatedAt), new Date())
-                    ? format(parseISO(ticket.updatedAt), "HH:mm")
-                    : format(parseISO(ticket.updatedAt), "dd/MM/yyyy")}
-                </Typography>
-              )}
-            </div>
+            {/* Hora de último mensaje (Fijo arriba a la derecha) */}
+            {ticket.updatedAt && (
+              <Typography
+                className={classes.lastMessageTime}
+                component="span"
+                variant="body2"
+              >
+                {isSameDay(parseISO(ticket.updatedAt), new Date())
+                  ? format(parseISO(ticket.updatedAt), "HH:mm")
+                  : format(parseISO(ticket.updatedAt), "dd/MM/yyyy")}
+              </Typography>
+            )}
 
-            {/* Mensajes no leídos (Centrado verticalmente al medio, posición de Imagen 2) */}
+            {/* Mensajes no leídos (Centrado verticalmente al medio, posición idéntica a Imagen 2) */}
             <Badge
               className={classes.newMessagesCount}
               badgeContent={ticket.unreadMessages}

@@ -127,11 +127,16 @@ const TicketsListCustom = (props) => {
     }
   };
 
+  const queueIdsKey = JSON.stringify(selectedQueueIds || []);
+  const tagsKey = JSON.stringify(tags || []);
+  const usersKey = JSON.stringify(users || []);
+
   // CARGA INICIAL Y AL CAMBIAR DEPENDENCIAS
   useEffect(() => {
     setPageNumber(1);
     loadTickets(1, true, false);
-  }, [status, selectedQueueIds, showAll, searchParam, tags, users, dateRange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, queueIdsKey, showAll, searchParam, tagsKey, usersKey, dateRange]);
 
   // CARGA MÁS TICKETS CUANDO CAMBIA pageNumber
   useEffect(() => {

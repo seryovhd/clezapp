@@ -205,7 +205,12 @@ const TicketsManagerTabs = () => {
       setSearchPhone('');
     }
   }, [tab]);
-  // SOLUCIÓN: Inicializar showAllTickets basado en el perfil
+  useEffect(() => {
+    if (user?.queues?.length > 0) {
+      setSelectedQueueIds(user.queues.map((q) => q.id));
+    }
+  }, [user]);
+
   useEffect(() => {
     // Por defecto, todos los usuarios ven solo sus tickets
     // El admin puede cambiar esto con el botón
@@ -235,7 +240,7 @@ const TicketsManagerTabs = () => {
 
   const applyPanelStyle = (status) => {
     if (tabOpen !== status) {
-      return { width: 0, height: 0 };
+      return { display: "none" };
     }
   };
 
@@ -263,7 +268,7 @@ const TicketsManagerTabs = () => {
   // SOLUCIÓN: Determinar showAll basado en perfil y estado
   const getShowAllValue = () => {
     // Solo admin puede ver todos los tickets, otros usuarios solo ven los suyos
-    return user.profile.toUpperCase() === 'ADMIN' ? showAllTickets : false;
+    return user?.profile?.toUpperCase() === 'ADMIN' ? showAllTickets : false;
   };
 
   return (
@@ -318,7 +323,7 @@ const TicketsManagerTabs = () => {
               </Tooltip>
             )}
             {/* SOLUCIÓN: Solo mostrar el botón showAll para admin */}
-            {user.profile.toUpperCase() === 'ADMIN' && (
+            {user?.profile?.toUpperCase() === 'ADMIN' && (
               <Tooltip title={getShowAllValue() ? i18n.t("tickets.buttons.hideAll") : i18n.t("tickets.buttons.showAll")}>
                 <IconButton
                   onClick={() => setShowAllTickets((prev) => !prev)}

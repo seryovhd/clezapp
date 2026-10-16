@@ -29,6 +29,20 @@ const useAuth = () => {
     }
   );
 
+  let isRefreshing = false;
+  let failedQueue = [];
+
+  const processQueue = (error, token = null) => {
+    failedQueue.forEach((prom) => {
+      if (error) {
+        prom.reject(error);
+      } else {
+        prom.resolve(token);
+      }
+    });
+    failedQueue = [];
+  };
+
   api.interceptors.response.use(
     (response) => {
       return response;
@@ -36,14 +50,37 @@ const useAuth = () => {
     async (error) => {
       const originalRequest = error.config;
       if (error?.response?.status === 403 && !originalRequest._retry) {
-        originalRequest._retry = true;
-
-        const { data } = await api.post("/auth/refresh_token");
-        if (data) {
-          localStorage.setItem("token", JSON.stringify(data.token));
-          api.defaults.headers.Authorization = `Bearer ${data.token}`;
+        if (isRefreshing) {
+          return new Promise((resolve, reject) => {
+            failedQueue.push({ resolve, reject });
+          })
+            .then((token) => {
+              originalRequest.headers["Authorization"] = `Bearer ${token}`;
+              return api(originalRequest);
+            })
+            .catch((err) => {
+              return Promise.reject(err);
+            });
         }
-        return api(originalRequest);
+
+        originalRequest._retry = true;
+        isRefreshing = true;
+
+        try {
+          const { data } = await api.post("/auth/refresh_token");
+          if (data) {
+            localStorage.setItem("token", JSON.stringify(data.token));
+            api.defaults.headers.Authorization = `Bearer ${data.token}`;
+            originalRequest.headers["Authorization"] = `Bearer ${data.token}`;
+            processQueue(null, data.token);
+            return api(originalRequest);
+          }
+        } catch (refreshErr) {
+          processQueue(refreshErr, null);
+          return Promise.reject(refreshErr);
+        } finally {
+          isRefreshing = false;
+        }
       }
       if (error?.response?.status === 401) {
         localStorage.removeItem("token");
