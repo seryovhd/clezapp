@@ -145,7 +145,7 @@ const VersionLog = () => {
     const fetchReadme = async () => {
       try {
         const response = await axios.get(
-          'https://github.com/seryovhd/setup-install/blob/main/LogLauncher.md'
+          'https://github.com/seryovhd/clezapp/blob/main/LogLauncher.md'
         );
         const decodedContent = decodeBase64(response.data.content);
         const parsedLog = parseVersionLog(decodedContent);
