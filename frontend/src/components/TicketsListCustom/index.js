@@ -198,12 +198,21 @@ const TicketsListCustom = (props) => {
     socket.on(`company-${companyId}-ticket`, handleSocketEvent);
     socket.on(`company-${companyId}-appMessage`, handleSocketEvent);
 
+    const handleSettingsEvent = (data) => {
+      if (data?.action === "update" && data?.setting?.key === "showTicketWaitTime") {
+        localStorage.setItem("showTicketWaitTime", data.setting.value);
+        window.dispatchEvent(new Event("settings-update"));
+      }
+    };
+    socket.on(`company-${companyId}-settings`, handleSettingsEvent);
+
     return () => {
       if (socketReloadTimer.current) {
         clearTimeout(socketReloadTimer.current);
       }
       socket.off(`company-${companyId}-ticket`, handleSocketEvent);
       socket.off(`company-${companyId}-appMessage`, handleSocketEvent);
+      socket.off(`company-${companyId}-settings`, handleSettingsEvent);
     };
   }, [status, socketManager, selectedQueueIds, showAll, searchParam, tags, users, dateRange]);
 

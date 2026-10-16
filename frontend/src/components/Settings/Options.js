@@ -125,6 +125,9 @@ export default function Options(props) {
     const [rememberCustomerAgent, setRememberCustomerAgent] = useState("disabled");
     const [loadingRememberAgent, setLoadingRememberAgent] = useState(false);
     // PARCHE 1.3.1 - RECORDAR AGENTE FIN
+    const [showTicketWaitTime, setShowTicketWaitTime] = useState("disabled");
+    const [loadingShowTicketWaitTime, setLoadingShowTicketWaitTime] = useState(false);
+
     const [ipixcType, setIpIxcType] = useState("");
     const [loadingIpIxcType, setLoadingIpIxcType] = useState(false);
     const [tokenixcType, setTokenIxcType] = useState("");
@@ -215,6 +218,10 @@ export default function Options(props) {
                 setRememberCustomerAgent(rememberCustomerAgentSetting.value);
             }
             // PARCHE 1.3.1 - RECORDAR AGENTE FIN
+            const showTicketWaitTimeSetting = settings.find((s) => s.key === "showTicketWaitTime");
+            if (showTicketWaitTimeSetting) {
+                setShowTicketWaitTime(showTicketWaitTimeSetting.value);
+            }
             {
                 /*Whaticket SaaS SAUDAÇÃO*/
             }
@@ -409,6 +416,19 @@ export default function Options(props) {
         setLoadingRememberAgent(false);
     }
     // PARCHE 1.3.1 - RECORDAR AGENTE FIN
+
+    async function handleShowTicketWaitTime(value) {
+        setShowTicketWaitTime(value);
+        setLoadingShowTicketWaitTime(true);
+        await update({
+            key: "showTicketWaitTime",
+            value,
+        });
+        localStorage.setItem("showTicketWaitTime", value);
+        window.dispatchEvent(new Event("settings-update"));
+        toast.success("Operación actualizada con éxito.");
+        setLoadingShowTicketWaitTime(false);
+    }
     async function handleSendGreetingMessageOneQueues(value) {
         setSendGreetingMessageOneQueues(value);
         setLoadingSendGreetingMessageOneQueues(true);
@@ -808,6 +828,25 @@ export default function Options(props) {
                     </FormControl>
                 </Grid>
                 {/* PARCHE 1.3.1 - RECORDAR AGENTE FIN */}
+                {/* MOSTRAR TIEMPO DE ESPERA / ÚLTIMA INTERACCIÓN */}
+                <Grid xs={12} sm={12} md={12} item>
+                    <FormControl className={classes.selectContainer}>
+                        <InputLabel id="showTicketWaitTime-label">
+                            ¿Mostrar tiempo de última interacción en tickets?
+                        </InputLabel>
+                        <Select
+                            labelId="showTicketWaitTime-label"
+                            value={showTicketWaitTime}
+                            onChange={async (e) => {
+                                handleShowTicketWaitTime(e.target.value);
+                            }}
+                        >
+                            <MenuItem value="disabled">No</MenuItem>
+                            <MenuItem value="enabled">Sí</MenuItem>
+                        </Select>
+                        <FormHelperText>{loadingShowTicketWaitTime && "Actualizando..."}</FormHelperText>
+                    </FormControl>
+                </Grid>
             </Grid>
 
             <OnlyForSuperUser

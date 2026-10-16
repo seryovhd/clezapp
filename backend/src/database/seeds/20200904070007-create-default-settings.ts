@@ -125,8 +125,50 @@ module.exports = {
                             companyId: 1,
                             createdAt: new Date(),
                             updatedAt: new Date()
-                        }
+                        },
                         // PARCHE 1.3.1 - RECORDAR AGENTE FIN
+                        {
+                            key: "showTicketWaitTime",
+                            value: "disabled",
+                            companyId: 1,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        },
+                        {
+                            key: "evolutionApiUrl",
+                            value: "http://localhost:8080",
+                            companyId: 1,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        },
+                        {
+                            key: "evolutionApiKey",
+                            value: "",
+                            companyId: 1,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        },
+                        {
+                            key: "evolutionApiEnabled",
+                            value: "enabled",
+                            companyId: 1,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        },
+                        {
+                            key: "viewclosed",
+                            value: "disabled",
+                            companyId: 1,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        },
+                        {
+                            key: "viewgroups",
+                            value: "disabled",
+                            companyId: 1,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        }
                     ],
                     { transaction: t }
                 )

@@ -170,6 +170,11 @@ const TicketsManagerTabs = () => {
         } else {
           setClosedBox(false);
         }
+        const waitTimeSetting = data.find(s => s.key === 'showTicketWaitTime');
+        if (waitTimeSetting) {
+          localStorage.setItem("showTicketWaitTime", waitTimeSetting.value);
+          window.dispatchEvent(new Event("settings-update"));
+        }
       } catch (err) {
         toastError(err);
       }

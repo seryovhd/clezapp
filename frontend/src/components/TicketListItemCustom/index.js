@@ -106,6 +106,66 @@ const useStyles = makeStyles((theme) => ({
     justifyContent: "space-between",
     marginLeft: "5px",
   },
+  waitTimeBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    fontSize: "0.68rem",
+    fontWeight: 700,
+    lineHeight: 1,
+    padding: "2px 7px",
+    borderRadius: "10px",
+    whiteSpace: "nowrap",
+    letterSpacing: "0.2px",
+    flexShrink: 0,
+    transition: "all 0.2s ease-in-out",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+  },
+  waitDot: {
+    width: 6,
+    height: 6,
+    borderRadius: "50%",
+    display: "inline-block",
+  },
+  waitTimeRecent: {
+    backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "rgba(37, 211, 102, 0.18)" : "#e8f8f0",
+    color: (theme.palette?.type || theme.mode) === 'dark' ? "#25d366" : "#0f8a4f",
+    border: (theme.palette?.type || theme.mode) === 'dark' ? "1px solid rgba(37, 211, 102, 0.4)" : "1px solid rgba(15, 138, 79, 0.25)",
+    "& $waitDot": {
+      backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "#25d366" : "#0f8a4f",
+    },
+  },
+  waitTimeWarning: {
+    backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "rgba(255, 152, 0, 0.18)" : "#fff4e5",
+    color: (theme.palette?.type || theme.mode) === 'dark' ? "#ffb74d" : "#e65100",
+    border: (theme.palette?.type || theme.mode) === 'dark' ? "1px solid rgba(255, 152, 0, 0.4)" : "1px solid rgba(230, 81, 0, 0.25)",
+    "& $waitDot": {
+      backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "#ff9800" : "#ef6c00",
+    },
+  },
+  waitTimeCritical: {
+    backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "rgba(244, 67, 54, 0.2)" : "#fde8e8",
+    color: (theme.palette?.type || theme.mode) === 'dark' ? "#ef5350" : "#c62828",
+    border: (theme.palette?.type || theme.mode) === 'dark' ? "1px solid rgba(244, 67, 54, 0.4)" : "1px solid rgba(198, 40, 40, 0.25)",
+    "& $waitDot": {
+      backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "#f44336" : "#d32f2f",
+      animation: "$pulse 1.8s infinite ease-in-out",
+    },
+  },
+  "@keyframes pulse": {
+    "0%": {
+      transform: "scale(0.95)",
+      opacity: 0.7,
+    },
+    "50%": {
+      transform: "scale(1.25)",
+      opacity: 1,
+    },
+    "100%": {
+      transform: "scale(0.95)",
+      opacity: 0.7,
+    },
+  },
   lastMessageTime: {
     justifySelf: "flex-end",
     textAlign: "right",
@@ -245,7 +305,31 @@ const TicketListItemCustom = ({ ticket }) => {
   const lastTagsRef = useRef(Array.isArray(ticket?.tags) ? ticket.tags : []);
   const [tag, setTag] = useState([]);
   const [whatsAppName, setWhatsAppName] = useState(null);
-  const [lastInteractionLabel, setLastInteractionLabel] = useState("");
+  const [showWaitTime, setShowWaitTime] = useState(
+    () => localStorage.getItem("showTicketWaitTime") || "disabled"
+  );
+  const [, setTimeTicker] = useState(0);
+
+  useEffect(() => {
+    const handleSettingsUpdate = () => {
+      const val = localStorage.getItem("showTicketWaitTime") || "disabled";
+      setShowWaitTime(val);
+    };
+
+    window.addEventListener("settings-update", handleSettingsUpdate);
+    window.addEventListener("storage", handleSettingsUpdate);
+
+    const interval = setInterval(() => {
+      setTimeTicker((t) => t + 1);
+    }, 30000);
+
+    return () => {
+      window.removeEventListener("settings-update", handleSettingsUpdate);
+      window.removeEventListener("storage", handleSettingsUpdate);
+      clearInterval(interval);
+    };
+  }, []);
+
   const [openTicketMessageDialog, setOpenTicketMessageDialog] = useState(false);
   const { ticketId } = useParams();
   const isMounted = useRef(true);
@@ -294,32 +378,59 @@ const TicketListItemCustom = ({ ticket }) => {
       : format(lastInteractionDate, "dd/MM/yyyy");
   };
 
-  const getInteractionTimeLabel = () => {
-    if (!ticket.lastMessage) return null;
+  const renderWaitTimeBadge = () => {
+    if (showWaitTime !== "enabled") return null;
+    // Solo mostrar en tickets abiertos (Atendiendo) o pendientes (Esperando)
+    if (ticket.status !== "open" && ticket.status !== "pending") return null;
 
-    const lastInteractionDate = parseISO(ticket.updatedAt);
-    const currentDate = new Date();
-    const timeDifference = currentDate - lastInteractionDate;
-    const minutesDifference = Math.floor(timeDifference / (1000 * 60));
-    const hoursDifference = Math.floor(timeDifference / (1000 * 60 * 60));
+    const dateStr = ticket.updatedAt || ticket.createdAt;
+    if (!dateStr) return null;
 
-    if (minutesDifference < 3) return null;
+    try {
+      const lastInteractionDate = parseISO(dateStr);
+      const currentDate = new Date();
+      const timeDifference = currentDate.getTime() - lastInteractionDate.getTime();
+      if (isNaN(timeDifference) || timeDifference < 0) return null;
 
-    let labelText = "";
-    let className = "";
+      const totalMinutes = Math.floor(timeDifference / (1000 * 60));
+      const totalHours = Math.floor(totalMinutes / 60);
+      const totalDays = Math.floor(totalHours / 24);
 
-    if (minutesDifference < 30) {
-      labelText = `${minutesDifference}m`;
-      className = "recent";
-    } else if (hoursDifference < 24) {
-      labelText = `${hoursDifference}h`;
-      className = hoursDifference > 1 ? "warning" : "recent";
-    } else {
-      labelText = `${Math.floor(hoursDifference / 24)}d`;
-      className = "critical";
+      let labelText = "";
+      let badgeClass = classes.waitTimeRecent;
+      let tooltipTitle = "";
+
+      if (totalMinutes < 1) {
+        labelText = "<1m";
+        badgeClass = classes.waitTimeRecent;
+        tooltipTitle = "Última interacción: hace menos de 1 minuto";
+      } else if (totalMinutes < 60) {
+        labelText = `${totalMinutes}m`;
+        badgeClass = totalMinutes >= 15 ? classes.waitTimeWarning : classes.waitTimeRecent;
+        tooltipTitle = `Última interacción: hace ${totalMinutes} minuto${totalMinutes === 1 ? "" : "s"}`;
+      } else if (totalHours < 24) {
+        const remMinutes = totalMinutes % 60;
+        labelText = remMinutes > 0 ? `${totalHours}h ${remMinutes}m` : `${totalHours}h`;
+        badgeClass = totalHours >= 2 ? classes.waitTimeCritical : classes.waitTimeWarning;
+        tooltipTitle = `Última interacción: hace ${totalHours}h ${remMinutes}m`;
+      } else {
+        const remHours = totalHours % 24;
+        labelText = remHours > 0 ? `${totalDays}d ${remHours}h` : `${totalDays}d`;
+        badgeClass = classes.waitTimeCritical;
+        tooltipTitle = `Última interacción: hace ${totalDays} día${totalDays === 1 ? "" : "s"} y ${remHours}h`;
+      }
+
+      return (
+        <Tooltip arrow placement="top" title={tooltipTitle}>
+          <span className={clsx(classes.waitTimeBadge, badgeClass)}>
+            <span className={classes.waitDot} />
+            {labelText}
+          </span>
+        </Tooltip>
+      );
+    } catch (e) {
+      return null;
     }
-
-    return <span className={`${classes.interactionTime} ${className}`}>{labelText}</span>;
   };
 
   const handleCloseTicket = async (id) => {
@@ -474,9 +585,12 @@ const TicketListItemCustom = ({ ticket }) => {
           disableTypography
           primary={
             <span className={classes.contactNameWrapper}>
-              <Typography noWrap component="span" variant="body2" color="textPrimary">
-                {ticket.contact.name} {lastInteractionLabel}
-              </Typography>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, maxWidth: "75%" }}>
+                <Typography noWrap component="span" variant="body2" color="textPrimary" style={{ fontWeight: 600 }}>
+                  {ticket.contact?.name}
+                </Typography>
+                {renderWaitTimeBadge()}
+              </div>
             </span>
           }
           secondary={
