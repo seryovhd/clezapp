@@ -4,6 +4,7 @@ import AppError from "../../errors/AppError";
 import Message from "../../models/Message";
 import Ticket from "../../models/Ticket";
 import ShowTicketService from "../TicketServices/ShowTicketService";
+import Contact from "../../models/Contact";
 import Queue from "../../models/Queue";
 
 interface Request {
@@ -26,7 +27,21 @@ const ListMessagesService = async ({
   companyId,
   queues = []
 }: Request): Promise<Response> => {
-  const ticket = await ShowTicketService(ticketId, companyId);
+  const ticket = await Ticket.findOne({
+    where: { id: ticketId, companyId },
+    include: [
+      {
+        model: Contact,
+        as: "contact",
+        attributes: ["id", "name", "number", "profilePicUrl"]
+      },
+      {
+        model: Queue,
+        as: "queue",
+        attributes: ["id", "name", "color"]
+      }
+    ]
+  });
 
   if (!ticket) {
     throw new AppError("ERR_NO_TICKET_FOUND", 404);

@@ -106,24 +106,65 @@ const useStyles = makeStyles((theme) => ({
     justifyContent: "space-between",
     marginLeft: "5px",
   },
+  listItemTextCustom: {
+    marginRight: 95,
+    minWidth: 0,
+    [theme.breakpoints.down("xs")]: {
+      marginRight: 80,
+    },
+  },
+  secondaryInfoCol: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-end",
+    justifyContent: "center",
+    height: "100%",
+    position: "relative",
+    paddingRight: 6,
+    minWidth: 40,
+  },
+  timeAndBadgeWrapper: {
+    position: "absolute",
+    top: 8,
+    right: 6,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 4,
+    whiteSpace: "nowrap",
+    [theme.breakpoints.down("xs")]: {
+      flexDirection: "column",
+      alignItems: "flex-end",
+      gap: 1,
+      top: 5,
+    },
+  },
+  lastMessageTime: {
+    color: (theme.palette?.type || theme.mode) === 'dark' ? "#8696a0" : "#667781",
+    fontSize: "0.72rem",
+    fontWeight: 500,
+    lineHeight: 1,
+    whiteSpace: "nowrap",
+    display: "inline-block",
+  },
   waitTimeBadge: {
     display: "inline-flex",
     alignItems: "center",
-    gap: 4,
-    fontSize: "0.68rem",
+    gap: 3,
+    fontSize: "0.62rem",
     fontWeight: 700,
     lineHeight: 1,
-    padding: "2px 7px",
-    borderRadius: "10px",
+    padding: "2px 5px",
+    borderRadius: "6px",
     whiteSpace: "nowrap",
     letterSpacing: "0.2px",
     flexShrink: 0,
     transition: "all 0.2s ease-in-out",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
   },
   waitDot: {
-    width: 6,
-    height: 6,
+    width: 5,
+    height: 5,
     borderRadius: "50%",
     display: "inline-block",
   },
@@ -165,17 +206,6 @@ const useStyles = makeStyles((theme) => ({
       transform: "scale(0.95)",
       opacity: 0.7,
     },
-  },
-  lastMessageTime: {
-    justifySelf: "flex-end",
-    textAlign: "right",
-    position: "relative",
-    top: -28,
-    color: (theme.palette?.type || theme.mode) === 'dark' ? "#8696a0" : "#667781",
-    padding: 1,
-    paddingLeft: 5,
-    paddingRight: 10,
-    fontSize: "1em",
   },
   closedBadge: {
     alignSelf: "center",
@@ -583,14 +613,12 @@ const TicketListItemCustom = ({ ticket }) => {
 
         <ListItemText
           disableTypography
+          className={classes.listItemTextCustom}
           primary={
             <span className={classes.contactNameWrapper}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, maxWidth: "75%" }}>
-                <Typography noWrap component="span" variant="body2" color="textPrimary" style={{ fontWeight: 600 }}>
-                  {ticket.contact?.name}
-                </Typography>
-                {renderWaitTimeBadge()}
-              </div>
+              <Typography noWrap component="span" variant="body2" color="textPrimary" style={{ fontWeight: 600 }}>
+                {ticket.contact?.name}
+              </Typography>
             </span>
           }
           secondary={
@@ -685,25 +713,30 @@ const TicketListItemCustom = ({ ticket }) => {
           display: "flex",
           alignItems: "stretch"
         }}>
-          <Box display="flex" alignItems="center" flexDirection="row" gap={1}>
-            {/* Hora de último mensaje */}
-            {ticket.lastMessage && (
-              <Typography
-                className={classes.lastMessageTime}
-                component="span"
-                variant="body2"
-                color="textSecondary"
-              >
-                {isSameDay(parseISO(ticket.updatedAt), new Date())
-                  ? format(parseISO(ticket.updatedAt), "HH:mm")
-                  : format(parseISO(ticket.updatedAt), "dd/MM/yyyy")}
-              </Typography>
-            )}
+          <div className={classes.secondaryInfoCol}>
+            {/* Hora de último mensaje + Tiempo de espera (Fijo arriba a la derecha) */}
+            <div className={classes.timeAndBadgeWrapper}>
+              {renderWaitTimeBadge()}
+              {ticket.updatedAt && (
+                <Typography
+                  className={classes.lastMessageTime}
+                  component="span"
+                  variant="body2"
+                >
+                  {isSameDay(parseISO(ticket.updatedAt), new Date())
+                    ? format(parseISO(ticket.updatedAt), "HH:mm")
+                    : format(parseISO(ticket.updatedAt), "dd/MM/yyyy")}
+                </Typography>
+              )}
+            </div>
+
+            {/* Mensajes no leídos (Centrado verticalmente al medio, posición de Imagen 2) */}
             <Badge
               className={classes.newMessagesCount}
               badgeContent={ticket.unreadMessages}
               classes={{ badge: classes.badgeStyle }}
             />
+
             {ticket.status === "pending" && ticket.isGroup && (
               <ButtonWithSpinner
                 variant="contained"
@@ -762,7 +795,7 @@ const TicketListItemCustom = ({ ticket }) => {
                 />
               </Tooltip>
             )}
-          </Box>
+          </div>
           <Box>
             {ticket.status === "pending" && !ticket.isGroup && (
               <Button

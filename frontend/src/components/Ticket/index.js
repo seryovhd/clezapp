@@ -133,53 +133,51 @@ const Ticket = () => {
 
   useEffect(() => {
     setLoading(true);
-    const delayDebounceFn = setTimeout(() => {
-      const fetchTicket = async () => {
-        try {
-          const { data } = await api.get("/tickets/u/" + ticketId);
-          const { queueId, whatsappId, userId } = data;
-          const { queues, profile, id, whatsappId: userWhatsapp } = user;
+    let isMounted = true;
 
-          const queueAllowed = !queueId || queues.some((q) => q.id === queueId);
+    const fetchTicket = async () => {
+      try {
+        const { data } = await api.get("/tickets/u/" + ticketId);
+        if (!isMounted) return;
 
-          const hasWhatsappPermission = whatsappId != null &&
-            (Array.isArray(userWhatsapp)
-              ? userWhatsapp.map(String).includes(String(whatsappId))
-              : String(userWhatsapp) === String(whatsappId));
-          const isAssigned = userId === id;
+        const { queueId, whatsappId, userId } = data;
+        const { queues, profile, id, whatsappId: userWhatsapp } = user;
 
-          if (!queueAllowed && profile !== "admin" && !hasWhatsappPermission && !isAssigned) {
-            toast.error("Acceso no permitido");
-            history.push("/tickets");
-            return;
-          }
+        const queueAllowed = !queueId || queues.some((q) => q.id === queueId);
 
-          setContact(data.contact);
-          setTicket(data);
-          
-          console.log("🔍 [TICKET DEBUG] Ticket cargado:", {
-            ticketId: data.id,
-            whatsapp: data.whatsapp,
-            whatsappType: data.whatsapp?.type,
-            isBusiness: data.whatsapp?.type === "whatsapp_business",
-            loading: false,
-            whatsappKeys: data.whatsapp ? Object.keys(data.whatsapp) : []
-          });
-          console.log("🔍 [TICKET DEBUG] Objeto whatsapp completo:", JSON.stringify(data.whatsapp, null, 2));
-          
-            if (data.whatsapp?.type === "whatsapp_business" || data.whatsapp?.type === "facebook_messenger") {
-              calculate24HourWindow(data.id);
-            }
-          
-          setLoading(false);
-        } catch (err) {
+        const hasWhatsappPermission = whatsappId != null &&
+          (Array.isArray(userWhatsapp)
+            ? userWhatsapp.map(String).includes(String(whatsappId))
+            : String(userWhatsapp) === String(whatsappId));
+        const isAssigned = userId === id;
+
+        if (!queueAllowed && profile !== "admin" && !hasWhatsappPermission && !isAssigned) {
+          toast.error("Acceso no permitido");
+          history.push("/tickets");
+          return;
+        }
+
+        setContact(data.contact);
+        setTicket(data);
+        
+        if (data.whatsapp?.type === "whatsapp_business" || data.whatsapp?.type === "facebook_messenger") {
+          calculate24HourWindow(data.id);
+        }
+        
+        setLoading(false);
+      } catch (err) {
+        if (isMounted) {
           setLoading(false);
           toastError(err);
         }
-      };
-      fetchTicket();
-    }, 500);
-    return () => clearTimeout(delayDebounceFn);
+      }
+    };
+
+    fetchTicket();
+
+    return () => {
+      isMounted = false;
+    };
   }, [ticketId, user, history, calculate24HourWindow]);
 
   useEffect(() => {
