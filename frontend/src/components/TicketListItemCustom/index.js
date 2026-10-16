@@ -199,6 +199,58 @@ const useStyles = makeStyles((theme) => ({
     marginRight: 32,
     marginLeft: "auto",
   },
+  tagsContainer: {
+    display: "flex",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 3,
+    maxWidth: "100%",
+    overflowX: "auto",
+    overflowY: "hidden",
+    whiteSpace: "nowrap",
+    flexWrap: "nowrap",
+    paddingBottom: 2,
+    "-webkit-overflow-scrolling": "touch",
+    scrollbarWidth: "thin",
+    scrollbarColor: (theme.palette?.type || theme.mode) === "dark" 
+      ? "rgba(255, 255, 255, 0.25) transparent" 
+      : "rgba(0, 0, 0, 0.2) transparent",
+    "&::-webkit-scrollbar": {
+      height: 3,
+    },
+    "&::-webkit-scrollbar-track": {
+      background: "transparent",
+    },
+    "&::-webkit-scrollbar-thumb": {
+      backgroundColor: (theme.palette?.type || theme.mode) === "dark" 
+        ? "rgba(255, 255, 255, 0.25)" 
+        : "rgba(0, 0, 0, 0.2)",
+      borderRadius: 3,
+    },
+    "&::-webkit-scrollbar-thumb:hover": {
+      backgroundColor: (theme.palette?.type || theme.mode) === "dark" 
+        ? "rgba(255, 255, 255, 0.4)" 
+        : "rgba(0, 0, 0, 0.35)",
+    },
+  },
+  tagChip: {
+    display: "inline-block",
+    flexShrink: 0,
+    fontSize: "0.60rem",
+    fontWeight: "bold",
+    borderRadius: "6px",
+    padding: "2px 6px",
+    textTransform: "uppercase",
+    lineHeight: 1.2,
+    whiteSpace: "nowrap",
+  },
+  tagsWrapper: {
+    display: "inline-flex",
+    alignItems: "center",
+    flexWrap: "nowrap",
+    gap: 4,
+    flexShrink: 0,
+  },
   contactLastMessage: {
     paddingRight: "0%",
     marginLeft: "5px",
@@ -608,9 +660,8 @@ const TicketListItemCustom = ({ ticket }) => {
             </span>
           }
           secondary={
-            <span className={classes.contactNameWrapper}>
+            <span style={{ display: "flex", flexDirection: "column", marginLeft: "5px", minWidth: 0, overflow: "hidden" }}>
               <Typography
-                className={classes.contactLastMessage}
                 noWrap
                 component="span"
                 variant="body2"
@@ -618,77 +669,66 @@ const TicketListItemCustom = ({ ticket }) => {
               >
                 {["composing", "recording"].includes(ticket?.presence) ? (
                   <span className={classes.presence}>{presenceMessage[ticket.presence]}</span>
+                ) : typeof ticket.lastMessage === "string" && ticket.lastMessage.includes("data:image/png;base64") ? (
+                  <MarkdownWrapper>Localización</MarkdownWrapper>
                 ) : (
-                  <>
-                    {typeof ticket.lastMessage === "string" && ticket.lastMessage.includes("data:image/png;base64") ? (
-                      <MarkdownWrapper>Localización</MarkdownWrapper>
-                    ) : (
-                      <MarkdownWrapper>{ticket.lastMessage}</MarkdownWrapper>
-                    )}
-                    <br />
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: "3px" }}>
-                      <span
-                        style={{
-                          display: "inline-block",
-                          backgroundColor: channelInfo.color,
-                          color: "#fff",
-                          fontSize: "0.60rem",
-                          fontWeight: "bold",
-                          borderRadius: "6px",
-                          padding: "2px 6px",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        {channelInfo.label}
-                      </span>
-                      {ticketUser && (
-                        <span
-                          style={{
-                            display: "inline-block",
-                            backgroundColor: "rgb(93, 157, 230)",
-                            color: "#fff",
-                            fontSize: "0.60rem",
-                            fontWeight: "bold",
-                            borderRadius: "6px",
-                            padding: "2px 6px",
-                            textTransform: "uppercase",
-                          }}
-                        >
-                          {ticketUser}
-                        </span>
-                      )}
-                      {renderWaitTimeBadge()}
-                      {profile === "admin" && !ticket.isGroup && ticket.status === "pending" && (
-                        <Tooltip title="Ver mensajes">
-                          <button
-                            onClick={() => setOpenTicketMessageDialog(true)}
-                            style={{
-                              border: "none",
-                              background: "transparent",
-                              padding: "2px",
-                              cursor: "pointer",
-                              display: "flex",
-                              alignItems: "center",
-                            }}
-                          >
-                            <FaRegEye size={20} color={ticket.queue?.color || grey[500]} />
-                          </button>
-                        </Tooltip>
-                      )}
-                      {Array.isArray(tagsToRender) && tagsToRender.length > 0 && (
-                        <div style={{ display: "flex", flexWrap: "wrap" }}>
-                          {tagsToRender.map((t) => (
-                            <ContactTag
-                              tag={t}
-                              key={`ticket-contact-tag-${ticket.id}-${t.id ?? t.name}`}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </>
+                  <MarkdownWrapper>{ticket.lastMessage}</MarkdownWrapper>
                 )}
               </Typography>
+
+              <div className={classes.tagsContainer}>
+                {channelInfo && (
+                  <span
+                    className={classes.tagChip}
+                    style={{
+                      backgroundColor: channelInfo.color,
+                      color: "#fff",
+                    }}
+                  >
+                    {channelInfo.label}
+                  </span>
+                )}
+                {ticketUser && (
+                  <span
+                    className={classes.tagChip}
+                    style={{
+                      backgroundColor: "rgb(93, 157, 230)",
+                      color: "#fff",
+                    }}
+                  >
+                    {ticketUser}
+                  </span>
+                )}
+                {renderWaitTimeBadge()}
+                {profile === "admin" && !ticket.isGroup && ticket.status === "pending" && (
+                  <Tooltip title="Ver mensajes">
+                    <button
+                      onClick={() => setOpenTicketMessageDialog(true)}
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        padding: "2px",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <FaRegEye size={18} color={ticket.queue?.color || grey[500]} />
+                    </button>
+                  </Tooltip>
+                )}
+                {Array.isArray(tagsToRender) && tagsToRender.length > 0 && (
+                  <div className={classes.tagsWrapper}>
+                    {tagsToRender.map((t) => (
+                      <ContactTag
+                        tag={t}
+                        key={`ticket-contact-tag-${ticket.id}-${t.id ?? t.name}`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </span>
           }
         />

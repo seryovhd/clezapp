@@ -6,6 +6,7 @@ const useStyles = makeStyles(() => ({
   tag: {
     display: "inline-flex",
     alignItems: "center",
+    flexShrink: 0,
     fontSize: "0.60rem",
     fontWeight: "bold",
     borderRadius: "6px",
@@ -13,7 +14,7 @@ const useStyles = makeStyles(() => ({
     textTransform: "uppercase",
     gap: 4,
     color: "white",
-    marginRight: "5px",
+    marginRight: "4px",
     whiteSpace: "nowrap",
   },
   icon: {
