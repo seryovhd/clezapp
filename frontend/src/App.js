@@ -10,6 +10,7 @@ import { useMediaQuery } from "@material-ui/core";
 import ColorModeContext from "./layout/themeContext";
 import { SocketContext, SocketManager } from './context/Socket/SocketContext';
 import NotificationHandler from './components/NotificationHandler/NotificationHandler';
+import PwaInstallPrompt from './components/PwaInstallPrompt';
 import Routes from "./routes";
 
 const queryClient = new QueryClient();
@@ -294,6 +295,7 @@ const App = () => {
                         <SocketContext.Provider value={SocketManager}>
                             <NotificationHandler />
                             <ToastContainer />
+                            <PwaInstallPrompt />
                             <Routes />
                         </SocketContext.Provider>
                     </QueryClientProvider>
