@@ -212,7 +212,7 @@ export default function Options(props) {
             // PARCHE 1.3.1 - RECORDAR AGENTE
             const rememberCustomerAgentSetting = settings.find((s) => s.key === "rememberCustomerAgent");
             if (rememberCustomerAgentSetting) {
-              setRememberCustomerAgent(rememberCustomerAgentSetting.value);
+                setRememberCustomerAgent(rememberCustomerAgentSetting.value);
             }
             // PARCHE 1.3.1 - RECORDAR AGENTE FIN
             {
@@ -807,7 +807,7 @@ export default function Options(props) {
                         <FormHelperText>{loadingRememberAgent && "Actualizando..."}</FormHelperText>
                     </FormControl>
                 </Grid>
-                 {/* PARCHE 1.3.1 - RECORDAR AGENTE FIN */}
+                {/* PARCHE 1.3.1 - RECORDAR AGENTE FIN */}
             </Grid>
 
             <OnlyForSuperUser

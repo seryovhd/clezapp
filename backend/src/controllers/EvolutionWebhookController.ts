@@ -6,6 +6,11 @@ import EvolutionApiService from "../services/EvolutionApiServices/EvolutionApiSe
 import { handleMessage, handleMsgAck } from "../services/WbotServices/wbotMessageListener";
 import { WAMessage } from "@whiskeysockets/baileys";
 import Message from "../models/Message";
+import Contact from "../models/Contact";
+import Ticket from "../models/Ticket";
+import Setting from "../models/Setting";
+import CreateMessageService from "../services/MessageServices/CreateMessageService";
+import { Op } from "sequelize";
 import { resolveLidToPhone } from "../helpers/ResolveLidHelper";
 
 export const handleWebhook = async (req: Request, res: Response): Promise<Response> => {
@@ -359,6 +364,134 @@ export const handleWebhook = async (req: Request, res: Response): Promise<Respon
       }
 
       return res.status(200).json({ status: "delete_processed", count: messageIds.length });
+    }
+
+    // 6. EVENTO: LLAMADA ENTRANTE (CALL)
+    if (event === "call") {
+      const callData = body.data;
+      if (!callData) {
+        return res.status(200).json({ status: "empty_call_data" });
+      }
+
+      const callId = callData.id || callData.callId;
+      const from = callData.from || callData.callerJid || callData.remoteJid;
+      const status = (callData.status || "").toLowerCase();
+
+      if (!from) {
+        return res.status(200).json({ status: "call_ignored_no_from" });
+      }
+
+      const cleanLidOrPhone = from.replace(/@.*$/, "").replace(/\D/g, "");
+      let realPhone = cleanLidOrPhone;
+      let isLid = from.endsWith("@lid") || cleanLidOrPhone.length >= 14;
+
+      if (isLid) {
+        const resolved = await resolveLidToPhone(cleanLidOrPhone, undefined, companyId);
+        if (resolved) {
+          realPhone = resolved;
+          isLid = false;
+        }
+      }
+
+      const sendMsgCall = await Setting.findOne({
+        where: { key: "call", companyId }
+      });
+      const callDisabled = sendMsgCall?.value === "disabled";
+
+      // Si está en offer y llamadas deshabilitadas, rechazar en Evolution
+      if (status === "offer" && callDisabled && callId) {
+        await EvolutionApiService.rejectCall(whatsapp, callId, from);
+      }
+
+      // Procesar llamada perdida si se corta, termina o si se rechazó
+      if (status === "terminate" || status === "reject" || status === "timeout" || (status === "offer" && callDisabled)) {
+        try {
+          // 1. Contacto
+          let contact = await Contact.findOne({
+            where: { number: realPhone, companyId }
+          });
+          if (!contact) {
+            contact = await Contact.create({
+              number: realPhone,
+              name: callData.name || callData.pushName || "Contacto WhatsApp",
+              companyId,
+              isGroup: false,
+              ...(isLid ? { lid: cleanLidOrPhone } : {})
+            });
+          }
+
+          // 2. Ticket
+          let ticket = await Ticket.findOne({
+            where: {
+              contactId: contact.id,
+              whatsappId: whatsapp.id,
+              companyId,
+              status: { [Op.not]: "closed" }
+            },
+            order: [["updatedAt", "DESC"]]
+          });
+          if (!ticket) {
+            ticket = await Ticket.create({
+              contactId: contact.id,
+              whatsappId: whatsapp.id,
+              companyId,
+              status: "pending",
+              isGroup: false,
+              unreadMessages: 1
+            });
+          }
+
+          // 3. Mensaje de llamada perdida
+          const now = new Date();
+          const hours = now.getHours().toString().padStart(2, "0");
+          const minutes = now.getMinutes().toString().padStart(2, "0");
+          const callBody = `📞 Llamada de voz/video perdida de ${contact.name || realPhone} (${realPhone}) a las ${hours}:${minutes}`;
+
+          await CreateMessageService({
+            messageData: {
+              id: `call_evo_${callId || Date.now()}`,
+              ticketId: ticket.id,
+              contactId: contact.id,
+              body: callBody,
+              fromMe: false,
+              mediaType: "call_log",
+              read: true,
+              ack: 1
+            },
+            companyId
+          });
+          await ticket.update({ lastMessage: callBody, status: "pending" });
+
+          // 4. Mensaje automático si llamadas deshabilitadas
+          if (callDisabled) {
+            const autoMsgText = "*Mensaje Automático:*\n\nLas llamadas de voz y video están deshabilitadas para este WhatsApp, por favor envíe un mensaje de texto. Gracias";
+            const destination = isLid ? (from.includes("@") ? from : `${cleanLidOrPhone}@lid`) : (realPhone.includes("@") ? realPhone : `${realPhone}@s.whatsapp.net`);
+
+            const sentRes = await EvolutionApiService.sendTextMessage(whatsapp, destination, autoMsgText);
+            const msgId = sentRes?.key?.id || sentRes?.id || `auto_call_${Date.now()}`;
+
+            await CreateMessageService({
+              messageData: {
+                id: msgId,
+                ticketId: ticket.id,
+                contactId: contact.id,
+                body: autoMsgText,
+                fromMe: true,
+                read: true,
+                mediaType: "chat",
+                ack: 1,
+                remoteJid: destination
+              },
+              companyId
+            });
+            await ticket.update({ lastMessage: autoMsgText });
+          }
+        } catch (callErr) {
+          logger.error("[Evolution Webhook] Error procesando llamada:", callErr);
+        }
+      }
+
+      return res.status(200).json({ status: "call_processed" });
     }
 
     return res.status(200).json({ status: "event_ignored", event });

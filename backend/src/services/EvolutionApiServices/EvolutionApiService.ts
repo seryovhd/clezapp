@@ -417,7 +417,8 @@ export class EvolutionApiService {
       fileName?: string;
       mimetype?: string;
       gifPlayback?: boolean;
-    }
+    },
+    options?: { quoted?: any; quotedMessageId?: string; delay?: number }
   ): Promise<any> {
     const instanceName = this.getInstanceName(whatsapp);
     const cleanNumber = this.cleanNumberForEvolution(number);
@@ -499,6 +500,16 @@ export class EvolutionApiService {
       payload.gifPlayback = true;
     }
 
+    if (options?.quoted) {
+      payload.quoted = options.quoted;
+    } else if (options?.quotedMessageId) {
+      payload.quoted = {
+        key: {
+          id: options.quotedMessageId
+        }
+      };
+    }
+
     logger.info(`[Evolution] Enviando sendMedia a ${cleanNumber} (${mediaData.mediaType}): mime=${mime}, isUrl=${isUrl}, mediaLength=${pureMedia.length}`);
     const res = await this.request(
       companyId,
@@ -508,6 +519,62 @@ export class EvolutionApiService {
     );
     logger.info(`[Evolution] Respuesta sendMedia de ${cleanNumber}: ${JSON.stringify(res)}`);
     return res;
+  }
+
+  /**
+   * Marca mensajes como leídos en Evolution API v2 (sincronizando WhatsApp Móvil y Web)
+   */
+  public static async markMessagesAsRead(
+    whatsapp: Whatsapp,
+    messages: Array<{ id: string; fromMe?: boolean; remoteJid: string }>
+  ): Promise<any> {
+    try {
+      if (!messages || messages.length === 0) return;
+      const instanceName = this.getInstanceName(whatsapp);
+      const payload = {
+        readMessages: messages.map(m => ({
+          id: m.id,
+          fromMe: m.fromMe ?? false,
+          remoteJid: m.remoteJid
+        }))
+      };
+
+      try {
+        return await this.request(
+          whatsapp.companyId,
+          `/chat/markMessageAsRead/${encodeURIComponent(instanceName)}`,
+          "POST",
+          payload
+        );
+      } catch (err: any) {
+        return await this.request(
+          whatsapp.companyId,
+          `/chat/readMessages/${encodeURIComponent(instanceName)}`,
+          "POST",
+          payload
+        );
+      }
+    } catch (error: any) {
+      logger.warn(`[Evolution] Error marcando mensajes como leídos: ${error?.message || error}`);
+    }
+  }
+
+  /**
+   * Rechaza una llamada entrante en Evolution API v2
+   */
+  public static async rejectCall(whatsapp: Whatsapp, callId: string, from: string): Promise<any> {
+    try {
+      const instanceName = this.getInstanceName(whatsapp);
+      const cleanNumber = this.cleanNumberForEvolution(from);
+      return await this.request(
+        whatsapp.companyId,
+        `/chat/rejectCall/${encodeURIComponent(instanceName)}`,
+        "POST",
+        { callId, from: cleanNumber }
+      );
+    } catch (err: any) {
+      logger.warn(`[Evolution] No se pudo rechazar llamada: ${err?.message}`);
+    }
   }
 
   /**

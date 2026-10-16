@@ -644,13 +644,18 @@ const messages = {
         },
         dialog: {
           title: "Mensaje Rápido",
+          shortcode: "Acceso directo",
           shortCode: "Acceso directo",
+          required: "Campo obligatorio",
+          active: "Activo",
+          inactive: "Inactivo",
           message: "Respuesta",
           save: "Guardar",
           cancel: "Cancelar",
           add: "Agregar",
           edit: "Editar",
           view: "Permitir ver",
+          visao: "Permitir ver",
           geral: "Global"
         },
         table: {

@@ -636,6 +636,10 @@ const messages = {
         dialog: {
           title: "Mensagem Rápida",
           shortcode: "Atalho",
+          shortCode: "Atalho",
+          required: "Campo obrigatório",
+          active: "Ativo",
+          inactive: "Inativo",
           message: "Resposta",
           save: "Salvar",
           cancel: "Cancelar",

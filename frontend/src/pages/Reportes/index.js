@@ -9,6 +9,7 @@ import {
   TableBody,
   Table,
   makeStyles,
+  useTheme,
   Badge,
 } from '@material-ui/core';
 import * as XLSX from 'xlsx';
@@ -61,208 +62,224 @@ import TicketMessageModal from "../../components/TicketMessagesDialog";
 import { AuthContext } from "../../context/Auth/AuthContext";
 import { isArray, capitalize } from "lodash";
 
-const useStyles = makeStyles((theme) => ({
-  root: {
-    backgroundColor: '#f8fafc',
-    height: '100vh',
-    overflowX: 'hidden', // Evitar scroll horizontal en el contenedor principal
-    overflowY: 'auto', // Permitir scroll vertical
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  mainContent: {
-    flex: 1,
-    padding: theme.spacing(3),
-    overflowY: 'auto',
-    overflowX: 'hidden',
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing(4),
-  },
-  titleContainer: {
-    display: 'flex',
-    alignItems: 'center',
-  },
-  titleIcon: {
-    marginRight: theme.spacing(2),
-    color: theme.palette.primary.main,
-  },
-  filterCard: {
-    marginBottom: theme.spacing(4),
-    borderRadius: 12,
-    boxShadow: '0 4px 20px 0 rgba(0,0,0,0.05)',
-    border: '1px solid rgba(0,0,0,0.05)',
-  },
-  filterCardHeader: {
-    backgroundColor: theme.palette.primary.light,
-    color: theme.palette.primary.contrastText,
-    borderRadius: '12px 12px 0 0',
-  },
-  tableCard: {
-    borderRadius: 12,
-    boxShadow: '0 4px 20px 0 rgba(0,0,0,0.05)',
-    border: '1px solid rgba(0,0,0,0.05)',
-    display: 'flex',
-    flexDirection: 'column',
-    position: 'relative',
-    overflow: 'visible', // Cambiar a visible para que el scrollbar no se corte
-  },
-  tableContainer: {
-    height: 'calc(100vh - 450px)',
-    minHeight: '300px',
-    maxHeight: 'calc(100vh - 450px)',
-    overflowY: 'scroll', // Cambiar a 'scroll' para forzar que siempre aparezca
-    overflowX: 'auto',
-    // Asegurar que el scrollbar tenga espacio completo y sea visible
-    paddingRight: '0px',
-    marginRight: '0px',
-    width: '100%',
-    position: 'relative',
-    // Estilos personalizados para el scrollbar más visible y completo
-    '&::-webkit-scrollbar': {
-      width: '18px !important',
-      height: '18px !important',
-      display: 'block !important',
-      WebkitAppearance: 'none',
+const useStyles = makeStyles((theme) => {
+  const isDark = theme.palette.type === 'dark';
+
+  return {
+    root: {
+      backgroundColor: isDark ? '#0b141a' : '#f8fafc',
+      color: isDark ? '#e9edef' : '#111b21',
+      height: '100vh',
+      overflowX: 'hidden',
+      overflowY: 'auto',
+      display: 'flex',
+      flexDirection: 'column',
     },
-    '&::-webkit-scrollbar-track': {
-      backgroundColor: '#d0d0d0 !important',
-      borderRadius: '0px',
-      margin: '0px',
-      border: 'none',
-      display: 'block !important',
+    mainContent: {
+      flex: 1,
+      padding: theme.spacing(3),
+      overflowY: 'auto',
+      overflowX: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
     },
-    '&::-webkit-scrollbar-thumb': {
-      backgroundColor: '#666666 !important',
-      borderRadius: '0px',
-      border: '2px solid #d0d0d0',
-      minHeight: '50px',
-      display: 'block !important',
-      '&:hover': {
-        backgroundColor: '#333333 !important',
+    header: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: theme.spacing(4),
+    },
+    titleContainer: {
+      display: 'flex',
+      alignItems: 'center',
+    },
+    titleIcon: {
+      marginRight: theme.spacing(2),
+      color: theme.palette.primary.main,
+    },
+    filterCard: {
+      marginBottom: theme.spacing(4),
+      borderRadius: 12,
+      boxShadow: isDark ? '0 4px 20px 0 rgba(0,0,0,0.5)' : '0 4px 20px 0 rgba(0,0,0,0.05)',
+      border: isDark ? '1px solid #222d34' : '1px solid rgba(0,0,0,0.05)',
+      backgroundColor: isDark ? '#111b21' : '#ffffff',
+    },
+    filterCardHeader: {
+      backgroundColor: isDark ? '#202c33' : theme.palette.primary.light,
+      color: isDark ? '#e9edef' : theme.palette.primary.contrastText,
+      borderRadius: '12px 12px 0 0',
+      '& .MuiCardHeader-title': {
+        color: isDark ? '#e9edef' : theme.palette.primary.contrastText,
+        fontWeight: 600,
       },
     },
-    '&::-webkit-scrollbar-thumb:active': {
-      backgroundColor: '#000000 !important',
+    tableCard: {
+      borderRadius: 12,
+      boxShadow: isDark ? '0 4px 20px 0 rgba(0,0,0,0.5)' : '0 4px 20px 0 rgba(0,0,0,0.05)',
+      border: isDark ? '1px solid #222d34' : '1px solid rgba(0,0,0,0.05)',
+      backgroundColor: isDark ? '#111b21' : '#ffffff',
+      display: 'flex',
+      flexDirection: 'column',
+      position: 'relative',
+      overflow: 'visible',
     },
-    '&::-webkit-scrollbar-corner': {
-      backgroundColor: '#d0d0d0 !important',
-      display: 'block !important',
+    tableContainer: {
+      height: 'calc(100vh - 450px)',
+      minHeight: '300px',
+      maxHeight: 'calc(100vh - 450px)',
+      overflowY: 'scroll',
+      overflowX: 'auto',
+      paddingRight: '0px',
+      marginRight: '0px',
+      width: '100%',
+      position: 'relative',
+      '&::-webkit-scrollbar': {
+        width: '14px !important',
+        height: '14px !important',
+        display: 'block !important',
+        WebkitAppearance: 'none',
+      },
+      '&::-webkit-scrollbar-track': {
+        backgroundColor: isDark ? '#111b21 !important' : '#d0d0d0 !important',
+        borderRadius: '0px',
+        margin: '0px',
+        border: 'none',
+        display: 'block !important',
+      },
+      '&::-webkit-scrollbar-thumb': {
+        backgroundColor: isDark ? '#374248 !important' : '#666666 !important',
+        borderRadius: '0px',
+        border: isDark ? '2px solid #111b21' : '2px solid #d0d0d0',
+        minHeight: '50px',
+        display: 'block !important',
+        '&:hover': {
+          backgroundColor: isDark ? '#54656f !important' : '#333333 !important',
+        },
+      },
+      '&::-webkit-scrollbar-thumb:active': {
+        backgroundColor: isDark ? '#00a884 !important' : '#000000 !important',
+      },
+      '&::-webkit-scrollbar-corner': {
+        backgroundColor: isDark ? '#111b21 !important' : '#d0d0d0 !important',
+        display: 'block !important',
+      },
+      scrollbarWidth: 'thin',
+      scrollbarColor: isDark ? '#374248 #111b21' : '#666666 #d0d0d0',
     },
-    // Para Firefox - forzar visibilidad
-    scrollbarWidth: 'thick',
-    scrollbarColor: '#666666 #d0d0d0',
-  },
-  tableHead: {
-    backgroundColor: theme.palette.primary.light,
-    '& th': {
-      color: theme.palette.primary.contrastText,
+    tableHead: {
+      backgroundColor: isDark ? '#202c33' : theme.palette.grey[200],
+      '& th': {
+        backgroundColor: isDark ? '#202c33' : theme.palette.grey[200],
+        color: isDark ? '#e9edef' : theme.palette.text.primary,
+        fontWeight: 'bold',
+        borderBottom: isDark ? '1px solid #222d34' : '1px solid #e0e0e0',
+      },
+    },
+    tableCell: {
+      padding: "8px 16px",
+      borderBottom: isDark ? "1px solid #222d34" : "1px solid #e0e0e0",
+      color: isDark ? '#e9edef' : theme.palette.text.primary,
+      verticalAlign: "middle",
+    },
+    highlightRow: {
+      "&:hover": {
+        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+      },
+    },
+    statusBadge: {
+      padding: '6px 12px',
+      borderRadius: 20,
       fontWeight: 'bold',
+      fontSize: '0.75rem',
+      textTransform: 'uppercase',
     },
-  },
-  statusBadge: {
-    padding: '6px 12px',
-    borderRadius: 20,
-    fontWeight: 'bold',
-    fontSize: '0.75rem',
-    textTransform: 'uppercase',
-  },
-  openStatus: {
-    backgroundColor: '#e3f2fd',
-    color: theme.palette.primary.dark,
-  },
-  pendingStatus: {
-    backgroundColor: '#fff8e1',
-    color: '#ff8f00',
-  },
-  closedStatus: {
-    backgroundColor: '#e8f5e9',
-    color: '#2e7d32',
-  },
-  actionButton: {
-    margin: theme.spacing(0.5),
-    transition: 'all 0.2s',
-    '&:hover': {
-      transform: 'scale(1.1)',
+    openStatus: {
+      backgroundColor: isDark ? 'rgba(33, 150, 243, 0.2)' : '#e3f2fd',
+      color: isDark ? '#64b5f6' : theme.palette.primary.dark,
     },
-  },
-  paginationContainer: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: theme.spacing(2),
-    backgroundColor: '#f5f7fa',
-    borderRadius: '0 0 12px 12px',
-  },
-  statsCard: {
-    marginBottom: theme.spacing(3),
-  },
-  statsIcon: {
-    fontSize: '3rem',
-    color: theme.palette.primary.main,
-  },
-  filterButton: {
-    marginLeft: theme.spacing(2),
-    borderRadius: 8,
-    textTransform: 'none',
-    padding: '8px 16px',
-  },
-  exportButton: {
-    backgroundColor: '#4caf50',
-    color: '#fff',
-    '&:hover': {
-      backgroundColor: '#388e3c',
+    pendingStatus: {
+      backgroundColor: isDark ? 'rgba(255, 152, 0, 0.2)' : '#fff8e1',
+      color: isDark ? '#ffb74d' : '#ff8f00',
     },
-    borderRadius: 8,
-    textTransform: 'none',
-    padding: '8px 16px',
-  },
-  quickFilter: {
-    marginRight: theme.spacing(1),
-    borderRadius: 8,
-    textTransform: 'none',
-    padding: '6px 12px',
-  },
-  queueBadge: {
-    padding: '6px 12px',
-    borderRadius: 20,
-    fontWeight: 'bold',
-    fontSize: '0.75rem',
-    backgroundColor: theme.palette.grey[200],
-  },
-  highlightRow: {
-    '&:hover': {
-      backgroundColor: 'rgba(25, 118, 210, 0.04)',
+    closedStatus: {
+      backgroundColor: isDark ? 'rgba(76, 175, 80, 0.2)' : '#e8f5e9',
+      color: isDark ? '#81c784' : '#2e7d32',
     },
-  },
-  tableCell: {
-    padding: "8px 16px",
-    borderBottom: "1px solid #e0e0e0",
-    verticalAlign: "middle",
-  },
-  tableHead: {
-    backgroundColor: theme.palette.grey[200],
-  },
-  highlightRow: {
-    "&:hover": {
-      backgroundColor: theme.palette.action.hover,
+    actionButton: {
+      margin: theme.spacing(0.5),
+      transition: 'all 0.2s',
+      '&:hover': {
+        transform: 'scale(1.1)',
+      },
     },
-  },
-  truncatedText: {
-    maxWidth: 200,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
-  actionButton: {
-    padding: 6,
-  },
-}));
+    paginationContainer: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: theme.spacing(2),
+      backgroundColor: isDark ? '#111b21' : '#f5f7fa',
+      borderRadius: '0 0 12px 12px',
+      borderTop: isDark ? '1px solid #222d34' : '1px solid #e0e0e0',
+      color: isDark ? '#e9edef' : theme.palette.text.primary,
+    },
+    statsCard: {
+      marginBottom: theme.spacing(3),
+    },
+    statCard: {
+      backgroundColor: isDark ? '#111b21' : '#ffffff',
+      border: isDark ? '1px solid #222d34' : '1px solid rgba(0,0,0,0.05)',
+      borderRadius: 12,
+      boxShadow: isDark ? '0 4px 20px 0 rgba(0,0,0,0.5)' : '0 4px 20px 0 rgba(0,0,0,0.05)',
+    },
+    statsIcon: {
+      fontSize: '3rem',
+      color: theme.palette.primary.main,
+    },
+    filterButton: {
+      marginLeft: theme.spacing(2),
+      borderRadius: 8,
+      textTransform: 'none',
+      padding: '8px 16px',
+    },
+    exportButton: {
+      backgroundColor: '#4caf50',
+      color: '#fff',
+      '&:hover': {
+        backgroundColor: '#388e3c',
+      },
+      borderRadius: 8,
+      textTransform: 'none',
+      padding: '8px 16px',
+    },
+    quickFilter: {
+      marginRight: theme.spacing(1),
+      borderRadius: 8,
+      textTransform: 'none',
+      padding: '6px 12px',
+      color: isDark ? '#e9edef' : theme.palette.text.primary,
+      borderColor: isDark ? '#222d34' : 'rgba(0,0,0,0.23)',
+      backgroundColor: isDark ? '#111b21' : 'transparent',
+      '&:hover': {
+        backgroundColor: isDark ? '#202c33' : 'rgba(0,0,0,0.04)',
+        borderColor: isDark ? '#00a884' : theme.palette.primary.main,
+      },
+    },
+    queueBadge: {
+      padding: '6px 12px',
+      borderRadius: 20,
+      fontWeight: 'bold',
+      fontSize: '0.75rem',
+      backgroundColor: isDark ? '#202c33' : theme.palette.grey[200],
+      color: isDark ? '#e9edef' : theme.palette.text.primary,
+    },
+    truncatedText: {
+      maxWidth: 200,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap",
+    },
+  };
+});
 
 const StatusBadge = ({ status }) => {
   const classes = useStyles();
@@ -297,11 +314,16 @@ const StatusBadge = ({ status }) => {
 
 const QueueBadge = ({ queueName, queueColor }) => {
   const classes = useStyles();
+  const theme = useTheme();
+  const isDark = theme.palette.type === 'dark';
 
   return (
     <span
       className={classes.queueBadge}
-      style={{ backgroundColor: queueColor || '#e0e0e0' }}
+      style={{
+        backgroundColor: queueColor || (isDark ? '#202c33' : '#e0e0e0'),
+        color: queueColor ? '#fff' : (isDark ? '#e9edef' : '#111b21'),
+      }}
     >
       {queueName || "SIN_FILA"}
     </span>
@@ -320,6 +342,8 @@ const ChannelIcon = ({ channel }) => {
 const Relatorios = () => {
   const classes = useStyles();
   const history = useHistory();
+  const theme = useTheme();
+  const isDark = theme.palette.type === 'dark';
   const { user } = useContext(AuthContext);
   const { getReport } = useDashboard();
 
@@ -518,14 +542,14 @@ const Relatorios = () => {
         {/* Quick Stats Cards */}
         <Grid container spacing={3} className={classes.statsCard}>
           <Grid item xs={12} sm={6} md={3}>
-            <Card>
+            <Card className={classes.statCard}>
               <CardContent>
                 <Box display="flex" justifyContent="space-between">
                   <div>
                     <Typography color="textSecondary" gutterBottom variant="h6">
                       Total de Tickets
                     </Typography>
-                    <Typography variant="h4">
+                    <Typography variant="h4" style={{ color: isDark ? '#e9edef' : undefined }}>
                       {stats.total ?? 0}
                     </Typography>
                   </div>
@@ -537,7 +561,7 @@ const Relatorios = () => {
             </Card>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Card>
+            <Card className={classes.statCard}>
               <CardContent>
                 <Box display="flex" justifyContent="space-between">
                   <div>
@@ -548,7 +572,7 @@ const Relatorios = () => {
                       {stats.open ?? 0}
                     </Typography>
                   </div>
-                  <Avatar style={{ backgroundColor: '#e3f2fd', color: '#2196f3' }}>
+                  <Avatar style={{ backgroundColor: isDark ? 'rgba(33, 150, 243, 0.2)' : '#e3f2fd', color: '#2196f3' }}>
                     <CheckCircleIcon />
                   </Avatar>
                 </Box>
@@ -556,7 +580,7 @@ const Relatorios = () => {
             </Card>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Card>
+            <Card className={classes.statCard}>
               <CardContent>
                 <Box display="flex" justifyContent="space-between">
                   <div>
@@ -567,7 +591,7 @@ const Relatorios = () => {
                       {stats.pending ?? 0}
                     </Typography>
                   </div>
-                  <Avatar style={{ backgroundColor: '#fff8e1', color: '#ff9800' }}>
+                  <Avatar style={{ backgroundColor: isDark ? 'rgba(255, 152, 0, 0.2)' : '#fff8e1', color: '#ff9800' }}>
                     <PendingIcon />
                   </Avatar>
                 </Box>
@@ -575,7 +599,7 @@ const Relatorios = () => {
             </Card>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Card>
+            <Card className={classes.statCard}>
               <CardContent>
                 <Box display="flex" justifyContent="space-between">
                   <div>
@@ -586,7 +610,7 @@ const Relatorios = () => {
                       {stats.closed ?? 0}
                     </Typography>
                   </div>
-                  <Avatar style={{ backgroundColor: '#e8f5e9', color: '#4caf50' }}>
+                  <Avatar style={{ backgroundColor: isDark ? 'rgba(76, 175, 80, 0.2)' : '#e8f5e9', color: '#4caf50' }}>
                     <CancelIcon />
                   </Avatar>
                 </Box>
@@ -599,7 +623,7 @@ const Relatorios = () => {
         <Box mb={3} display="flex" justifyContent="space-between" alignItems="center">
           {/* Bloque de Filtros Rápidos */}
           <Box display="flex" alignItems="center">
-            <Typography variant="subtitle1" style={{ marginRight: 16 }}>
+            <Typography variant="subtitle1" style={{ marginRight: 16, color: isDark ? '#e9edef' : undefined }}>
               Período rápido:
             </Typography>
 

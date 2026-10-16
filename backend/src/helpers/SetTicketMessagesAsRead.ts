@@ -5,7 +5,8 @@ import Message from "../models/Message";
 import Ticket from "../models/Ticket";
 import { logger } from "../utils/logger";
 import GetTicketWbot from "./GetTicketWbot";
-import AppError from "../errors/AppError";
+import EvolutionApiService from "../services/EvolutionApiServices/EvolutionApiService";
+import { getDestinationJid } from "./ResolveLidHelper";
 
 const SetTicketMessagesAsRead = async (ticket: Ticket): Promise<void> => {
   await ticket.update({ unreadMessages: 0 });
@@ -16,35 +17,12 @@ const SetTicketMessagesAsRead = async (ticket: Ticket): Promise<void> => {
       await ticket.$get("whatsapp");
     }
 
-    // ✅ NO INTENTAR MARCAR COMO LEÍDO CON GetTicketWbot PARA BUSINESS API, FACEBOOK O EVOLUTION API
-    if (ticket.whatsapp?.type === "whatsapp_business" || 
-        ticket.whatsapp?.type === "facebook_messenger" ||
-        ticket.whatsapp?.type === "evolution" ||
-        ticket.whatsapp?.connectionType === "evolution") {
-      
-      await Message.update(
-        { read: true },
-        {
-          where: {
-            ticketId: ticket.id,
-            read: false
-          }
-        }
-      );
-      
-      const io = getIO();
-      io.to(`company-${ticket.companyId}-mainchannel`).emit(`company-${ticket.companyId}-ticket`, {
-        action: "updateUnread",
-        ticketId: ticket.id
-      });
-      
-      return;
+    if (!ticket.contact) {
+      await ticket.$get("contact");
     }
 
-    // ✅ SOLO WHATSAPP-WEB.JS (BAILEYS) USA GetTicketWbot
-    const wbot = await GetTicketWbot(ticket);
-
-    const getJsonMessage = await Message.findAll({
+    // Buscar todos los mensajes entrantes aún no leídos para este ticket
+    const unreadMessages = await Message.findAll({
       where: {
         ticketId: ticket.id,
         fromMe: false,
@@ -53,24 +31,85 @@ const SetTicketMessagesAsRead = async (ticket: Ticket): Promise<void> => {
       order: [["createdAt", "DESC"]]
     });
 
-    if (getJsonMessage.length > 0) {
-      const lastMessages: proto.IWebMessageInfo = JSON.parse(
-        JSON.stringify(getJsonMessage[0].dataJson)
-      );
+    const evolutionConfig = await EvolutionApiService.getConfig(ticket.companyId);
+    const isEvolution = ticket.whatsapp?.type === "evolution" ||
+      ticket.whatsapp?.connectionType === "evolution" ||
+      (evolutionConfig.enabled && ticket.whatsapp?.connectionType !== "baileys" && ticket.whatsapp?.type !== "baileys");
 
-      if (lastMessages.key && lastMessages.key.fromMe === false) {
-        const minimalMessage = {
-          ...lastMessages,
-          key: lastMessages.key!
-        };
+    // ==========================================
+    // 1. CASO EVOLUTION API v2
+    // ==========================================
+    if (isEvolution && ticket.whatsapp) {
+      if (unreadMessages.length > 0) {
+        const destination = await getDestinationJid(ticket);
+        const readPayload = unreadMessages.map(m => ({
+          id: m.id,
+          fromMe: false,
+          remoteJid: m.remoteJid || destination
+        }));
 
-        await (wbot as WASocket).chatModify(
-          { markRead: true, lastMessages: [minimalMessage] },
-          `${ticket.contact.number}@${ticket.isGroup ? "g.us" : "s.whatsapp.net"}`
-        );
+        await EvolutionApiService.markMessagesAsRead(ticket.whatsapp, readPayload);
+      }
+    } 
+    // ==========================================
+    // 2. CASO BAILEYS (WHATSAPP WEB PROTOCOL)
+    // ==========================================
+    else if (ticket.whatsapp?.type !== "facebook_messenger" && ticket.whatsapp?.type !== "whatsapp_business") {
+      try {
+        const wbot = await GetTicketWbot(ticket);
+        if (wbot) {
+          const destination = await getDestinationJid(ticket, wbot);
+
+          if (unreadMessages.length > 0) {
+            const keys: proto.IMessageKey[] = [];
+
+            for (const msg of unreadMessages) {
+              let parsedKey: any = null;
+              if (msg.dataJson) {
+                try {
+                  const parsed = typeof msg.dataJson === "string" ? JSON.parse(msg.dataJson) : msg.dataJson;
+                  parsedKey = parsed?.key;
+                } catch (e) {}
+              }
+
+              keys.push({
+                remoteJid: parsedKey?.remoteJid || msg.remoteJid || destination,
+                id: msg.id,
+                fromMe: false,
+                participant: parsedKey?.participant || msg.participant || undefined
+              });
+            }
+
+            // A) Enviar recibos de lectura a WhatsApp (doble check azul y sync a companion devices)
+            try {
+              await (wbot as WASocket).readMessages(keys);
+            } catch (eRead) {
+              logger.warn(`[Baileys] Error enviando readMessages: ${eRead}`);
+            }
+
+            // B) Modificar el contador de no leídos a 0 en WhatsApp Web y Móvil (syncd state)
+            try {
+              const lastKey = keys[0];
+              await (wbot as WASocket).chatModify(
+                {
+                  markRead: true,
+                  lastMessages: [{ key: lastKey }]
+                },
+                destination
+              );
+            } catch (eModify) {
+              logger.warn(`[Baileys] Error en chatModify markRead: ${eModify}`);
+            }
+          }
+        }
+      } catch (errWbot: any) {
+        if (!errWbot?.message?.includes("ERR_WAPP_NOT_INITIALIZED")) {
+          logger.warn(`[Baileys] No se pudo obtener wbot para marcar leído: ${errWbot}`);
+        }
       }
     }
 
+    // Actualizar todos los mensajes pendientes en la BD local a leído
     await Message.update(
       { read: true },
       {
@@ -81,12 +120,13 @@ const SetTicketMessagesAsRead = async (ticket: Ticket): Promise<void> => {
       }
     );
   } catch (err: any) {
-    // ✅ NO LOGGEAR ERROR PARA BUSINESS API O FACEBOOK
-    if (err.message?.includes("ERR_BUSINESS_API_NO_WBOT") || 
-        err.message?.includes("ERR_FACEBOOK_NO_WBOT")) {
+    if (
+      err.message?.includes("ERR_BUSINESS_API_NO_WBOT") ||
+      err.message?.includes("ERR_FACEBOOK_NO_WBOT")
+    ) {
       return;
     }
-    logger.warn(`⚠️ NO SE PUDIERON MARCAR LOS MENSAJES COMO LEÍDOS. ¿QUIZÁ SESIÓN DE WHATSAPP DESCONECTADA? ERR: ${err}`);
+    logger.warn(`⚠️ Error marcando mensajes como leídos en WhatsApp: ${err?.message || err}`);
   }
 
   const io = getIO();

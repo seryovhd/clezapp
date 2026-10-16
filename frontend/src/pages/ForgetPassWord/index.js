@@ -148,18 +148,18 @@ const ForgetPassword = () => {
     email: Yup.string().email("Invalid email").required("Required"),
     newPassword: isResetPasswordButtonClicked
       ? Yup.string()
-        .required("Campo obrigatório")
+        .required("Campo obligatorio")
         .matches(
           passwordRegex,
-          "Sua senha precisa ter no mínimo 8 caracteres, sendo uma letra maiúscula, uma minúscula e um número."
+          "Su contraseña debe tener al menos 8 caracteres, incluyendo una letra mayúscula, una minúscula y un número."
         )
-      : Yup.string(), // Sem validação se não for redefinição de senha
+      : Yup.string(), // Sin validación si no es restablecimiento de contraseña
     confirmPassword: Yup.string().when("newPassword", {
       is: (newPassword) => isResetPasswordButtonClicked && newPassword,
       then: Yup.string()
-        .oneOf([Yup.ref("newPassword"), null], "As senhas não correspondem")
-        .required("Campo obrigatório"),
-      otherwise: Yup.string(), // Sem validação se não for redefinição de senha
+        .oneOf([Yup.ref("newPassword"), null], "Las contraseñas no coinciden")
+        .required("Campo obligatorio"),
+      otherwise: Yup.string(), // Sin validación si no es restablecimiento de contraseña
     }),
   });
 

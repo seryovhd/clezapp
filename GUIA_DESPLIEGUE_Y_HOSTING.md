@@ -1,6 +1,6 @@
-# 🚀 Guía de Despliegue, Hosting y Puesta en Marcha - CHASAP PRO + EVOLUTION API
+# 🚀 Guía de Despliegue, Hosting y Puesta en Marcha - CLEZAPP PRO + EVOLUTION API
 
-Esta guía detalla cómo instalar y poner en producción **CHASAP PRO** junto con **Evolution API v2**, aprovechando al máximo servidores VPS o Cloud (como tu servidor de 32 GB de RAM) para lograr máxima velocidad sin lag.
+Esta guía detalla cómo instalar y poner en producción **CLEZAPP PRO** junto con **Evolution API v2**, aprovechando al máximo servidores VPS o Cloud (como tu servidor de 32 GB de RAM) para lograr máxima velocidad sin lag.
 
 ---
 
@@ -25,11 +25,11 @@ sudo sh get-docker.sh
 
 ### Paso 2: Clonar el proyecto y revisar credenciales
 ```bash
-git clone <URL_DE_TU_REPOSITORIO> chasap-pro
-cd chasap-pro
+git clone <URL_DE_TU_REPOSITORIO> CLEZAPP-pro
+cd CLEZAPP-pro
 ```
 
-El archivo [docker-compose.yml](file:///d:/PROYECTOS/PHP/chasap-pro/docker-compose.yml) ya está preparado. Puedes editarlo si deseas cambiar contraseñas o nombres de dominios:
+El archivo [docker-compose.yml](file:///d:/PROYECTOS/PHP/CLEZAPP-pro/docker-compose.yml) ya está preparado. Puedes editarlo si deseas cambiar contraseñas o nombres de dominios:
 ```bash
 nano docker-compose.yml
 ```
@@ -42,9 +42,9 @@ docker compose up -d --build
 ¡Listo! En pocos minutos tendrás corriendo:
 * **PostgreSQL:** Puerto `5432`
 * **Redis:** Puerto `6379`
-* **Evolution API v2:** Puerto `8080` (con API Key `CHASAP_EVOLUTION_SECRET_KEY_2026`)
-* **Chasap Backend:** Puerto `4000`
-* **Chasap Frontend:** Puerto `3000`
+* **Evolution API v2:** Puerto `8080` (con API Key `CLEZAPP_EVOLUTION_SECRET_KEY_2026`)
+* **CLEZAPP Backend:** Puerto `4000`
+* **CLEZAPP Frontend:** Puerto `3000`
 
 ---
 
@@ -77,9 +77,9 @@ sudo -u postgres psql
 ```
 Dentro de la consola de Postgres:
 ```sql
-CREATE DATABASE chasap_db;
-CREATE USER chasap_user WITH ENCRYPTED PASSWORD 'tu_password_segura';
-GRANT ALL PRIVILEGES ON DATABASE chasap_db TO chasap_user;
+CREATE DATABASE CLEZAPP_db;
+CREATE USER CLEZAPP_user WITH ENCRYPTED PASSWORD 'tu_password_segura';
+GRANT ALL PRIVILEGES ON DATABASE CLEZAPP_db TO CLEZAPP_user;
 \q
 ```
 
@@ -102,7 +102,7 @@ npm run db:seed
 
 # Instalar PM2 para mantener el backend corriendo 24/7
 sudo npm install -g pm2
-pm2 start dist/server.js --name "chasap-backend"
+pm2 start dist/server.js --name "CLEZAPP-backend"
 pm2 save
 ```
 
@@ -116,18 +116,18 @@ nano .env  # Configurar REACT_APP_BACKEND_URL
 npm run build
 
 # Servir con PM2
-pm2 start server.js --name "chasap-frontend"
+pm2 start server.js --name "CLEZAPP-frontend"
 pm2 save
 pm2 startup
 ```
 
 ---
 
-## 5. Configuración de Evolution API desde el Panel de Chasap
+## 5. Configuración de Evolution API desde el Panel de CLEZAPP
 
 Una vez que el sistema esté levantado:
 
-1. Ingresa a Chasap desde tu navegador (`http://localhost:3000` o tu dominio).
+1. Ingresa a CLEZAPP desde tu navegador (`http://localhost:3000` o tu dominio).
 2. Inicia sesión con las credenciales por defecto:
    * **Email:** `admin@admin.com`
    * **Contraseña:** `123456`

@@ -16,6 +16,7 @@ import formatBody from "../../helpers/Mustache";
 import EvolutionApiService from "../EvolutionApiServices/EvolutionApiService";
 import CreateMessageService from "../MessageServices/CreateMessageService";
 import { getDestinationJid } from "../../helpers/ResolveLidHelper";
+import { buildCleanQuotedMessage } from "../../helpers/BuildQuotedMessage";
 
 interface Request {
   media: Express.Multer.File;
@@ -153,17 +154,74 @@ const SendWhatsAppMedia = async ({
         evoMime = "image/jpeg";
       }
 
-      const sentRes = await EvolutionApiService.sendMediaMessage(
-        ticket.whatsapp,
-        destination,
-        {
-          media: base64Media,
-          mediaType: mediaType as any,
-          caption: formatBody(body, ticket.contact),
-          fileName: media.originalname,
-          mimetype: evoMime
+      let quotedPayload: any = undefined;
+      const quotedMsgIdToSave = quotedMsg?.id;
+
+      if (quotedMsg) {
+        try {
+          const quotedChatMsg = await Message.findOne({ where: { id: quotedMsg.id } });
+          if (quotedChatMsg) {
+            let msgFound: any = null;
+            if (quotedChatMsg.dataJson) {
+              try {
+                msgFound = JSON.parse(quotedChatMsg.dataJson);
+              } catch (e) {}
+            }
+
+            const quotedContent = buildCleanQuotedMessage(quotedChatMsg, msgFound, { isForHttp: true });
+
+            quotedPayload = {
+              key: {
+                id: quotedChatMsg.id,
+                fromMe: quotedChatMsg.fromMe,
+                remoteJid: quotedChatMsg.remoteJid || destination
+              },
+              message: quotedContent
+            };
+            if (quotedChatMsg.participant) {
+              quotedPayload.key.participant = quotedChatMsg.participant;
+            }
+          }
+        } catch (eQuoted) {
+          console.warn("[Evolution] Error construyendo payload de cita en media:", eQuoted);
         }
-      );
+      }
+
+      let sentRes: any;
+      try {
+        sentRes = await EvolutionApiService.sendMediaMessage(
+          ticket.whatsapp,
+          destination,
+          {
+            media: base64Media,
+            mediaType: mediaType as any,
+            caption: formatBody(body, ticket.contact),
+            fileName: media.originalname,
+            mimetype: evoMime
+          },
+          {
+            quoted: quotedPayload,
+            quotedMessageId: quotedMsgIdToSave
+          }
+        );
+      } catch (evoMediaErr: any) {
+        if (quotedPayload || quotedMsgIdToSave) {
+          console.warn(`[Evolution] Falló envío de media con cita (${evoMediaErr?.message}), reintentando sin cita...`);
+          sentRes = await EvolutionApiService.sendMediaMessage(
+            ticket.whatsapp,
+            destination,
+            {
+              media: base64Media,
+              mediaType: mediaType as any,
+              caption: formatBody(body, ticket.contact),
+              fileName: media.originalname,
+              mimetype: evoMime
+            }
+          );
+        } else {
+          throw evoMediaErr;
+        }
+      }
 
       const messageId = sentRes?.key?.id || sentRes?.id || `evo_media_${Date.now()}`;
       try {
@@ -322,26 +380,20 @@ const SendWhatsAppMedia = async ({
             participant: isGroup ? (msgFound?.key?.participant || chatMessages.participant) : undefined
           };
 
-          let quotedContent = msgFound?.message;
-          if (!quotedContent) {
-            if (chatMessages.mediaType === "image") {
-              quotedContent = { imageMessage: { caption: chatMessages.body || "" } };
-            } else if (chatMessages.mediaType === "video") {
-              quotedContent = { videoMessage: { caption: chatMessages.body || "" } };
-            } else if (chatMessages.mediaType === "audio") {
-              quotedContent = { audioMessage: {} };
-            } else if (chatMessages.mediaType === "sticker") {
-              quotedContent = { stickerMessage: {} };
-            } else {
-              quotedContent = { conversation: chatMessages.body || "" };
-            }
-          }
+          // Extraer o generar el content del mensaje citado sanitizado
+          const quotedContent = buildCleanQuotedMessage(chatMessages, msgFound);
+
+          const ephemeralExpiration = msgFound?.message?.imageMessage?.contextInfo?.expiration ||
+            msgFound?.message?.extendedTextMessage?.contextInfo?.expiration ||
+            msgFound?.message?.videoMessage?.contextInfo?.expiration ||
+            msgFound?.message?.conversation?.contextInfo?.expiration;
 
           quotedOptions = {
             quoted: {
               key: quotedKey,
               message: quotedContent
-            }
+            },
+            ...(ephemeralExpiration ? { ephemeralExpiration } : {})
           };
         }
       } catch (errQ) {

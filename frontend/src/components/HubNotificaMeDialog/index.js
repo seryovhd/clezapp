@@ -39,11 +39,11 @@ const useStyles = makeStyles((theme) => ({
 
 // Esquema de validación con Yup
 const HubNotificaMeSchema = Yup.object().shape({
-    token: Yup.string().required("Obrigatório"),
+    token: Yup.string().required("Obligatorio"),
     tipo: Yup.string()
         // PARCHE 1.3.1 - WEBCHAT
         .oneOf(["Facebook", "Instagram","Webchat"], "Tipo inválido")
-        .required("Obrigatório"),
+        .required("Obligatorio"),
         // PARCHE 1.3.1 - WEBCHAT FIN
 });
 

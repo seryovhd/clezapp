@@ -11,6 +11,7 @@ import formatBody from "../../helpers/Mustache";
 import EvolutionApiService from "../EvolutionApiServices/EvolutionApiService";
 import CreateMessageService from "../MessageServices/CreateMessageService";
 import { getDestinationJid } from "../../helpers/ResolveLidHelper";
+import { buildCleanQuotedMessage } from "../../helpers/BuildQuotedMessage";
 
 interface Request {
   body: string;
@@ -86,28 +87,14 @@ const SendWhatsAppMessage = async ({
         try {
           const quotedChatMsg = await Message.findOne({ where: { id: quotedMsg.id } });
           if (quotedChatMsg) {
-            let quotedContent: any = undefined;
+            let msgFound: any = null;
             if (quotedChatMsg.dataJson) {
               try {
-                const parsed = JSON.parse(quotedChatMsg.dataJson);
-                if (parsed?.message) {
-                  quotedContent = parsed.message;
-                }
+                msgFound = JSON.parse(quotedChatMsg.dataJson);
               } catch (e) {}
             }
-            if (!quotedContent) {
-              if (quotedChatMsg.mediaType === "image") {
-                quotedContent = { imageMessage: { caption: quotedChatMsg.body || "" } };
-              } else if (quotedChatMsg.mediaType === "video") {
-                quotedContent = { videoMessage: { caption: quotedChatMsg.body || "" } };
-              } else if (quotedChatMsg.mediaType === "audio") {
-                quotedContent = { audioMessage: {} };
-              } else if (quotedChatMsg.mediaType === "sticker") {
-                quotedContent = { stickerMessage: {} };
-              } else {
-                quotedContent = { conversation: quotedChatMsg.body || "" };
-              }
-            }
+
+            const quotedContent = buildCleanQuotedMessage(quotedChatMsg, msgFound, { isForHttp: true });
 
             quotedPayload = {
               key: {
@@ -217,27 +204,22 @@ const SendWhatsAppMessage = async ({
             participant: isGroup ? (msgFound?.key?.participant || chatMessages.participant) : undefined
           };
 
-          // Extraer o generar el content del mensaje citado respetando stickers, fotos, videos, audios y textos
-          let quotedContent = msgFound?.message;
-          if (!quotedContent) {
-            if (chatMessages.mediaType === "image") {
-              quotedContent = { imageMessage: { caption: chatMessages.body || "" } };
-            } else if (chatMessages.mediaType === "video") {
-              quotedContent = { videoMessage: { caption: chatMessages.body || "" } };
-            } else if (chatMessages.mediaType === "audio") {
-              quotedContent = { audioMessage: {} };
-            } else if (chatMessages.mediaType === "sticker") {
-              quotedContent = { stickerMessage: {} };
-            } else {
-              quotedContent = { conversation: chatMessages.body || "" };
-            }
-          }
+          // Extraer o generar el content del mensaje citado sanitizado (respetando stickers, fotos, videos, audios y textos)
+          // asegurando que jpegThumbnail sea un Buffer binario real para que WhatsApp Web no descarte el mensaje
+          const quotedContent = buildCleanQuotedMessage(chatMessages, msgFound);
+
+          // Si el mensaje citado o el chat tienen expiración de mensajes temporales, propagarla
+          const ephemeralExpiration = msgFound?.message?.imageMessage?.contextInfo?.expiration ||
+            msgFound?.message?.extendedTextMessage?.contextInfo?.expiration ||
+            msgFound?.message?.videoMessage?.contextInfo?.expiration ||
+            msgFound?.message?.conversation?.contextInfo?.expiration;
 
           options = {
             quoted: {
               key: quotedKey,
               message: quotedContent
-            }
+            },
+            ...(ephemeralExpiration ? { ephemeralExpiration } : {})
           };
         }
       } catch (errQuote) {

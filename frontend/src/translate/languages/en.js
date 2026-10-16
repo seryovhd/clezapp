@@ -629,6 +629,10 @@ const messages = {
 		  dialog: {
 			title: "Quick Message",
 			shortcode: "Shortcut",
+			shortCode: "Shortcut",
+			required: "Required field",
+			active: "Active",
+			inactive: "Inactive",
 			message: "Response",
 			save: "Save",
 			cancel: "Cancel",

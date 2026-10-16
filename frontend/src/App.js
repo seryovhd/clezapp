@@ -4,6 +4,7 @@ import { ToastContainer } from 'react-toastify';
 import { QueryClient, QueryClientProvider } from "react-query";
 import { esES } from "@material-ui/core/locale";
 import { createTheme, ThemeProvider } from "@material-ui/core/styles";
+import { createTheme as createV5Theme, ThemeProvider as V5ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@material-ui/core/CssBaseline";
 import { useMediaQuery } from "@material-ui/core";
 import ColorModeContext from "./layout/themeContext";
@@ -247,6 +248,31 @@ const App = () => {
         locale
     );
 
+    const v5Theme = React.useMemo(
+        () =>
+            createV5Theme({
+                palette: {
+                    mode: mode === "light" ? "light" : "dark",
+                    primary: {
+                        main: mode === "light" ? "#00a884" : "#00a884",
+                    },
+                    secondary: {
+                        main: mode === "light" ? "#25d366" : "#25d366",
+                    },
+                    background: {
+                        default: mode === "light" ? "#f0f2f5" : "#0b141a",
+                        paper: mode === "light" ? "#ffffff" : "#111b21",
+                    },
+                    text: {
+                        primary: mode === "light" ? "#111b21" : "#e9edef",
+                        secondary: mode === "light" ? "#667781" : "#8696a0",
+                    },
+                    divider: mode === "light" ? "#e9edef" : "#222d34",
+                },
+            }),
+        [mode]
+    );
+
     useEffect(() => {
         const i18nlocale = localStorage.getItem("i18nextLng");
         const browserLocale = i18nlocale.substring(0, 2) + i18nlocale.substring(3, 5);
@@ -262,14 +288,16 @@ const App = () => {
     return (
         <ColorModeContext.Provider value={{ colorMode }}>
             <ThemeProvider theme={theme}>
-                <CssBaseline />
-                <QueryClientProvider client={queryClient}>
-                    <SocketContext.Provider value={SocketManager}>
-                        <NotificationHandler />
-                        <ToastContainer />
-                        <Routes />
-                    </SocketContext.Provider>
-                </QueryClientProvider>
+                <V5ThemeProvider theme={v5Theme}>
+                    <CssBaseline />
+                    <QueryClientProvider client={queryClient}>
+                        <SocketContext.Provider value={SocketManager}>
+                            <NotificationHandler />
+                            <ToastContainer />
+                            <Routes />
+                        </SocketContext.Provider>
+                    </QueryClientProvider>
+                </V5ThemeProvider>
             </ThemeProvider>
         </ColorModeContext.Provider>
     );
