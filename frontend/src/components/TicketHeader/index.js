@@ -9,11 +9,12 @@ const useStyles = makeStyles(theme => ({
 		display: "flex",
 		backgroundColor: theme.palette.tabHeaderBackground,
 		flex: "none",
-		borderBottom: "1px solid rgba(0, 0, 0, 0.12)",
+		borderBottom: theme.palette.divider
+			? `1px solid ${theme.palette.divider}`
+			: "1px solid rgba(0, 0, 0, 0.12)",
 		[theme.breakpoints.down("sm")]: {
 			flexWrap: "wrap"
 		}
-		
 	},
 }));
 
