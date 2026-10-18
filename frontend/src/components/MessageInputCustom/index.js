@@ -749,6 +749,7 @@ const CustomInput = (props) => {
   const onKeyPress = (e) => {
     if (loading || e.shiftKey) return;
     else if (e.key === "Enter") {
+      e.preventDefault();
       handleSendMessage();
     }
   };
@@ -797,6 +798,70 @@ const CustomInput = (props) => {
   );
 };
 
+const normalizeQuickText = (str) =>
+  (str || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+const cleanQuickCode = (str) =>
+  normalizeQuickText((str || "").replace(/^\/+/, ""));
+
+const filterQuickMessagesHelper = (quickMessages, inputMessage) => {
+  if (!inputMessage || !inputMessage.startsWith("/")) {
+    return quickMessages || [];
+  }
+
+  const query = cleanQuickCode(inputMessage);
+  if (!query) {
+    return quickMessages || [];
+  }
+
+  const matches = [];
+  for (const msg of quickMessages || []) {
+    const code = cleanQuickCode(msg.shortcode);
+    const body = normalizeQuickText(msg.message);
+
+    const codeExact = code === query;
+    const codeStarts = code.startsWith(query);
+    const codeIncludes = code.includes(query);
+    const bodyIncludes = body.includes(query);
+
+    if (codeExact || codeStarts || codeIncludes || bodyIncludes) {
+      let score = 5;
+      if (codeExact) {
+        score = 1; // Coincidencia exacta del acceso directo (ej. hola === hola)
+      } else if (codeStarts) {
+        score = 2; // El acceso empieza con el término buscado
+      } else if (codeIncludes) {
+        score = 3; // El acceso contiene el término buscado
+      } else {
+        // Coincidencia dentro del cuerpo del mensaje
+        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const isWord = new RegExp(`(^|[^a-zA-Z0-9])${escapedQuery}([^a-zA-Z0-9]|$)`, "i").test(body);
+        score = isWord ? 4 : 5;
+      }
+      matches.push({ msg, score, code });
+    }
+  }
+
+  // Si existe coincidencia EXACTA con el acceso directo, mostrar ÚNICAMENTE la coincidencia exacta
+  const exactMatches = matches.filter((m) => m.score === 1);
+  if (exactMatches.length > 0) {
+    return exactMatches.map((m) => m.msg);
+  }
+
+  // Si no hay coincidencia exacta, mostrar por similitud ordenadas por relevancia
+  matches.sort((a, b) => {
+    if (a.score !== b.score) return a.score - b.score;
+    if (a.code.length !== b.code.length) return a.code.length - b.code.length;
+    return a.code.localeCompare(b.code);
+  });
+
+  return matches.map((m) => m.msg);
+};
+
 const QuickMessages = ({ quickMessages, handleQuickMessageClick, inputMessage }) => {
   const classes = useStyles();
   const containerRef = useRef(null);
@@ -808,41 +873,7 @@ const QuickMessages = ({ quickMessages, handleQuickMessageClick, inputMessage })
 
   const filteredQuickMessages = useMemo(() => {
     if (!inputMessage.startsWith('/')) return quickMessages;
-    const query = inputMessage.slice(1).trim().toLowerCase();
-    if (!query) return quickMessages;
-
-    const matches = [];
-    for (const msg of quickMessages) {
-      const code = (msg.shortcode || "").replace(/^\//, "").trim().toLowerCase();
-      const body = (msg.message || "").toLowerCase();
-
-      const codeExact = code === query;
-      const codeStarts = code.startsWith(query);
-      const codeIncludes = code.includes(query);
-      const bodyIncludes = body.includes(query);
-
-      if (codeExact || codeStarts || codeIncludes || bodyIncludes) {
-        let score = 5;
-        if (codeExact) {
-          score = 1;
-        } else if (codeStarts) {
-          score = 2;
-        } else if (codeIncludes) {
-          score = 3;
-        } else {
-          score = 4;
-        }
-        matches.push({ msg, score, code });
-      }
-    }
-
-    matches.sort((a, b) => {
-      if (a.score !== b.score) return a.score - b.score;
-      if (a.code.length !== b.code.length) return a.code.length - b.code.length;
-      return a.code.localeCompare(b.code);
-    });
-
-    return matches.map(m => m.msg);
+    return filterQuickMessagesHelper(quickMessages, inputMessage);
   }, [inputMessage, quickMessages]);
 
   useEffect(() => {
@@ -1121,45 +1152,7 @@ const MessageInputCustom = (props) => {
 
   const filteredFloatingMessages = useMemo(() => {
     if (!inputMessage.startsWith("/")) return [];
-    const query = inputMessage.slice(1).trim().toLowerCase();
-    if (!query) return quickMessages;
-
-    const matches = [];
-    for (const msg of quickMessages) {
-      const code = (msg.shortcode || "").replace(/^\//, "").trim().toLowerCase();
-      const body = (msg.message || "").toLowerCase();
-
-      const codeExact = code === query;
-      const codeStarts = code.startsWith(query);
-      const codeIncludes = code.includes(query);
-      const bodyIncludes = body.includes(query);
-
-      if (codeExact || codeStarts || codeIncludes || bodyIncludes) {
-        let score = 5;
-        if (codeExact) {
-          score = 1; // Coincidencia exacta del acceso directo (ej. tidal === tidal)
-        } else if (codeStarts) {
-          score = 2; // El acceso empieza con el término buscado
-        } else if (codeIncludes) {
-          score = 3; // El acceso contiene el término buscado
-        } else {
-          // Coincidencia dentro del texto del mensaje
-          const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const isWord = new RegExp(`(^|[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ])${escapedQuery}([^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]|$)`, "i").test(body);
-          score = isWord ? 4 : 5;
-        }
-
-        matches.push({ msg, score, code });
-      }
-    }
-
-    matches.sort((a, b) => {
-      if (a.score !== b.score) return a.score - b.score;
-      if (a.code.length !== b.code.length) return a.code.length - b.code.length;
-      return a.code.localeCompare(b.code);
-    });
-
-    return matches.map(m => m.msg);
+    return filterQuickMessagesHelper(quickMessages, inputMessage);
   }, [inputMessage, quickMessages]);
 
   const isFloatingOpen =
@@ -1426,6 +1419,17 @@ const MessageInputCustom = (props) => {
     }
 
     if (inputMessage.trim() === "") return;
+
+    // Si el mensaje es un comando que coincide exactamente con una respuesta rápida
+    if (inputMessage.trim().startsWith("/")) {
+      const queryCode = cleanQuickCode(inputMessage);
+      const exactMsg = quickMessages.find(msg => cleanQuickCode(msg.shortcode) === queryCode);
+      if (exactMsg) {
+        await handleQuickMessageClick(exactMsg);
+        return;
+      }
+    }
+
     setLoading(true);
 
     /*    const message = {
@@ -1626,10 +1630,9 @@ const MessageInputCustom = (props) => {
 
       {medias.length > 0 && renderAttachedMedia()}
 
-      {/* CAROUSEL TRADICIONAL (SI ESTÁ EN MODO CAROUSEL O BOTH, Y NO SE ESTÁ ESCRIBIENDO /) */}
-      {(quickMessagesMode === "carousel" || quickMessagesMode === "both") &&
-        quickMessages.length > 0 &&
-        !inputMessage.startsWith("/") && (
+      {/* CAROUSEL TRADICIONAL (En modo carousel siempre visible y filtrable con '/', en modo both visible solo si no se escribe '/') */}
+      {(quickMessagesMode === "carousel" || (quickMessagesMode === "both" && !inputMessage.startsWith("/"))) &&
+        quickMessages.length > 0 && (
           <QuickMessages
             quickMessages={quickMessages}
             handleQuickMessageClick={handleQuickMessageClick}
