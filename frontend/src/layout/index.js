@@ -39,7 +39,7 @@ import ColorModeContext from "../layout/themeContext";
 import Brightness4Icon from '@material-ui/icons/Brightness4';
 import Brightness7Icon from '@material-ui/icons/Brightness7';
 import ExitToAppIcon from "@material-ui/icons/ExitToApp";
-import { useHistory } from "react-router-dom";
+import { useHistory, useLocation } from "react-router-dom";
 import usePlans from "../hooks/usePlans";
 
 const drawerWidth = 240;
@@ -80,8 +80,24 @@ const useStyles = makeStyles((theme) => ({
     }),
   },
   menuButton: {
+    color: "#ffffff",
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    borderRadius: "50%",
+    width: 38,
+    height: 38,
+    padding: 7,
+    transition: "all 0.2s ease-in-out",
+    boxShadow: "0 2px 4px rgba(0, 0, 0, 0.12)",
+    "&:hover": {
+      backgroundColor: "rgba(255, 255, 255, 0.24)",
+      transform: "scale(1.05)",
+    },
+    "& svg": {
+      fontSize: 22,
+      color: "#ffffff",
+    },
     [theme.breakpoints.up("sm")]: {
-      marginRight: 36,
+      marginRight: 24,
     }
   },
   menuButtonHidden: {
@@ -115,7 +131,10 @@ const useStyles = makeStyles((theme) => ({
   },
   content: {
     flex: 1,
-    overflow: "auto",
+    overflowY: "auto",
+    overflowX: "hidden",
+    height: "100vh",
+    ...theme.scrollbarStylesSoft,
   },
   containerWithScroll: {
     flex: 1,
@@ -139,6 +158,36 @@ const useStyles = makeStyles((theme) => ({
       fontSize: 20,
       color: "#fff"
     }
+  },
+  drawerCloseButton: {
+    margin: 8,
+    width: 36,
+    height: 36,
+    borderRadius: "50%",
+    backgroundColor: (theme.palette?.type || theme.mode) === "dark" 
+      ? "rgba(255, 255, 255, 0.12)" 
+      : "#e2e8f0",
+    color: (theme.palette?.type || theme.mode) === "dark" 
+      ? "#ffffff" 
+      : "#1e293b",
+    border: (theme.palette?.type || theme.mode) === "dark" 
+      ? "1px solid rgba(255, 255, 255, 0.22)" 
+      : "1px solid #cbd5e1",
+    boxShadow: (theme.palette?.type || theme.mode) === "dark"
+      ? "0 2px 5px rgba(0, 0, 0, 0.5)"
+      : "0 2px 4px rgba(0, 0, 0, 0.08)",
+    transition: "all 0.2s ease-in-out",
+    "&:hover": {
+      backgroundColor: "#00a884",
+      color: "#ffffff",
+      borderColor: "#00a884",
+      boxShadow: "0 3px 8px rgba(0, 168, 132, 0.45)",
+      transform: "scale(1.06)",
+    },
+    "& svg": {
+      fontSize: 22,
+      color: "inherit",
+    },
   },
 }));
 
@@ -243,6 +292,8 @@ const LoggedInLayout = ({ children }) => {
     handleCloseMenu();
   };
   const history = useHistory();
+  const location = useLocation();
+  const isTicketsPage = location.pathname.startsWith("/tickets");
   const handleRefreshPage = () => window.location.reload(false);
 
   const toggleColorMode = () => {
@@ -261,7 +312,7 @@ const LoggedInLayout = ({ children }) => {
         open={drawerOpen}
       >
         <div className={classes.toolbarIcon}>
-          <IconButton style={{ margin: 9, backgroundColor: "#e5e5e5", width: 35, height: 35 }} onClick={() => setDrawerOpen(!drawerOpen)}>
+          <IconButton className={classes.drawerCloseButton} onClick={() => setDrawerOpen(!drawerOpen)} title="Ocultar menú">
             <ChevronLeftIcon />
           </IconButton>
         </div>
@@ -276,7 +327,7 @@ const LoggedInLayout = ({ children }) => {
 
       <AppBar position="absolute" className={clsx(classes.appBar, drawerOpen && classes.appBarShift)} color="primary">
         <Toolbar variant="dense" className={classes.toolbar}>
-          <IconButton edge="start" onClick={() => setDrawerOpen(!drawerOpen)} className={clsx(classes.menuButton, drawerOpen && classes.menuButtonHidden)}>
+          <IconButton edge="start" color="inherit" onClick={() => setDrawerOpen(!drawerOpen)} className={clsx(classes.menuButton, drawerOpen && classes.menuButtonHidden)} title="Abrir menú">
             <MenuIcon />
           </IconButton>
 
@@ -346,7 +397,13 @@ const LoggedInLayout = ({ children }) => {
         </Toolbar>
       </AppBar>
 
-      <main className={classes.content} style={{ overflow: "hidden" }}>
+      <main
+        className={classes.content}
+        style={{
+          overflowY: isTicketsPage ? "hidden" : "auto",
+          overflowX: "hidden",
+        }}
+      >
         <div className={classes.appBarSpacer} />
         {children}
       </main>

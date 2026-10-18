@@ -96,10 +96,10 @@ const useStyles = makeStyles((theme) => ({
   },
   relationContainer: {
     marginTop: -10,
-    paddingTop: 5, 
-    fontSize: "12px", 
-    color: "#666", 
-    display: "block", 
+    paddingTop: 5,
+    fontSize: "12px",
+    color: "#666",
+    display: "block",
     textAlign: "left",
   },
   messageLeft: {
@@ -472,7 +472,7 @@ const reducer = (state, action) => {
   if (action.type === "UPDATE_MESSAGE") {
     const messageToUpdate = action.payload;
     const messageIndex = state.findIndex((m) => m.id === messageToUpdate.id);
-  
+
     if (messageIndex !== -1) {
       const prevMessage = state[messageIndex];
       state[messageIndex] = {
@@ -481,7 +481,7 @@ const reducer = (state, action) => {
         quotedMsg: messageToUpdate.quotedMsg || prevMessage.quotedMsg,
       };
     }
-  
+
     return [...state];
   }
 
@@ -493,14 +493,15 @@ const reducer = (state, action) => {
 const isMediaFilename = (body, mediaUrl) => {
   if (!body || typeof body !== "string") return false;
   const trimmed = body.trim();
+  if (!trimmed || trimmed === "-") return true;
   if (mediaUrl) {
     const filenameFromUrl = mediaUrl.split("/").pop()?.split("?")[0];
     if (filenameFromUrl && (trimmed === filenameFromUrl || trimmed === decodeURIComponent(filenameFromUrl))) {
       return true;
     }
   }
-  // Detectar nombres de archivo con extensión (ej: typebotimg1792291176317_2135.png, imagen.jpg, etc.)
-  return /^[^\n\r]+\.(png|jpe?g|webp|gif|bmp|mp4|mov|avi|mkv|ogg|mp3|wav|m4a|opus|bin|pdf|docx?|xlsx?)$/i.test(trimmed);
+  // Detectar nombres de archivo con extensión (ej: MAX5S0.png, imagen.jpg, etc.)
+  return /^[^\n\r]+\.(png|jpe?g|webp|gif|bmp|svg|mp4|mov|avi|mkv|ogg|mp3|wav|m4a|opus|bin|pdf|docx?|xlsx?|pptx?|txt|zip|rar)$/i.test(trimmed);
 };
 
 const MessagesList = ({ ticket, ticketId, isGroup }) => {
@@ -579,8 +580,8 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
 
       if (data.action === "update" && data.message.ticketId === currentTicketId.current) {
         if (data.message.isEdited) {
-          dispatch({ 
-            type: "UPDATE_MESSAGE", 
+          dispatch({
+            type: "UPDATE_MESSAGE",
             payload: {
               ...data.message,
               body: data.message.body || "Mensaje editado"
@@ -644,61 +645,61 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
       let locationParts = message.body.split('|')
       let imageLocation = locationParts[0]
       let linkLocation = locationParts[1]
-  
+
       let descriptionLocation = null
-  
+
       if (locationParts.length > 2)
         descriptionLocation = message.body.split('|')[2]
-  
+
       return <LocationPreview image={imageLocation} link={linkLocation} description={descriptionLocation} />
-    } else 
-    
-    if (message.mediaType === "contactMessage") {
-      let array = message.body.split("\n");
-      let obj = [];
-      let contact = "";
-      for (let index = 0; index < array.length; index++) {
-        const v = array[index];
-        let values = v.split(":");
-        for (let ind = 0; ind < values.length; ind++) {
-          if (values[ind].indexOf("+") !== -1) {
-            obj.push({ number: values[ind] });
-          }
-          if (values[ind].indexOf("FN") !== -1) {
-            contact = values[ind + 1];
+    } else
+
+      if (message.mediaType === "contactMessage") {
+        let array = message.body.split("\n");
+        let obj = [];
+        let contact = "";
+        for (let index = 0; index < array.length; index++) {
+          const v = array[index];
+          let values = v.split(":");
+          for (let ind = 0; ind < values.length; ind++) {
+            if (values[ind].indexOf("+") !== -1) {
+              obj.push({ number: values[ind] });
+            }
+            if (values[ind].indexOf("FN") !== -1) {
+              contact = values[ind + 1];
+            }
           }
         }
+        return <VCardPreview contact={contact} numbers={obj[0].number} />
+      } else if (message.mediaType === "image") {
+        return <ModalImageCors imageUrl={message.mediaUrl} />;
+      } else if (message.mediaType === "audio") {
+        return <AudioModal url={message.mediaUrl} />;
+      } else if (message.mediaType === "video") {
+        return (
+          <video
+            className={classes.messageMedia}
+            src={message.mediaUrl}
+            controls
+          />
+        );
+      } else {
+        return (
+          <>
+            <div className={classes.downloadMedia}>
+              <Button
+                startIcon={<GetApp />}
+                variant="outlined"
+                target="_blank"
+                href={message.mediaUrl}
+              >
+                Download
+              </Button>
+            </div>
+            <Divider />
+          </>
+        );
       }
-      return <VCardPreview contact={contact} numbers={obj[0].number} />
-    } else if (message.mediaType === "image") {
-      return <ModalImageCors imageUrl={message.mediaUrl} />;
-    } else if (message.mediaType === "audio") {
-      return <AudioModal url={message.mediaUrl} />;
-    } else if (message.mediaType === "video") {
-      return (
-        <video
-          className={classes.messageMedia}
-          src={message.mediaUrl}
-          controls
-        />
-      );
-    } else {
-      return (
-        <>
-          <div className={classes.downloadMedia}>
-            <Button
-              startIcon={<GetApp />}
-              variant="outlined"
-              target="_blank"
-              href={message.mediaUrl}
-            >
-              Download
-            </Button>
-          </div>
-          <Divider />
-        </>
-      );
-    }
   };
 
   const renderMessageAck = (message) => {
@@ -716,7 +717,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
       return <DoneAll fontSize="small" className={classes.ackIcons} />;
     }
     if (message.ack === 4 || message.ack === 5) {
-      return <DoneAll fontSize="small" className={classes.ackDoneAllIcon} style={{color:'#0377FC'}} />;
+      return <DoneAll fontSize="small" className={classes.ackDoneAllIcon} style={{ color: '#0377FC' }} />;
     }
   };
 
@@ -836,7 +837,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
           )}
           {message.quotedMsg.mediaType === "application" && (
             <div className={classes.downloadMedia}>
-              <Button 
+              <Button
                 startIcon={<GetApp />}
                 variant="outlined"
                 href={message.quotedMsg.mediaUrl}
@@ -904,7 +905,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
                 <div>
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 17" width="20" height="17">
                     <path fill="#df3333" d="M18.2 12.1c-1.5-1.8-5-2.7-8.2-2.7s-6.7 1-8.2 2.7c-.7.8-.3 2.3.2 2.8.2.2.3.3.5.3 1.4 0 3.6-.7 3.6-.7.5-.2.8-.5.8-1v-1.3c.7-1.2 5.4-1.2 6.4-.1l.1.1v1.3c0 .2.1.4.2.6.1.2.3.3.5.4 0 0 2.2.7 3.6.7.2 0 1.4-2 .5-3.1zM5.4 3.2l4.7 4.6 5.8-5.7-.9-.8L10.1 6 6.4 2.3h2.5V1H4.1v4.8h1.3V3.2z"></path>
-                   </svg> <span>Llamada de voz/vídeo perdida a las {format(parseISO(message.createdAt), "HH:mm")}</span>
+                  </svg> <span>Llamada de voz/vídeo perdida a las {format(parseISO(message.createdAt), "HH:mm")}</span>
                 </div>
               </div>
             </React.Fragment>
@@ -917,65 +918,211 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
               {renderDailyTimestamps(message, index)}
               {renderMessageDivider(message, index)}
               {renderNumberTicket(message, index)}
-              <div style={{alignItems: "flex-end", display: "inline-flex", marginBottom: "6px", position: "relative"}}>
-              <div style={{ margin: "0 8px 0 0", width: 28, height: 28 }}>
-  {message.contact?.profilePicUrl ? (
-    <img
-      style={{ borderRadius: "50%", height: "28px", width: "28px", objectFit: "cover" }}
-      src={message.contact.profilePicUrl}
-      alt="avatar"
-      onError={(e) => {
-        // Si falla la carga de imagen, ocultamos la imagen y mostramos el ícono
-        e.target.onerror = null;
-        e.target.style.display = "none";
-        const parent = e.target.parentNode;
-        if (parent) {
-          const iconContainer = document.createElement("div");
-          iconContainer.style.width = "28px";
-          iconContainer.style.height = "28px";
-          iconContainer.style.borderRadius = "50%";
-          iconContainer.style.backgroundColor = "#ccc";
-          iconContainer.style.display = "flex";
-          iconContainer.style.alignItems = "center";
-          iconContainer.style.justifyContent = "center";
+              <div style={{ alignItems: "flex-end", display: "inline-flex", marginBottom: "6px", position: "relative" }}>
+                <div style={{ margin: "0 8px 0 0", width: 28, height: 28 }}>
+                  {message.contact?.profilePicUrl ? (
+                    <img
+                      style={{ borderRadius: "50%", height: "28px", width: "28px", objectFit: "cover" }}
+                      src={message.contact.profilePicUrl}
+                      alt="avatar"
+                      onError={(e) => {
+                        // Si falla la carga de imagen, ocultamos la imagen y mostramos el ícono
+                        e.target.onerror = null;
+                        e.target.style.display = "none";
+                        const parent = e.target.parentNode;
+                        if (parent) {
+                          const iconContainer = document.createElement("div");
+                          iconContainer.style.width = "28px";
+                          iconContainer.style.height = "28px";
+                          iconContainer.style.borderRadius = "50%";
+                          iconContainer.style.backgroundColor = "#ccc";
+                          iconContainer.style.display = "flex";
+                          iconContainer.style.alignItems = "center";
+                          iconContainer.style.justifyContent = "center";
 
-          const icon = document.createElement("div");
-          icon.innerHTML = (message.contact?.name || "C")[0]?.toUpperCase() || "C";
-          icon.style.color = "#555";
+                          const icon = document.createElement("div");
+                          icon.innerHTML = (message.contact?.name || "C")[0]?.toUpperCase() || "C";
+                          icon.style.color = "#555";
 
-          iconContainer.appendChild(icon);
-          parent.appendChild(iconContainer);
-        }
-      }}
-    />
-  ) : (
-    // Si no hay imagen definida, mostramos el ícono directamente
-    <div
-      style={{
-        width: "28px",
-        height: "28px",
-        borderRadius: "50%",
-        backgroundColor: "#ccc",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-    { (message.contact?.name || "C")[0]?.toUpperCase() || "C" }
-    </div>
-  )}
-</div>
+                          iconContainer.appendChild(icon);
+                          parent.appendChild(iconContainer);
+                        }
+                      }}
+                    />
+                  ) : (
+                    // Si no hay imagen definida, mostramos el ícono directamente
+                    <div
+                      style={{
+                        width: "28px",
+                        height: "28px",
+                        borderRadius: "50%",
+                        backgroundColor: "#ccc",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {(message.contact?.name || "C")[0]?.toUpperCase() || "C"}
+                    </div>
+                  )}
+                </div>
+                <div
+                  className={classes.messageLeft}
+                  title={message.queueId && message.queue?.name}
+                  onDoubleClick={(e) => hanldeReplyMessage(e, message)}
+                >
+                  {showSelectMessageCheckbox && (
+                    <SelectMessageCheckbox
+                      // showSelectMessageCheckbox={showSelectMessageCheckbox}
+                      message={message}
+                    // selectedMessagesList={selectedMessagesList}
+                    // setSelectedMessagesList={setSelectedMessagesList}
+                    />
+                  )}
+                  <IconButton
+                    variant="contained"
+                    size="small"
+                    id="messageActionsButton"
+                    disabled={message.isDeleted}
+                    className={classes.messageActionsButton}
+                    onClick={(e) => handleOpenMessageOptionsMenu(e, message)}
+                  >
+                    <ExpandMore />
+                  </IconButton>
+                  {message.isForwarded && (
+                    <div>
+                      <span className={classes.forwardMessage}
+                      ><Reply style={{ color: "grey", transform: 'scaleX(-1)' }} /> Reenviado
+                      </span>
+                      <br />
+                    </div>
+                  )}
+                  {isGroup && (
+                    <span className={classes.messageContactName}>
+                      {message.contact?.name}
+                    </span>
+                  )}
+
+                  {/* aviso de mensagem apagado pelo contato */}
+                  {message.isDeleted && (
+                    <div>
+                      <span className={classes.messageDeleted}>
+                        Este mensaje fue eliminado por el contacto&nbsp;
+                        <Block
+                          color="error"
+                          fontSize="small"
+                          className={classes.deletedIcon}
+                        />
+                      </span>
+                    </div>
+                  )}
+
+
+                  {(message.mediaUrl || message.mediaType === "locationMessage" || message.mediaType === "vcard" || message.mediaType === "contactMessage"
+                    //|| message.mediaType === "multi_vcard" 
+                  ) && checkMessageMedia(message)}
+                  <div className={classes.textContentItem}>
+                    {message.quotedMsg && renderQuotedMessage(message)}
+                    {message.mediaType !== "reactionMessage" && message.body && !isMediaFilename(message.body, message.mediaUrl) && (
+                      <MarkdownWrapper>
+                        {message.mediaType === "locationMessage" || message.mediaType === "contactMessage"
+                          ? null
+                          : message.body}
+                      </MarkdownWrapper>
+                    )}
+                    {message.mediaType === "reactionMessage" && message.body && (
+                      <>
+                        <span style={{ marginLeft: "0px", display: 'flex', alignItems: 'center' }}>
+                          <MarkdownWrapper>
+                            {"_*" + (message.fromMe ? 'Usted' : (message?.contact?.name ?? 'Contacto')) + "*_ reaccionó... "}
+                          </MarkdownWrapper>
+                          <Badge
+                            className={classes.badge}
+                            overlap="circular"
+                            anchorOrigin={{
+                              vertical: 'bottom',
+                              horizontal: 'right',
+                            }}
+                            badgeContent={
+                              <span style={{ fontSize: "1.2em", marginTop: "0", marginLeft: "5px" }}>
+                                {message.body}
+                              </span>
+                            }
+                          />
+                        </span>
+                      </>
+                    )}
+
+                    <span className={classes.timestamp}>
+                      {message.isEdited ? "Editada " + format(parseISO(message.createdAt), "HH:mm") : format(parseISO(message.createdAt), "HH:mm")}
+                    </span>
+
+                    {/* Reacciones para mensajes recibidos */}
+                    {message.reactions?.length > 0 && (
+                      <div style={{
+                        display: "flex",
+                        gap: 6,
+                        marginTop: 4,
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                        fontSize: 16,
+                        padding: "2px 4px",
+                        borderRadius: 6,
+                        background: "#f1f1f1",
+                        width: "fit-content"
+                      }}>
+                        {Object.entries(
+                          message.reactions.reduce((acc, reaction) => {
+                            acc[reaction.type] = (acc[reaction.type] || 0) + 1;
+                            return acc;
+                          }, {})
+                        ).map(([emoji, count]) => (
+                          <span key={emoji}>
+                            {emoji} <small style={{ fontSize: 12 }}>x{count}</small>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+              </div>
+            </React.Fragment>
+          );
+        } else {
+          return (
+            <React.Fragment key={message.id}>
+              {renderDailyTimestamps(message, index)}
+              {renderNumberTicket(message, index)}
+              {renderMessageDivider(message, index)}
               <div
-                className={classes.messageLeft}
-                title={message.queueId && message.queue?.name}
+                className={message.isPrivate ? classes.messageRightPrivate : classes.messageRight}
                 onDoubleClick={(e) => hanldeReplyMessage(e, message)}
               >
+                {message.isPrivate && <div className={classes.messagePrivateIndicator} />}
+
+                {message.isPrivate && (
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    backgroundColor: "#fff3cd",
+                    border: "1px solid #ffeeba",
+                    color: "#856404",
+                    padding: "2px 6px",
+                    borderRadius: 6,
+                    fontSize: "0.75rem",
+                    fontWeight: 500,
+                    marginBottom: 6,
+                    width: "fit-content"
+                  }}>
+                    <Lock style={{ fontSize: 14, marginRight: 4 }} />
+                    PRIVADO
+                  </div>
+                )}
+
                 {showSelectMessageCheckbox && (
                   <SelectMessageCheckbox
-                    // showSelectMessageCheckbox={showSelectMessageCheckbox}
                     message={message}
-                  // selectedMessagesList={selectedMessagesList}
-                  // setSelectedMessagesList={setSelectedMessagesList}
                   />
                 )}
                 <IconButton
@@ -990,244 +1137,98 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
                 </IconButton>
                 {message.isForwarded && (
                   <div>
-                    <span className={classes.forwardMessage}
-                    ><Reply style={{ color: "grey", transform: 'scaleX(-1)' }} /> Reenviado
+                    <span className={classes.forwardMessage}>
+                      <Reply style={{ color: "grey", transform: 'scaleX(-1)' }} /> Reenviado
                     </span>
                     <br />
                   </div>
                 )}
-                {isGroup && (
-                  <span className={classes.messageContactName}>
-                    {message.contact?.name}
-                  </span>
-                )}
-
-                {/* aviso de mensagem apagado pelo contato */}
-                {message.isDeleted && (
-                  <div>
-                    <span className={classes.messageDeleted}>
-                      Este mensaje fue eliminado por el contacto&nbsp;
-                      <Block
-                        color="error"
-                        fontSize="small"
-                        className={classes.deletedIcon}
-                      />
-                    </span>
-                  </div>
-                )}
-
-
-{(message.mediaUrl || message.mediaType === "locationMessage" || message.mediaType === "vcard" || message.mediaType === "contactMessage"
-                  //|| message.mediaType === "multi_vcard" 
-                ) && checkMessageMedia(message)}
-           <div className={classes.textContentItem}>
-  {message.quotedMsg && renderQuotedMessage(message)}
-  {message.mediaType !== "reactionMessage" && (
-    <MarkdownWrapper>
-      {message.mediaType === "locationMessage" || message.mediaType === "contactMessage" || isMediaFilename(message.body, message.mediaUrl)
-        ? null
-        : message.body}
-    </MarkdownWrapper>
-  )}
-  {message.mediaType === "reactionMessage" && message.body && (
-    <>
-      <span style={{ marginLeft: "0px", display: 'flex', alignItems: 'center' }}>
-        <MarkdownWrapper>
-          {"_*" + (message.fromMe ? 'Usted' : (message?.contact?.name ?? 'Contacto')) + "*_ reaccionó... "}
-        </MarkdownWrapper>
-        <Badge 
-          className={classes.badge}
-          overlap="circular"
-          anchorOrigin={{
-            vertical: 'bottom',
-            horizontal: 'right',
-          }}
-          badgeContent={
-            <span style={{ fontSize: "1.2em", marginTop: "0", marginLeft: "5px" }}>
-              {message.body}
-            </span>
-          }
-        />
-      </span>
-    </>
-  )}
-
-  <span className={classes.timestamp}>
-    {message.isEdited ? "Editada " + format(parseISO(message.createdAt), "HH:mm") : format(parseISO(message.createdAt), "HH:mm")}
-  </span>
-
-  {/* Reacciones para mensajes recibidos */}
-  {message.reactions?.length > 0 && (
-    <div style={{
-      display: "flex",
-      gap: 6,
-      marginTop: 4,
-      flexWrap: "wrap",
-      alignItems: "center",
-      fontSize: 16,
-      padding: "2px 4px",
-      borderRadius: 6,
-      background: "#f1f1f1",
-      width: "fit-content"
-    }}>
-      {Object.entries(
-        message.reactions.reduce((acc, reaction) => {
-          acc[reaction.type] = (acc[reaction.type] || 0) + 1;
-          return acc;
-        }, {})
-      ).map(([emoji, count]) => (
-        <span key={emoji}>
-          {emoji} <small style={{ fontSize: 12 }}>x{count}</small>
-        </span>
-      ))}
-    </div>
-  )}
-</div>
-
-                </div>
-              </div>
-            </React.Fragment>
-          );
-        } else {
-          return (
-            <React.Fragment key={message.id}>
-              {renderDailyTimestamps(message, index)}
-              {renderNumberTicket(message, index)}
-              {renderMessageDivider(message, index)}
-<div
-  className={message.isPrivate ? classes.messageRightPrivate : classes.messageRight}
-  onDoubleClick={(e) => hanldeReplyMessage(e, message)}
->
-  {message.isPrivate && <div className={classes.messagePrivateIndicator} />}
-
-  {message.isPrivate && (
-    <div style={{
-      display: "flex",
-      alignItems: "center",
-      backgroundColor: "#fff3cd",
-      border: "1px solid #ffeeba",
-      color: "#856404",
-      padding: "2px 6px",
-      borderRadius: 6,
-      fontSize: "0.75rem",
-      fontWeight: 500,
-      marginBottom: 6,
-      width: "fit-content"
-    }}>
-      <Lock style={{ fontSize: 14, marginRight: 4 }} />
-      PRIVADO
-    </div>
-  )}
-
-              {showSelectMessageCheckbox && (
-                <SelectMessageCheckbox
-                  message={message}
-                />
-              )}
-                <IconButton
-                  variant="contained"
-                  size="small"
-                  id="messageActionsButton"
-                  disabled={message.isDeleted}
-                  className={classes.messageActionsButton}
-                  onClick={(e) => handleOpenMessageOptionsMenu(e, message)}
-                >
-                  <ExpandMore />
-                </IconButton>
-                {message.isForwarded && (
-                  <div>
-                   <span className={classes.forwardMessage}>
-                    <Reply style={{ color: "grey", transform: 'scaleX(-1)' }} /> Reenviado
-                  </span>
-                  <br />
-                  </div>
-                )}
                 {(message.mediaUrl || message.mediaType === "locationMessage" || message.mediaType === "vcard" || message.mediaType === "contactMessage"
                 ) && checkMessageMedia(message)}
-             <div
-  className={clsx(classes.textContentItem, {
-    [classes.textContentItemDeleted]: message.isDeleted,
-  })}
->
-  {message.isDeleted ? (
-    <div>
-      <span className={classes.messageDeleted}>
-        Este mensaje fue eliminado por el contacto&nbsp;
-        <Block
-          color="error"
-          fontSize="small"
-          className={classes.deletedIcon}
-        />
-      </span>
-    </div>
-  ) : (
-    <>
-      {message.quotedMsg && renderQuotedMessage(message)}
+                <div
+                  className={clsx(classes.textContentItem, {
+                    [classes.textContentItemDeleted]: message.isDeleted,
+                  })}
+                >
+                  {message.isDeleted ? (
+                    <div>
+                      <span className={classes.messageDeleted}>
+                        Este mensaje fue eliminado por el contacto&nbsp;
+                        <Block
+                          color="error"
+                          fontSize="small"
+                          className={classes.deletedIcon}
+                        />
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      {message.quotedMsg && renderQuotedMessage(message)}
 
-      {/* Contenido del mensaje normal */}
-      {message.mediaType !== "reactionMessage" && message.body && !isMediaFilename(message.body, message.mediaUrl) && (
-        <MarkdownWrapper>{message.body}</MarkdownWrapper>
-      )}
+                      {/* Contenido del mensaje normal */}
+                      {message.mediaType !== "reactionMessage" && message.body && !isMediaFilename(message.body, message.mediaUrl) && (
+                        <MarkdownWrapper>{message.body}</MarkdownWrapper>
+                      )}
 
-      {/* Reacción a un mensaje citado */}
-      {message.quotedMsg && message.mediaType === "reactionMessage" && message.body && (
-        <span style={{ display: 'flex', alignItems: 'center' }}>
-          <MarkdownWrapper>
-            {"_*" + (message.fromMe ? 'Usted' : (message?.contact?.name ?? 'Contacto')) + "*_ reaccionó... "}
-          </MarkdownWrapper>
-          <Badge
-            className={classes.badge}
-            overlap="circular"
-            anchorOrigin={{
-              vertical: 'bottom',
-              horizontal: 'right',
-            }}
-            badgeContent={
-              <span style={{ fontSize: "1.2em", marginLeft: "5px" }}>
-                {message.body}
-              </span>
-            }
-          />
-        </span>
-      )}
-    </>
-  )}
+                      {/* Reacción a un mensaje citado */}
+                      {message.quotedMsg && message.mediaType === "reactionMessage" && message.body && (
+                        <span style={{ display: 'flex', alignItems: 'center' }}>
+                          <MarkdownWrapper>
+                            {"_*" + (message.fromMe ? 'Usted' : (message?.contact?.name ?? 'Contacto')) + "*_ reaccionó... "}
+                          </MarkdownWrapper>
+                          <Badge
+                            className={classes.badge}
+                            overlap="circular"
+                            anchorOrigin={{
+                              vertical: 'bottom',
+                              horizontal: 'right',
+                            }}
+                            badgeContent={
+                              <span style={{ fontSize: "1.2em", marginLeft: "5px" }}>
+                                {message.body}
+                              </span>
+                            }
+                          />
+                        </span>
+                      )}
+                    </>
+                  )}
 
-  {/* Timestamp y ACK solo si no es eliminado */}
-  <span className={classes.timestamp}>
-    {message.isEdited
-      ? "Editada " + format(parseISO(message.createdAt), "HH:mm")
-      : format(parseISO(message.createdAt), "HH:mm")}
-    {!message.isDeleted && renderMessageAck(message)}
-  </span>
+                  {/* Timestamp y ACK solo si no es eliminado */}
+                  <span className={classes.timestamp}>
+                    {message.isEdited
+                      ? "Editada " + format(parseISO(message.createdAt), "HH:mm")
+                      : format(parseISO(message.createdAt), "HH:mm")}
+                    {!message.isDeleted && renderMessageAck(message)}
+                  </span>
 
-  {/* Reacciones en burbuja si no está eliminado */}
-  {!message.isDeleted && message.reactions?.length > 0 && (
-    <div style={{
-      display: "flex",
-      gap: 6,
-      marginTop: 4,
-      flexWrap: "wrap",
-      alignItems: "center",
-      fontSize: 16,
-      padding: "2px 4px",
-      borderRadius: 6,
-      background: "#f1f1f1",
-      width: "fit-content"
-    }}>
-      {Object.entries(
-        message.reactions.reduce((acc, reaction) => {
-          acc[reaction.type] = (acc[reaction.type] || 0) + 1;
-          return acc;
-        }, {})
-      ).map(([emoji, count]) => (
-        <span key={emoji}>
-          {emoji} <small style={{ fontSize: 12 }}>x{count}</small>
-        </span>
-      ))}
-    </div>
-  )}
-</div>
+                  {/* Reacciones en burbuja si no está eliminado */}
+                  {!message.isDeleted && message.reactions?.length > 0 && (
+                    <div style={{
+                      display: "flex",
+                      gap: 6,
+                      marginTop: 4,
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      fontSize: 16,
+                      padding: "2px 4px",
+                      borderRadius: 6,
+                      background: "#f1f1f1",
+                      width: "fit-content"
+                    }}>
+                      {Object.entries(
+                        message.reactions.reduce((acc, reaction) => {
+                          acc[reaction.type] = (acc[reaction.type] || 0) + 1;
+                          return acc;
+                        }, {})
+                      ).map(([emoji, count]) => (
+                        <span key={emoji}>
+                          {emoji} <small style={{ fontSize: 12 }}>x{count}</small>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </React.Fragment>
           );
@@ -1253,26 +1254,26 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
         onScroll={handleScroll}
       >
         {messagesList.length > 0 ? renderMessages() : []}
-            {contactPresence === "composing" && (
-                <div className={classes.messageLeft}>
-                  <div className={classes.wave}>
-                      <span className={classes.dot}></span>
-                      <span className={classes.dot}></span>
-                      <span className={classes.dot}></span>
-                  </div>
-                </div>
-              )}
-              {contactPresence === "recording" && (
-                <div className={classes.messageLeft}>
-                  <div className={classes.wavebarsContainer}>
-                      <div className={clsx(classes.wavebars, classes.wavebar1)}></div>
-                      <div className={clsx(classes.wavebars, classes.wavebar2)}></div>
-                      <div className={clsx(classes.wavebars, classes.wavebar3)}></div>
-                      <div className={clsx(classes.wavebars, classes.wavebar4)}></div>
-                      <div className={clsx(classes.wavebars, classes.wavebar5)}></div>
-                  </div>
-                </div>
-              )}
+        {contactPresence === "composing" && (
+          <div className={classes.messageLeft}>
+            <div className={classes.wave}>
+              <span className={classes.dot}></span>
+              <span className={classes.dot}></span>
+              <span className={classes.dot}></span>
+            </div>
+          </div>
+        )}
+        {contactPresence === "recording" && (
+          <div className={classes.messageLeft}>
+            <div className={classes.wavebarsContainer}>
+              <div className={clsx(classes.wavebars, classes.wavebar1)}></div>
+              <div className={clsx(classes.wavebars, classes.wavebar2)}></div>
+              <div className={clsx(classes.wavebars, classes.wavebar3)}></div>
+              <div className={clsx(classes.wavebars, classes.wavebar4)}></div>
+              <div className={clsx(classes.wavebars, classes.wavebar5)}></div>
+            </div>
+          </div>
+        )}
       </div>
       {loading && (
         <div>

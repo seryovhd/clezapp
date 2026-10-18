@@ -1379,15 +1379,15 @@ const MessageInputCustom = (props) => {
             });
           });
           formData.append("medias", compressed);
-          formData.append("body", captionText || compressed.name);
+          formData.append("body", captionText || "");
         } catch (err) {
           console.error("Error al comprimir imagen:", err.message);
           formData.append("medias", media);
-          formData.append("body", captionText || media.name);
+          formData.append("body", captionText || "");
         }
       } else {
         formData.append("medias", media);
-        formData.append("body", captionText || media.name);
+        formData.append("body", captionText || "");
       }
     }
 
@@ -1503,7 +1503,7 @@ const MessageInputCustom = (props) => {
       const formData = new FormData();
       const filename = `audio-record-site-${new Date().getTime()}.mp3`;
       formData.append("medias", blob, filename);
-      formData.append("body", filename);
+      formData.append("body", "");
       formData.append("fromMe", true);
 
       await api.post(`/messages/${ticketId}`, formData);

@@ -59,11 +59,29 @@ const processAudioFile = async (audio: string, companyId: string): Promise<strin
   });
 };
 
+export const isFileNameOnly = (text?: string, refName?: string): boolean => {
+  if (!text || typeof text !== "string") return true;
+  const trimmed = text.trim();
+  if (!trimmed || trimmed === "-") return true;
+  if (refName) {
+    const cleanRef = refName.trim().toLowerCase();
+    const cleanText = trimmed.toLowerCase();
+    if (cleanText === cleanRef || cleanText === decodeURIComponent(cleanRef)) {
+      return true;
+    }
+    const refWithoutExt = cleanRef.substring(0, cleanRef.lastIndexOf('.'));
+    if (refWithoutExt && cleanText === refWithoutExt) {
+      return true;
+    }
+  }
+  return /^[^\n\r]+\.(png|jpe?g|webp|gif|bmp|svg|mp4|mov|avi|mkv|ogg|mp3|wav|m4a|opus|bin|pdf|docx?|xlsx?|pptx?|txt|zip|rar)$/i.test(trimmed);
+};
+
 export const getMessageOptions = async (
   fileName: string,
   pathMedia: string,
   companyId?: string,
-  body: string = " "
+  body: string = ""
 ): Promise<any> => {
   const mimeType = mime.lookup(pathMedia);
   const typeMessage = mimeType.split("/")[0];
@@ -73,11 +91,13 @@ export const getMessageOptions = async (
       throw new Error("Invalid mimetype");
     }
     let options: AnyMessageContent;
+    const hasValidCaption = !isFileNameOnly(body, fileName);
+    const captionToSend = hasValidCaption ? body.trim() : null;
 
     if (typeMessage === "video") {
       options = {
         video: fs.readFileSync(pathMedia),
-        caption: body ? body : null,
+        caption: captionToSend,
         fileName: fileName
       };
     } else if (typeMessage === "audio") {
@@ -99,21 +119,21 @@ export const getMessageOptions = async (
     } else if (typeMessage === "document" || fileName.endsWith('.psd')) {
       options = {
         document: fs.readFileSync(pathMedia),
-        caption: body ? body : null,
+        caption: captionToSend,
         fileName: fileName,
         mimetype: mimeType
       };
     } else if (typeMessage === "application") {
       options = {
         document: fs.readFileSync(pathMedia),
-        caption: body ? body : null,
+        caption: captionToSend,
         fileName: fileName,
         mimetype: mimeType
       };
     } else {
       options = {
         image: fs.readFileSync(pathMedia),
-        caption: body ? body : null,
+        caption: captionToSend,
       };
     }
 
@@ -187,6 +207,9 @@ const SendWhatsAppMedia = async ({
         }
       }
 
+      const isFileBody = isFileNameOnly(body, media.originalname);
+      const evoCaption = isFileBody ? "" : (formatBody(body, ticket.contact) || "");
+
       let sentRes: any;
       try {
         sentRes = await EvolutionApiService.sendMediaMessage(
@@ -195,7 +218,7 @@ const SendWhatsAppMedia = async ({
           {
             media: base64Media,
             mediaType: mediaType as any,
-            caption: formatBody(body, ticket.contact),
+            caption: evoCaption,
             fileName: media.originalname,
             mimetype: evoMime
           },
@@ -213,7 +236,7 @@ const SendWhatsAppMedia = async ({
             {
               media: base64Media,
               mediaType: mediaType as any,
-              caption: formatBody(body, ticket.contact),
+              caption: evoCaption,
               fileName: media.originalname,
               mimetype: evoMime
             }
@@ -229,7 +252,7 @@ const SendWhatsAppMedia = async ({
           messageData: {
             id: messageId,
             ticketId: ticket.id,
-            body: formatBody(body, ticket.contact) || media.originalname,
+            body: isFileBody ? "" : (formatBody(body, ticket.contact) || ""),
             fromMe: true,
             read: true,
             mediaUrl: media.filename,
@@ -244,7 +267,10 @@ const SendWhatsAppMedia = async ({
         console.error("[Evolution] Error guardando media saliente en BD:", err);
       }
 
-      await ticket.update({ lastMessage: formatBody(body, ticket.contact) || media.originalname });
+      const evoLastMsg = isFileBody
+        ? (mediaType === "image" ? "📷 Imagen" : mediaType === "video" ? "📹 Video" : mediaType === "audio" ? "🎵 Audio" : "📄 Archivo")
+        : (formatBody(body, ticket.contact) || "📷 Archivo");
+      await ticket.update({ lastMessage: evoLastMsg });
       return sentRes as any;
     }
 
@@ -291,19 +317,22 @@ const SendWhatsAppMedia = async ({
     const standardImageMimes = ['image/jpeg', 'image/png', 'image/webp'];
     const isStandardImage = standardImageMimes.includes(mimeType);
 
+    const isFileText = isFileNameOnly(body, fileName) || isFileNameOnly(body, media.originalname);
+    const captionToSend = isFileText ? undefined : (bodyMessage && bodyMessage.trim() ? bodyMessage.trim() : undefined);
+
     let options: AnyMessageContent;
 
     if (shouldBeDocument) {
       options = {
         document: fs.readFileSync(pathMedia),
-        caption: bodyMessage,
+        caption: captionToSend,
         fileName: fileName,
         mimetype: mimeType
       };
     } else if (typeMessage === "video" || videoMimeTypes.includes(mimeType)) {
       options = {
         video: fs.readFileSync(pathMedia),
-        caption: bodyMessage,
+        caption: captionToSend,
         fileName: fileName,
         mimetype: mimeType
       };
@@ -325,30 +354,29 @@ const SendWhatsAppMedia = async ({
     } else if (typeMessage === "image" && isStandardImage) {
       options = {
         image: fs.readFileSync(pathMedia),
-        caption: bodyMessage,
-        mimetype: mimeType,
-        fileName: fileName
+        caption: captionToSend,
+        mimetype: mimeType
       };
     } else if (typeMessage === "image" && !isStandardImage) {
       // Si es un formato de imagen no estándar (SVG, BMP, TIFF, etc.), se envía como documento
       // para asegurar que el receptor lo reciba intacto y sin errores
       options = {
         document: fs.readFileSync(pathMedia),
-        caption: bodyMessage,
+        caption: captionToSend,
         fileName: fileName,
         mimetype: mimeType
       };
     } else if (typeMessage === "document" || mimeType === "application/pdf") {
       options = {
         document: fs.readFileSync(pathMedia),
-        caption: bodyMessage,
+        caption: captionToSend,
         fileName: fileName,
         mimetype: mimeType
       };
     } else {
       options = {
         document: fs.readFileSync(pathMedia),
-        caption: bodyMessage,
+        caption: captionToSend,
         fileName: fileName,
         mimetype: mimeType || "application/octet-stream"
       };
@@ -438,7 +466,7 @@ const SendWhatsAppMedia = async ({
           id: sentMessage?.key?.id || `media_${Date.now()}`,
           ticketId: ticket.id,
           contactId: undefined,
-          body: bodyMessage || fileName,
+          body: isFileText ? "" : (bodyMessage || ""),
           fromMe: true,
           read: true,
           mediaUrl: media.filename,
@@ -453,7 +481,10 @@ const SendWhatsAppMedia = async ({
       console.error("[SendWhatsAppMedia] Error al guardar media saliente en BD:", saveErr);
     }
 
-    await ticket.update({ lastMessage: bodyMessage || fileName });
+    const baileysLastMsg = isFileText
+      ? (detectedMediaType === "image" ? "📷 Imagen" : detectedMediaType === "video" ? "📹 Video" : detectedMediaType === "audio" ? "🎵 Audio" : "📄 Archivo")
+      : (bodyMessage || "📷 Archivo");
+    await ticket.update({ lastMessage: baileysLastMsg });
 
     return sentMessage;
   } catch (err) {

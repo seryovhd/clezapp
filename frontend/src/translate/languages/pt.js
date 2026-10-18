@@ -457,6 +457,7 @@ const messages = {
         },
         buttons: {
           showAll: "Todos",
+          hideAll: "Ocultar todos",
         },
       },
       transferTicketModal: {

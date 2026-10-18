@@ -450,6 +450,7 @@ const messages = {
 		  },
 		  buttons: {
 			showAll: "All",
+			hideAll: "Hide all",
 		  },
 		},
 		transferTicketModal: {

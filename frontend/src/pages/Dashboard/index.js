@@ -75,7 +75,10 @@ const useStyles = makeStyles((theme) => ({
       boxShadow: theme.shadows[6],
     },
     background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-    color: theme.palette.primary.contrastText,
+    color: "#ffffff !important",
+    "& *": {
+      color: "#ffffff !important",
+    },
   },
   cardContent: {
     display: "flex",
@@ -89,17 +92,20 @@ const useStyles = makeStyles((theme) => ({
     fontSize: "0.875rem",
     fontWeight: 600,
     marginBottom: theme.spacing(0.5),
-    opacity: 0.9,
+    opacity: 0.95,
+    color: "#ffffff !important",
   },
   cardValue: {
     fontSize: "1.75rem",
     fontWeight: 700,
     lineHeight: 1.2,
+    color: "#ffffff !important",
   },
   cardIcon: {
     fontSize: "2.5rem",
     marginLeft: theme.spacing(2),
-    opacity: 0.8,
+    opacity: 0.95,
+    color: "#ffffff !important",
   },
   fixedHeightPaper: {
     padding: theme.spacing(3),

@@ -5,7 +5,7 @@ import path from "path";
 import EvolutionApiService from "../services/EvolutionApiServices/EvolutionApiService";
 import { resolveLidToPhone } from "./ResolveLidHelper";
 
-import { getMessageOptions } from "../services/WbotServices/SendWhatsAppMedia";
+import { getMessageOptions, isFileNameOnly } from "../services/WbotServices/SendWhatsAppMedia";
 
 export type MessageData = {
   number: number | string;
@@ -102,10 +102,11 @@ export const SendMessage = async (
 
         if (mediaTarget) {
           const typeDetected = (mime?.split("/")[0] || messageData.mediaType || "document") as any;
+          const evoCap = isFileNameOnly(messageData.body, messageData.fileName) ? "" : (messageData.body || "");
           return await EvolutionApiService.sendMediaMessage(whatsapp, numStr, {
             media: mediaTarget,
             mediaType: typeDetected === "image" || typeDetected === "video" || typeDetected === "audio" ? typeDetected : "document",
-            caption: messageData.body || "",
+            caption: evoCap,
             fileName: messageData.fileName,
             mimetype: mime
           });

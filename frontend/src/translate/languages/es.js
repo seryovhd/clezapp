@@ -434,6 +434,7 @@ const messages = {
       },
       tickets: {
         inbox: {
+          closedAllTickets: "¿Cerrar todos los tickets?",
           closedalltickets: "¿Cerrar todos los tickets?",
           closedAll: "Cerrar Todos",
           newTicket: "Nuevo Ticket",
@@ -468,6 +469,7 @@ const messages = {
         },
         buttons: {
           showAll: "Todos",
+          hideAll: "Ocultar todos",
         }
       },
       transferTicketModal: {

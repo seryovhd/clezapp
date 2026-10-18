@@ -10,6 +10,7 @@ import Ticket from "../../models/Ticket";
 import mime from "mime-types";
 import Contact from "../../models/Contact";
 import { getDestinationJid } from "../../helpers/ResolveLidHelper";
+import { isFileNameOnly } from "./SendWhatsAppMedia";
 
 interface Request {
   media: Express.Multer.File;
@@ -98,6 +99,7 @@ const SendWhatsAppMediaFlow = async ({
       typeMessage = mimetype.split("/")[0];
     }
     const mediaName = nameFileDiscovery(media)
+    const captionToSend = isFileNameOnly(body, mediaName) ? undefined : body;
 
     let options: AnyMessageContent;
 
@@ -105,7 +107,7 @@ const SendWhatsAppMediaFlow = async ({
       if (typeMessage === "video") {
         options = {
           video: fs.readFileSync(pathMedia),
-          caption: body,
+          caption: captionToSend,
           fileName: mediaName
           // gifPlayback: true
         };
@@ -129,14 +131,14 @@ const SendWhatsAppMediaFlow = async ({
       } else if (typeMessage === "document" || typeMessage === "text") {
         options = {
           document: fs.readFileSync(pathMedia),
-          caption: body,
+          caption: captionToSend,
           fileName: mediaName,
           mimetype: mimetype
         };
       } else if (typeMessage === "application") {
         options = {
           document: fs.readFileSync(pathMedia),
-          caption: body,
+          caption: captionToSend,
           fileName: mediaName,
           mimetype: mimetype
         };
@@ -144,7 +146,7 @@ const SendWhatsAppMediaFlow = async ({
     } else {
       options = {
         image: fs.readFileSync(pathMedia),
-        caption: body
+        caption: captionToSend
       };
     }
 

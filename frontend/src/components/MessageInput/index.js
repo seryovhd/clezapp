@@ -242,7 +242,7 @@ const MessageInput = ({ ticketStatus }) => {
 		formData.append("fromMe", true);
 		medias.forEach(media => {
 			formData.append("medias", media);
-			formData.append("body", media.name);
+			formData.append("body", inputMessage ? inputMessage.trim() : "");
 		});
 
 		try {
@@ -308,7 +308,7 @@ const MessageInput = ({ ticketStatus }) => {
 			const formData = new FormData();
 			const filename = `${new Date().getTime()}.mp3`;
 			formData.append("medias", blob, filename);
-			formData.append("body", filename);
+			formData.append("body", "");
 			formData.append("fromMe", true);
 
 			await api.post(`/messages/${ticketId}`, formData);
