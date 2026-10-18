@@ -176,6 +176,12 @@ const App = () => {
                         fontWeight: "bold",
                     },
                 },
+                MuiBadge: {
+                    colorSecondary: {
+                        backgroundColor: "#d32f2f",
+                        color: "#ffffff",
+                    },
+                },
             },
             scrollbarStyles: {
                 "&::-webkit-scrollbar": {

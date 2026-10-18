@@ -384,7 +384,59 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     fontSize: "0.88rem",
     marginBottom: 2
-  }
+  },
+  wave: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    padding: "6px 12px",
+    minHeight: 28,
+  },
+  dot: {
+    display: "inline-block",
+    width: 7,
+    height: 7,
+    borderRadius: "50%",
+    backgroundColor: "#d32f2f",
+    animation: "$wave 1.3s linear infinite",
+    "&:nth-child(2)": {
+      animationDelay: "-1.1s",
+    },
+    "&:nth-child(3)": {
+      animationDelay: "-0.9s",
+    },
+  },
+  "@keyframes wave": {
+    "0%, 60%, 100%": {
+      transform: "initial",
+    },
+    "30%": {
+      transform: "translateY(-6px)",
+    },
+  },
+  wavebarsContainer: {
+    display: "flex",
+    alignItems: "center",
+    gap: 3,
+    padding: "6px 12px",
+  },
+  wavebars: {
+    width: 3,
+    height: 14,
+    backgroundColor: "#d32f2f",
+    borderRadius: 2,
+    animation: "$wavebar 1s ease-in-out infinite",
+  },
+  wavebar1: { animationDelay: "0.1s" },
+  wavebar2: { animationDelay: "0.2s" },
+  wavebar3: { animationDelay: "0.3s" },
+  wavebar4: { animationDelay: "0.4s" },
+  wavebar5: { animationDelay: "0.5s" },
+  "@keyframes wavebar": {
+    "0%, 100%": { height: 6 },
+    "50%": { height: 18 },
+  },
 }));
 
 const reducer = (state, action) => {
@@ -436,6 +488,19 @@ const reducer = (state, action) => {
   if (action.type === "RESET") {
     return [];
   }
+};
+
+const isMediaFilename = (body, mediaUrl) => {
+  if (!body || typeof body !== "string") return false;
+  const trimmed = body.trim();
+  if (mediaUrl) {
+    const filenameFromUrl = mediaUrl.split("/").pop()?.split("?")[0];
+    if (filenameFromUrl && (trimmed === filenameFromUrl || trimmed === decodeURIComponent(filenameFromUrl))) {
+      return true;
+    }
+  }
+  // Detectar nombres de archivo con extensión (ej: typebotimg1792291176317_2135.png, imagen.jpg, etc.)
+  return /^[^\n\r]+\.(png|jpe?g|webp|gif|bmp|mp4|mov|avi|mkv|ogg|mp3|wav|m4a|opus|bin|pdf|docx?|xlsx?)$/i.test(trimmed);
 };
 
 const MessagesList = ({ ticket, ticketId, isGroup }) => {
@@ -799,7 +864,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
           )}
 
           {message.quotedMsg.body && (
-            (message.quotedMsg.mediaType === "image" && message.quotedMsg.body === "sticker") ? null : (
+            ((message.quotedMsg.mediaType === "image" && message.quotedMsg.body === "sticker") || isMediaFilename(message.quotedMsg.body, message.quotedMsg.mediaUrl)) ? null : (
               <span style={{ fontSize: "0.85rem", opacity: 0.9 }}>
                 {message.quotedMsg.body}
               </span>
@@ -959,7 +1024,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
   {message.quotedMsg && renderQuotedMessage(message)}
   {message.mediaType !== "reactionMessage" && (
     <MarkdownWrapper>
-      {message.mediaType === "locationMessage" || message.mediaType === "contactMessage" 
+      {message.mediaType === "locationMessage" || message.mediaType === "contactMessage" || isMediaFilename(message.body, message.mediaUrl)
         ? null
         : message.body}
     </MarkdownWrapper>
@@ -1100,7 +1165,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
       {message.quotedMsg && renderQuotedMessage(message)}
 
       {/* Contenido del mensaje normal */}
-      {message.mediaType !== "reactionMessage" && message.body && (
+      {message.mediaType !== "reactionMessage" && message.body && !isMediaFilename(message.body, message.mediaUrl) && (
         <MarkdownWrapper>{message.body}</MarkdownWrapper>
       )}
 

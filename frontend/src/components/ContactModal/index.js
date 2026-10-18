@@ -58,14 +58,14 @@ const phoneRegExp =
   
 const ContactSchema = Yup.object().shape({
   name: Yup.string()
-    .min(2, "Too Short!")
-    .max(50, "Too Long!")
-    .required("Required"),
+    .min(2, "Nombre muy corto")
+    .max(50, "Nombre muy largo")
+    .required("El nombre es requerido"),
   number: Yup.string()
-    .min(12, "Número inválido")
+    .min(8, "Número inválido")
     .max(16, "Número inválido")
     .matches(phoneRegExp, "Número inválido")
-    .required("Informe o número"),
+    .required("El número es requerido"),
   email: Yup.string().email("Email inválido"),
 });
 

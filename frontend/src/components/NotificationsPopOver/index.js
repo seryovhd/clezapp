@@ -40,6 +40,10 @@ const useStyles = makeStyles(theme => ({
 	noShadow: {
 		boxShadow: "none !important",
 	},
+	badge: {
+		backgroundColor: "#d32f2f",
+		color: "#ffffff",
+	},
 }));
 
 const NotificationsPopOver = (volume) => {
@@ -233,7 +237,11 @@ const NotificationsPopOver = (volume) => {
 				color="inherit"
 				style={{color:"white"}}
 			>
-				<Badge overlap="rectangular" badgeContent={notifications.length} color="secondary">
+				<Badge
+					overlap="rectangular"
+					badgeContent={notifications.length}
+					classes={{ badge: classes.badge }}
+				>
 					<ChatIcon />
 				</Badge>
 			</IconButton>

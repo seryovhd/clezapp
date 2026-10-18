@@ -261,8 +261,13 @@ const useStyles = makeStyles((theme) => ({
     marginLeft: "5px",
   },
   badgeStyle: {
-    color: "white",
-    backgroundColor: green[500],
+    color: "#ffffff",
+    backgroundColor: "#d32f2f",
+    right: 20,
+  },
+  badgePendingStyle: {
+    color: "#ffffff",
+    backgroundColor: "#d32f2f",
     right: 20,
   },
   acceptButton: {
@@ -310,7 +315,7 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   presence: {
-    color: theme?.mode === "light" ? "blue" : "lightgreen",
+    color: "#d32f2f",
     fontWeight: "bold",
   },
   customAcceptButton: {
@@ -765,7 +770,11 @@ const TicketListItemCustom = ({ ticket }) => {
             <Badge
               className={classes.newMessagesCount}
               badgeContent={ticket.unreadMessages}
-              classes={{ badge: classes.badgeStyle }}
+              classes={{
+                badge: (ticket.status === "pending" || ["composing", "recording"].includes(ticket?.presence))
+                  ? classes.badgePendingStyle
+                  : classes.badgeStyle,
+              }}
             />
 
             {ticket.status === "pending" && ticket.isGroup && (

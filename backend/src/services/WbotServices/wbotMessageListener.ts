@@ -701,10 +701,13 @@ const verifyContact = async (
   }
 
   try {
-    profilePicUrl = await wbot.profilePictureUrl(msgContact.id);
+    profilePicUrl = await wbot.profilePictureUrl(msgContact.id, "image");
   } catch (e) {
-    Sentry.captureException(e);
-    profilePicUrl = `${process.env.FRONTEND_URL}/nopicture.png`;
+    try {
+      profilePicUrl = await wbot.profilePictureUrl(msgContact.id, "preview");
+    } catch {
+      profilePicUrl = `${process.env.FRONTEND_URL}/nopicture.png`;
+    }
   }
 
   const contactData = {

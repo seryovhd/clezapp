@@ -16,10 +16,13 @@ import { i18n } from "../../translate/i18n";
 
 import ContactDrawerSkeleton from "../ContactDrawerSkeleton";
 import MarkdownWrapper from "../MarkdownWrapper";
-import { CardHeader } from "@material-ui/core";
+import { CardHeader, Tooltip, Dialog, CircularProgress } from "@material-ui/core";
+import GetAppIcon from "@material-ui/icons/GetApp";
+import SyncIcon from "@material-ui/icons/Sync";
 import { ContactForm } from "../ContactForm";
 import ContactModal from "../ContactModal";
 import { ContactNotes } from "../ContactNotes";
+import api from "../../services/api";
 
 import { generateColor } from "../../helpers/colorGenerator";
 import { getInitials } from "../../helpers/getInitials";
@@ -86,6 +89,35 @@ const useStyles = makeStyles(theme => ({
 		marginTop: 4,
 		padding: 6,
 	},
+	avatarClickable: {
+		width: 60,
+		height: 60,
+		color: "white",
+		fontWeight: "bold",
+		cursor: "pointer",
+		transition: "transform 0.2s ease, box-shadow 0.2s ease",
+		"&:hover": {
+			transform: "scale(1.08)",
+			boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+		},
+	},
+	avatarDefault: {
+		width: 60,
+		height: 60,
+		color: "white",
+		fontWeight: "bold",
+	},
+	spin: {
+		animation: "$spin 1s linear infinite",
+	},
+	"@keyframes spin": {
+		"0%": {
+			transform: "rotate(0deg)",
+		},
+		"100%": {
+			transform: "rotate(360deg)",
+		},
+	},
 }));
 
 const ContactDrawer = ({ open, handleDrawerClose, contact, ticket, loading }) => {
@@ -93,10 +125,35 @@ const ContactDrawer = ({ open, handleDrawerClose, contact, ticket, loading }) =>
 
 	const [modalOpen, setModalOpen] = useState(false);
 	const [openForm, setOpenForm] = useState(false);
+	const [openImageModal, setOpenImageModal] = useState(false);
+	const [profilePic, setProfilePic] = useState(contact?.profilePicUrl);
+	const [loadingPic, setLoadingPic] = useState(false);
 
 	useEffect(() => {
 		setOpenForm(false);
+		setProfilePic(contact?.profilePicUrl);
 	}, [open, contact]);
+
+	const handleRefreshPic = async () => {
+		if (!contact?.id || loadingPic) return;
+		setLoadingPic(true);
+		try {
+			const { data } = await api.post(`/contacts/${contact.id}/profile-pic`);
+			if (data?.profilePicUrl) {
+				setProfilePic(data.profilePicUrl);
+			}
+		} catch (err) {
+			console.error("Error refreshing profile pic:", err);
+		} finally {
+			setLoadingPic(false);
+		}
+	};
+
+	useEffect(() => {
+		if (openImageModal && contact?.id && (profilePic?.includes("s96x96") || !profilePic)) {
+			handleRefreshPic();
+		}
+	}, [openImageModal]);
 
 	return (
 		<>
@@ -133,13 +190,33 @@ const ContactDrawer = ({ open, handleDrawerClose, contact, ticket, loading }) =>
 								style={{ cursor: "pointer", width: '100%' }}
 								titleTypographyProps={{ noWrap: true }}
 								subheaderTypographyProps={{ noWrap: true }}
-								avatar={<Avatar
-                      src={contact.profilePicUrl}
-                      alt="contact_image"
-                      style={{ width: 60, height: 60, backgroundColor: generateColor(contact?.number), color: "white", fontWeight: "bold" }}
-                    >
-                      {getInitials(contact?.name)}
-                    </Avatar>}
+								avatar={
+									(profilePic || contact?.profilePicUrl) ? (
+										<Tooltip title="Clic para ampliar foto" arrow>
+											<Avatar
+												src={profilePic || contact.profilePicUrl}
+												alt="contact_image"
+												className={classes.avatarClickable}
+												style={{ backgroundColor: generateColor(contact?.number) }}
+												onClick={(e) => {
+													e.stopPropagation();
+													setOpenImageModal(true);
+												}}
+											>
+												{getInitials(contact?.name)}
+											</Avatar>
+										</Tooltip>
+									) : (
+										<Avatar
+											src={profilePic || contact?.profilePicUrl}
+											alt="contact_image"
+											className={classes.avatarDefault}
+											style={{ backgroundColor: generateColor(contact?.number) }}
+										>
+											{getInitials(contact?.name)}
+										</Avatar>
+									)
+								}
 								title={
 									<>
 										<Typography onClick={() => setOpenForm(true)}>
@@ -201,6 +278,119 @@ const ContactDrawer = ({ open, handleDrawerClose, contact, ticket, loading }) =>
 					</div>
 				)}
 			</Drawer>
+			{openImageModal && (profilePic || contact?.profilePicUrl) && (
+				<Dialog
+					open={openImageModal}
+					onClose={() => setOpenImageModal(false)}
+					maxWidth="md"
+					PaperProps={{
+						style: {
+							backgroundColor: "transparent",
+							boxShadow: "none",
+							overflow: "visible",
+							display: "flex",
+							flexDirection: "column",
+							alignItems: "center",
+							justifyContent: "center",
+							margin: 16,
+						}
+					}}
+					BackdropProps={{
+						style: {
+							backgroundColor: "rgba(0, 0, 0, 0.88)",
+							backdropFilter: "blur(6px)",
+						}
+					}}
+				>
+					<div style={{
+						display: "flex",
+						flexDirection: "column",
+						alignItems: "center",
+						position: "relative",
+					}}>
+						<div style={{
+							width: "100%",
+							display: "flex",
+							justifyContent: "space-between",
+							alignItems: "center",
+							marginBottom: 12,
+							padding: "0 4px",
+						}}>
+							<Typography variant="h6" style={{ fontWeight: 600, color: "#ffffff", textShadow: "0 2px 4px rgba(0,0,0,0.5)" }}>
+								{contact?.name || "Foto de perfil"}
+							</Typography>
+							<div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+								<Tooltip title="Actualizar foto en HD desde WhatsApp">
+									<IconButton
+										onClick={handleRefreshPic}
+										disabled={loadingPic}
+										style={{ color: "#ffffff", backgroundColor: "rgba(255, 255, 255, 0.15)" }}
+										size="small"
+									>
+										<SyncIcon fontSize="small" className={loadingPic ? classes.spin : ""} />
+									</IconButton>
+								</Tooltip>
+								<Tooltip title="Descargar foto">
+									<IconButton
+										component="a"
+										href={profilePic || contact.profilePicUrl}
+										download={`${contact?.name || "perfil"}.jpg`}
+										target="_blank"
+										style={{ color: "#ffffff", backgroundColor: "rgba(255, 255, 255, 0.15)" }}
+										size="small"
+									>
+										<GetAppIcon fontSize="small" />
+									</IconButton>
+								</Tooltip>
+								<IconButton
+									onClick={() => setOpenImageModal(false)}
+									style={{ color: "#ffffff", backgroundColor: "rgba(255, 255, 255, 0.15)" }}
+									size="small"
+									title="Cerrar"
+								>
+									<CloseIcon fontSize="small" />
+								</IconButton>
+							</div>
+						</div>
+
+						<div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+							<img
+								src={profilePic || contact.profilePicUrl}
+								alt={contact?.name || "Foto de perfil"}
+								style={{
+									width: "min(88vw, 440px)",
+									height: "min(88vw, 440px)",
+									objectFit: "cover",
+									borderRadius: "16px",
+									boxShadow: "0 12px 48px rgba(0,0,0,0.7)",
+									border: "2px solid rgba(255, 255, 255, 0.2)",
+									backgroundColor: "#111b21",
+									filter: loadingPic ? "brightness(0.65)" : "none",
+									transition: "filter 0.3s ease",
+								}}
+							/>
+							{loadingPic && (
+								<div style={{
+									position: "absolute",
+									display: "flex",
+									flexDirection: "column",
+									alignItems: "center",
+									gap: 8,
+									backgroundColor: "rgba(0, 0, 0, 0.7)",
+									padding: "12px 20px",
+									borderRadius: "12px",
+									backdropFilter: "blur(4px)",
+								}}>
+									<CircularProgress size={28} style={{ color: "#25d366" }} />
+									<Typography variant="caption" style={{ color: "#ffffff", fontWeight: 500 }}>
+										Obteniendo foto HD de WhatsApp...
+									</Typography>
+								</div>
+							)}
+						</div>
+					</div>
+				</Dialog>
+			)}
 		</>
 	);
 };

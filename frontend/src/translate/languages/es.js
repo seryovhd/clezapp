@@ -1032,6 +1032,7 @@ const messages = {
       messagesInput: {
         signMessage: "Firma",
         placeholderOpen: "Escribe un mensaje...",
+        placeholderClosed: "Reabra o acepte este ticket para enviar un mensaje.",
       },
       messagesList: {
         header: {

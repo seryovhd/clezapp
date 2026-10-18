@@ -261,3 +261,36 @@ export const getContactVcard = async (
 
   return res.status(200).json(contact);
 };
+
+export const refreshProfilePic = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  const { contactId } = req.params;
+  const { companyId } = req.user;
+
+  const contact = await Contact.findOne({
+    where: { id: contactId, companyId }
+  });
+
+  if (!contact) {
+    throw new AppError("ERR_NO_CONTACT_FOUND", 404);
+  }
+
+  try {
+    const profilePicUrl = await GetProfilePicUrl(contact.number, companyId);
+    if (profilePicUrl && profilePicUrl !== `${process.env.FRONTEND_URL}/nopicture.png`) {
+      await contact.update({ profilePicUrl });
+
+      const io = getIO();
+      io.to(`company-${companyId}-mainchannel`).emit(`company-${companyId}-contact`, {
+        action: "update",
+        contact
+      });
+    }
+
+    return res.status(200).json({ profilePicUrl: contact.profilePicUrl, contact });
+  } catch (err: any) {
+    return res.status(200).json({ profilePicUrl: contact.profilePicUrl, contact });
+  }
+};

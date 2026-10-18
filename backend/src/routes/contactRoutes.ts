@@ -30,6 +30,8 @@ contactRoutes.get("/contacts/list", isAuth, ContactController.list);
 
 contactRoutes.get("/contacts/:contactId", isAuth, ContactController.show);
 
+contactRoutes.post("/contacts/:contactId/profile-pic", isAuth, ContactController.refreshProfilePic);
+
 contactRoutes.post("/contacts", isAuth, ContactController.store);
 
 contactRoutes.put("/contacts/:contactId", isAuth, ContactController.update);

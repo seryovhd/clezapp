@@ -123,6 +123,10 @@ const useStyles = makeStyles((theme) => ({
     overflow: 'hidden',
     borderTop: `2px solid ${theme.palette.primary.main}`,
   },
+  pendingBadge: {
+    backgroundColor: "#d32f2f",
+    color: "#ffffff",
+  },
 }));
 
 const TicketsManagerTabs = () => {
@@ -373,7 +377,7 @@ const TicketsManagerTabs = () => {
           />
           <Tab
             label={
-              <Badge badgeContent={pendingCount} color='secondary'>
+              <Badge badgeContent={pendingCount} classes={{ badge: classes.pendingBadge }}>
                 {i18n.t('ticketsList.pendingHeader')}
               </Badge>
             }
