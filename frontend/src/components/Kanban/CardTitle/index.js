@@ -1,5 +1,6 @@
 import { Avatar, makeStyles } from '@material-ui/core';
 import React from 'react';
+import CopyNumberButton from '../../CopyNumberButton';
 
 const useStyles = makeStyles(theme => ({
     container: {
@@ -50,8 +51,9 @@ const CardTitle = ({ticket, userProfile}) => {
                 <span className={classes.title}>
                     {ticket.contact.name}
                 </span>
-                <span className={classes.subtitle}>
-                    {ticket.contact.number}
+                <span className={classes.subtitle} style={{ display: "inline-flex", alignItems: "center" }}>
+                    <span>{ticket.contact.number}</span>
+                    {ticket.contact.number && <CopyNumberButton number={ticket.contact.number} size={11} />}
                 </span>
             </div>
         </div>

@@ -4,6 +4,7 @@ import { Avatar, CardHeader } from "@material-ui/core";
 import { getInitials } from "../../helpers/getInitials";
 import { generateColor } from "../../helpers/colorGenerator";
 import { i18n } from "../../translate/i18n";
+import CopyNumberButton from "../CopyNumberButton";
 
 const TicketInfo = ({ contact, ticket, onClick }) => {
 	const { user } = ticket || {};
@@ -53,9 +54,20 @@ const TicketInfo = ({ contact, ticket, onClick }) => {
 			subheader={
 				<div style={{ display: "flex", flexDirection: "column", marginTop: 2 }}>
 					{phoneNumber && !ticket?.isGroup && (
-						<span style={{ fontSize: "0.82rem", color: "inherit", opacity: 0.85, fontWeight: 500, lineHeight: 1.3 }}>
-							{phoneNumber}
-						</span>
+						<div
+							style={{
+								display: "inline-flex",
+								alignItems: "center",
+								fontSize: "0.82rem",
+								color: "inherit",
+								opacity: 0.85,
+								fontWeight: 500,
+								lineHeight: 1.3,
+							}}
+						>
+							<span>{phoneNumber}</span>
+							<CopyNumberButton number={phoneNumber} size={14} />
+						</div>
 					)}
 					{ticket?.user && userName ? (
 						<span style={{ fontSize: "0.75rem", color: "inherit", opacity: 0.65, lineHeight: 1.3, marginTop: phoneNumber && !ticket?.isGroup ? 1 : 0 }}>

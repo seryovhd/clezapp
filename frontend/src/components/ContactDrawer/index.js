@@ -22,6 +22,7 @@ import SyncIcon from "@material-ui/icons/Sync";
 import { ContactForm } from "../ContactForm";
 import ContactModal from "../ContactModal";
 import { ContactNotes } from "../ContactNotes";
+import CopyNumberButton from "../CopyNumberButton";
 import api from "../../services/api";
 
 import { generateColor } from "../../helpers/colorGenerator";
@@ -227,8 +228,9 @@ const ContactDrawer = ({ open, handleDrawerClose, contact, ticket, loading }) =>
 								}
 								subheader={
 									<>
-										<Typography style={{fontSize: 12}}>
+										<Typography style={{fontSize: 12, display: "flex", alignItems: "center", gap: 4}}>
 											<Link href={`tel:${contact.number}`}>{contact.number}</Link>
+											{contact.number && <CopyNumberButton number={contact.number} size={13} />}
 										</Typography>
 										<Typography style={{fontSize: 12}}>
 											<Link href={`mailto:${contact.email}`}>{contact.email}</Link>

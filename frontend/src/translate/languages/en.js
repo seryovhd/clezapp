@@ -28,6 +28,11 @@ const messages = {
 			register: "Register now!",
 		  },
 		},
+		copyToClipboard: {
+		  button: "Copy to clipboard",
+		  done: "Copied!",
+		  copied: "Phone number copied to clipboard",
+		},
 		plans: {
 		  form: {
 			name: "Name",

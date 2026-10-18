@@ -28,6 +28,11 @@ const messages = {
           register: "Registre-se, agora mesmo!",
         },
       },
+      copyToClipboard: {
+        button: "Copiar para a área de transferência",
+        done: "Copiado!",
+        copied: "Número copiado para a área de transferência",
+      },
       plans: {
         form: {
           name: "Nome",

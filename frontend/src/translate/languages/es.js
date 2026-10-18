@@ -30,6 +30,11 @@ const messages = {
           register: "¡Regístrate ahora mismo!",
         },
       },
+      copyToClipboard: {
+        button: "Copiar al portapapeles",
+        done: "¡Copiado!",
+        copied: "Número copiado al portapapeles",
+      },
       plans: {
         form: {
           name: "Nombre",

@@ -13,6 +13,7 @@ import NewTicketModal from "../NewTicketModal";
 import PhoneIcon from '@material-ui/icons/Phone';
 import PersonIcon from '@material-ui/icons/Person';
 import ChatBubbleIcon from '@material-ui/icons/ChatBubble';
+import CopyNumberButton from '../CopyNumberButton';
 
 const VCardPreview = ({ contact, numbers }) => {
     const history = useHistory();
@@ -195,9 +196,13 @@ const VCardPreview = ({ contact, numbers }) => {
                                 variant="body2" 
                                 style={{ 
                                     color: theme.palette.text.secondary,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 4
                                 }}
                             >
-                                {selectedContact.number}
+                                <span>{selectedContact.number}</span>
+                                {selectedContact.number && <CopyNumberButton number={selectedContact.number} size={13} />}
                             </Typography>
                         </Grid>
                     </Grid>
@@ -228,8 +233,9 @@ const VCardPreview = ({ contact, numbers }) => {
                                         color: theme.palette.text.secondary,
                                     }} 
                                 />
-                                <Typography variant="body2" style={{ color: theme.palette.text.secondary }}>
-                                    <strong>Telefone:</strong> {selectedContact.number}
+                                <Typography variant="body2" style={{ color: theme.palette.text.secondary, display: "flex", alignItems: "center", gap: 4 }}>
+                                    <strong>Telefone:</strong> <span>{selectedContact.number}</span>
+                                    {selectedContact.number && <CopyNumberButton number={selectedContact.number} size={13} />}
                                 </Typography>
                             </Box>
                         </Grid>
