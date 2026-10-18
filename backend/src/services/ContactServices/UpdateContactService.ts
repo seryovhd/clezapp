@@ -39,12 +39,12 @@ const UpdateContactService = async ({
     include: ["extraInfo"]
   });
 
-  if (contact?.companyId !== companyId) {
-    throw new AppError("Não é possível alterar registros de outra empresa");
-  }
-
   if (!contact) {
     throw new AppError("ERR_NO_CONTACT_FOUND", 404);
+  }
+
+  if (contact.companyId !== companyId) {
+    throw new AppError("Não é possível alterar registros de outra empresa");
   }
 
   if (extraInfo) {

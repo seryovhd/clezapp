@@ -143,6 +143,12 @@ export const update = async (
   const contactData: ContactData = req.body;
   const { companyId } = req.user;
 
+  const { contactId } = req.params;
+
+  if (contactData.number) {
+    contactData.number = contactData.number.replace(/\D/g, "");
+  }
+
   const schema = Yup.object().shape({
     name: Yup.string(),
     number: Yup.string().matches(
@@ -157,12 +163,28 @@ export const update = async (
     throw new AppError(err.message);
   }
 
-  await CheckIsValidContact(contactData.number, companyId);
-  const validNumber = await CheckContactNumber(contactData.number, companyId);
-  const number = validNumber.jid.replace(/\D/g, "");
-  contactData.number = number;
+  const currentContact = await Contact.findOne({
+    where: { id: contactId, companyId }
+  });
 
-  const { contactId } = req.params;
+  if (!currentContact) {
+    throw new AppError("ERR_NO_CONTACT_FOUND", 404);
+  }
+
+  // Solo verificar en WhatsApp si el número fue cambiado y es diferente al actual
+  if (contactData.number && contactData.number !== currentContact.number) {
+    try {
+      await CheckIsValidContact(contactData.number, companyId);
+      const validNumber = await CheckContactNumber(contactData.number, companyId);
+      const number = validNumber.jid.replace(/\D/g, "");
+      contactData.number = number;
+    } catch (wappErr) {
+      // Si la sesión de WhatsApp no está conectada o es Evolution API, conservar el número limpio
+      contactData.number = contactData.number.replace(/\D/g, "");
+    }
+  } else if (contactData.number) {
+    contactData.number = currentContact.number;
+  }
 
   const contact = await UpdateContactService({
     contactData,
