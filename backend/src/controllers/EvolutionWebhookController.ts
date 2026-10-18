@@ -122,68 +122,8 @@ export const handleWebhook = async (req: Request, res: Response): Promise<Respon
         return res.status(200).json({ status: "no_messages" });
       }
 
-      // Crear objeto de sesión simulada para compatibilidad con los servicios de Chasap
-      const cleanWappNumber = whatsapp.number ? whatsapp.number.replace(/\D/g, "") : "";
-      const fakeSession: any = {
-        id: whatsapp.id,
-        type: "evolution",
-        user: {
-          id: cleanWappNumber ? `${cleanWappNumber}@s.whatsapp.net` : "bot@s.whatsapp.net",
-          name: whatsapp.name || "Clezapp"
-        },
-        presenceSubscribe: async (jid: string) => {
-          // No-op seguro
-        },
-        sendPresenceUpdate: async (type: string, jid: string) => {
-          // No-op seguro
-        },
-        groupMetadata: async (jid: string) => {
-          return { id: jid, subject: "Grupo" };
-        },
-        sendMessage: async (jid: string, content: any, options?: any) => {
-          if (!content) return;
-          let destination = jid;
-          if (jid.endsWith("@lid") || (jid.replace(/\D/g, "").length >= 14 && !jid.includes("@s.whatsapp.net") && !jid.includes("@g.us"))) {
-            const cleanLid = jid.replace("@lid", "").replace(/\D/g, "");
-            const resolved = await resolveLidToPhone(cleanLid, undefined, whatsapp?.companyId);
-            if (resolved) {
-              destination = `${resolved}@s.whatsapp.net`;
-            } else {
-              destination = `${cleanLid}@lid`;
-            }
-          }
-
-          if (content.text) {
-            return await EvolutionApiService.sendTextMessage(whatsapp!, destination, content.text, {
-              quotedMessageId: options?.quoted?.key?.id
-            });
-          } else if (content.image || content.video || content.audio || content.document) {
-            const mediaType = content.image ? "image" : content.video ? "video" : content.audio ? "audio" : "document";
-            let media: any;
-            if (Buffer.isBuffer(content.image)) {
-              media = content.image.toString("base64");
-            } else if (Buffer.isBuffer(content.video)) {
-              media = content.video.toString("base64");
-            } else if (Buffer.isBuffer(content.audio)) {
-              media = content.audio.toString("base64");
-            } else if (Buffer.isBuffer(content.document)) {
-              media = content.document.toString("base64");
-            } else {
-              media = content.image?.url || content.video?.url || content.audio?.url || content.document?.url || content.image || content.video || content.audio || content.document;
-            }
-
-            logger.info(`[Evolution fakeSession] sendMessage media llamado para ${destination}: mediaType=${mediaType}`);
-            return await EvolutionApiService.sendMediaMessage(whatsapp!, destination, {
-              media,
-              mediaType: mediaType as any,
-              caption: content.caption,
-              mimetype: content.mimetype,
-              fileName: content.fileName || (mediaType === "video" && content.gifPlayback ? "animation.mp4" : undefined),
-              gifPlayback: !!content.gifPlayback
-            });
-          }
-        }
-      };
+      // Usar adaptador WASocket unificado para Evolution API
+      const fakeSession = EvolutionApiService.buildEvolutionSession(whatsapp);
 
       for (const item of rawMessages) {
         if (!item || !item.key) continue;
@@ -492,6 +432,53 @@ export const handleWebhook = async (req: Request, res: Response): Promise<Respon
       }
 
       return res.status(200).json({ status: "call_processed" });
+    }
+
+    // 7. EVENTO: PRESENCIA / ESCRIBIENDO / GRABANDO (PRESENCE_UPDATE)
+    if (event === "presence.update" || event === "presence_update" || event === "presence") {
+      try {
+        const presenceData = body.data;
+        if (presenceData) {
+          const remoteJid = presenceData.id || presenceData.remoteJid || presenceData.participant || "";
+          const presenceVal = presenceData.presences?.[remoteJid]?.lastKnownPresence || presenceData.presence || presenceData.presences?.[remoteJid] || "";
+
+          if (remoteJid && presenceVal) {
+            const cleanNumber = remoteJid.replace(/\D/g, "");
+            const contact = await Contact.findOne({
+              where: {
+                number: cleanNumber,
+                companyId
+              }
+            });
+
+            if (contact) {
+              const ticket = await Ticket.findOne({
+                where: {
+                  contactId: contact.id,
+                  whatsappId: whatsapp.id,
+                  status: {
+                    [Op.or]: ["open", "pending"]
+                  }
+                }
+              });
+
+              if (ticket) {
+                const io = getIO();
+                io.to(ticket.id.toString())
+                  .to(`company-${companyId}-${ticket.status}`)
+                  .to(`queue-${ticket.queueId}-${ticket.status}`)
+                  .emit(`company-${companyId}-presence`, {
+                    ticketId: ticket.id,
+                    presence: presenceVal
+                  });
+              }
+            }
+          }
+        }
+      } catch (err: any) {
+        logger.warn(`[Evolution Webhook] Error procesando presence.update: ${err?.message}`);
+      }
+      return res.status(200).json({ status: "presence_processed" });
     }
 
     return res.status(200).json({ status: "event_ignored", event });

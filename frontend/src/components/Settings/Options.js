@@ -127,6 +127,8 @@ export default function Options(props) {
     // PARCHE 1.3.1 - RECORDAR AGENTE FIN
     const [showTicketWaitTime, setShowTicketWaitTime] = useState("disabled");
     const [loadingShowTicketWaitTime, setLoadingShowTicketWaitTime] = useState(false);
+    const [quickMessagesMode, setQuickMessagesMode] = useState("both");
+    const [loadingQuickMessagesMode, setLoadingQuickMessagesMode] = useState(false);
 
     const [ipixcType, setIpIxcType] = useState("");
     const [loadingIpIxcType, setLoadingIpIxcType] = useState(false);
@@ -221,6 +223,10 @@ export default function Options(props) {
             const showTicketWaitTimeSetting = settings.find((s) => s.key === "showTicketWaitTime");
             if (showTicketWaitTimeSetting) {
                 setShowTicketWaitTime(showTicketWaitTimeSetting.value);
+            }
+            const quickMessagesModeSetting = settings.find((s) => s.key === "quickMessagesMode");
+            if (quickMessagesModeSetting) {
+                setQuickMessagesMode(quickMessagesModeSetting.value);
             }
             {
                 /*Whaticket SaaS SAUDAÇÃO*/
@@ -551,6 +557,17 @@ export default function Options(props) {
         setLoadingSettingsTransfTicket(false);
     }
 
+    async function handleQuickMessagesMode(value) {
+        setQuickMessagesMode(value);
+        setLoadingQuickMessagesMode(true);
+        await update({
+            key: "quickMessagesMode",
+            value,
+        });
+        toast.success("Operación actualizada con éxito.");
+        setLoadingQuickMessagesMode(false);
+    }
+
     async function handleChangeHubNotificaMe(value) {
         setHubNotificaMeType(value);
 
@@ -845,6 +862,26 @@ export default function Options(props) {
                             <MenuItem value="enabled">Sí</MenuItem>
                         </Select>
                         <FormHelperText>{loadingShowTicketWaitTime && "Actualizando..."}</FormHelperText>
+                    </FormControl>
+                </Grid>
+                {/* MODO DE RESPUESTAS RÁPIDAS (QUICK MESSAGES) */}
+                <Grid xs={12} sm={12} md={12} item>
+                    <FormControl className={classes.selectContainer}>
+                        <InputLabel id="quickMessagesMode-label">
+                            Modo de Respuestas Rápidas (Chat)
+                        </InputLabel>
+                        <Select
+                            labelId="quickMessagesMode-label"
+                            value={quickMessagesMode}
+                            onChange={async (e) => {
+                                handleQuickMessagesMode(e.target.value);
+                            }}
+                        >
+                            <MenuItem value={"both"}>Ambos (Flotante al escribir "/" y Carrusel de botones)</MenuItem>
+                            <MenuItem value={"floating"}>WhatsApp Web (Solo Flotante al escribir "/")</MenuItem>
+                            <MenuItem value={"carousel"}>Carrusel Tradicional (Solo botones superiores)</MenuItem>
+                        </Select>
+                        <FormHelperText>{loadingQuickMessagesMode && "Actualizando..."}</FormHelperText>
                     </FormControl>
                 </Grid>
             </Grid>

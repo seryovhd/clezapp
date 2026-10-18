@@ -33,6 +33,11 @@ const GetTicketWbot = async (ticket: Ticket): Promise<Session> => {
     await ticket.$set("whatsapp", defaultWhatsapp);
   }
 
+  if (ticket.whatsapp?.type === "evolution" || ticket.whatsapp?.connectionType === "evolution") {
+    const EvolutionApiService = (await import("../services/EvolutionApiServices/EvolutionApiService")).default;
+    return EvolutionApiService.buildEvolutionSession(ticket.whatsapp) as any;
+  }
+
   const wbot = await GetWbot(ticket.whatsappId);
   return wbot;
 };

@@ -1,40 +1,54 @@
-import * as React from 'react';
-import LinearProgress, { LinearProgressProps } from '@material-ui/core/LinearProgress';
+import React from 'react';
+import LinearProgress from '@material-ui/core/LinearProgress';
 import Typography from '@material-ui/core/Typography';
-import Box from '@material-ui/core/Box';
+import { makeStyles } from '@material-ui/core/styles';
 
-function LinearProgressWithLabel(props) {
+const useStyles = makeStyles((theme) => ({
+  root: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    minWidth: 100,
+    maxWidth: 160,
+  },
+  progressContainer: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+    backgroundColor: theme.palette.type === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)',
+  },
+  progressBar: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#25d366',
+  },
+  percentText: {
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: '#25d366',
+    minWidth: 32,
+    textAlign: 'right',
+  },
+}));
+
+export default function LinearWithValueLabel({ progress = 0 }) {
+  const classes = useStyles();
+  const safeValue = Math.min(Math.max(Math.round(progress), 0), 100);
+
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-      <Box sx={{ width: '100%', mr: 1 }}>
-        <LinearProgress variant="determinate" {...props} style={{position: 'initial', backgroundColor: 'mediumseagreen' }} />
-      </Box>
-      <Box sx={{ minWidth: 35 }}>
-        {/* PARCHE BASE 1.3 */}
-        <Typography variant="body2" color="textSecondary" style={{ color: '#fff',position: 'absolute'}}>{`${Math.round(
-          props.value,
-        )}%`}</Typography>
-        {/* PARCHE BASE 1.3 - FIN*/}
-      </Box>
-    </Box>
-  );
-}
-
-export default function LinearWithValueLabel({progress}) {
-  //const [progress, setProgress] = React.useState(0);
-
-  React.useEffect(() => {
-    /*const timer = setInterval(() => {
-      setProgress((prevProgress) => (prevProgress >= 99 ? 99 : prevProgress + 10));
-    }, 420);
-    return () => {
-      clearInterval(timer);
-    };*/
-  }, [progress]);
-
-  return (
-    <Box sx={{ width: '100%' }} >
-      <LinearProgressWithLabel value={progress} style={{height: 50}}/>
-    </Box>
+    <div className={classes.root}>
+      <div className={classes.progressContainer}>
+        <LinearProgress
+          variant="determinate"
+          value={safeValue}
+          classes={{ bar: classes.progressBar }}
+          style={{ height: 6, backgroundColor: 'transparent' }}
+        />
+      </div>
+      <Typography className={classes.percentText}>
+        {`${safeValue}%`}
+      </Typography>
+    </div>
   );
 }

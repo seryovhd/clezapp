@@ -50,7 +50,10 @@ const iconContainerStyle = {
 const useStyles = makeStyles((theme) => ({
   ticket: {
     position: "relative",
-    height: 74,
+    minHeight: 74,
+    height: "auto",
+    paddingTop: 6,
+    paddingBottom: 6,
     borderRadius: 8,
     margin: "2px 6px",
     width: "calc(100% - 12px)",
@@ -141,61 +144,96 @@ const useStyles = makeStyles((theme) => ({
   waitTimeBadge: {
     display: "inline-flex",
     alignItems: "center",
-    gap: 3,
-    fontSize: "0.62rem",
+    gap: 5,
+    fontSize: "0.66rem",
     fontWeight: 700,
     lineHeight: 1,
-    padding: "2px 5px",
+    padding: "2px 7px",
     borderRadius: "6px",
     whiteSpace: "nowrap",
     letterSpacing: "0.2px",
     flexShrink: 0,
     transition: "all 0.2s ease-in-out",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
   },
-  waitDot: {
-    width: 5,
-    height: 5,
+  lightDot: {
+    width: 6,
+    height: 6,
     borderRadius: "50%",
     display: "inline-block",
+    flexShrink: 0,
+    transition: "all 0.2s ease",
   },
   waitTimeRecent: {
-    backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "rgba(37, 211, 102, 0.18)" : "#e8f8f0",
-    color: (theme.palette?.type || theme.mode) === 'dark' ? "#25d366" : "#0f8a4f",
-    border: (theme.palette?.type || theme.mode) === 'dark' ? "1px solid rgba(37, 211, 102, 0.4)" : "1px solid rgba(15, 138, 79, 0.25)",
-    "& $waitDot": {
-      backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "#25d366" : "#0f8a4f",
+    backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "rgba(37, 211, 102, 0.22)" : "#e6f9ee",
+    color: (theme.palette?.type || theme.mode) === 'dark' ? "#38ef7d" : "#0d7a40",
+    border: (theme.palette?.type || theme.mode) === 'dark' ? "1.5px solid #25d366" : "1.5px solid #1fa855",
+    boxShadow: (theme.palette?.type || theme.mode) === 'dark' 
+      ? "0 0 8px rgba(37, 211, 102, 0.5), inset 0 0 4px rgba(37, 211, 102, 0.2)" 
+      : "0 0 5px rgba(37, 211, 102, 0.35)",
+    "& $lightDot": {
+      backgroundColor: "#38ef7d",
+      boxShadow: "0 0 6px 1.5px #38ef7d, 0 0 10px #25d366",
     },
   },
   waitTimeWarning: {
-    backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "rgba(255, 152, 0, 0.18)" : "#fff4e5",
+    backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "rgba(255, 152, 0, 0.22)" : "#fff3e0",
     color: (theme.palette?.type || theme.mode) === 'dark' ? "#ffb74d" : "#e65100",
-    border: (theme.palette?.type || theme.mode) === 'dark' ? "1px solid rgba(255, 152, 0, 0.4)" : "1px solid rgba(230, 81, 0, 0.25)",
-    "& $waitDot": {
-      backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "#ff9800" : "#ef6c00",
+    border: (theme.palette?.type || theme.mode) === 'dark' ? "1.5px solid #ff9800" : "1.5px solid #f57c00",
+    boxShadow: (theme.palette?.type || theme.mode) === 'dark' 
+      ? "0 0 8px rgba(255, 152, 0, 0.5), inset 0 0 4px rgba(255, 152, 0, 0.2)" 
+      : "0 0 5px rgba(255, 152, 0, 0.35)",
+    "& $lightDot": {
+      backgroundColor: "#ffb74d",
+      boxShadow: "0 0 6px 1.5px #ffb74d, 0 0 10px #ff9800",
+      animation: "$pulseSlowDot 2.2s infinite ease-in-out",
     },
   },
   waitTimeCritical: {
-    backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "rgba(244, 67, 54, 0.2)" : "#fde8e8",
-    color: (theme.palette?.type || theme.mode) === 'dark' ? "#ef5350" : "#c62828",
-    border: (theme.palette?.type || theme.mode) === 'dark' ? "1px solid rgba(244, 67, 54, 0.4)" : "1px solid rgba(198, 40, 40, 0.25)",
-    "& $waitDot": {
-      backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "#f44336" : "#d32f2f",
-      animation: "$pulse 1.8s infinite ease-in-out",
+    backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "rgba(244, 67, 54, 0.26)" : "#fde8e8",
+    color: (theme.palette?.type || theme.mode) === 'dark' ? "#ff6b6b" : "#c62828",
+    border: (theme.palette?.type || theme.mode) === 'dark' ? "1.5px solid #f44336" : "1.5px solid #d32f2f",
+    boxShadow: (theme.palette?.type || theme.mode) === 'dark' 
+      ? "0 0 10px rgba(244, 67, 54, 0.65), inset 0 0 5px rgba(244, 67, 54, 0.25)" 
+      : "0 0 6px rgba(244, 67, 54, 0.4)",
+    "& $lightDot": {
+      backgroundColor: "#ff4d4d",
+      boxShadow: "0 0 8px 2px #ff4d4d, 0 0 14px #f44336",
+      animation: "$pulseFastDot 0.8s infinite ease-in-out",
     },
   },
-  "@keyframes pulse": {
+  "@keyframes pulseSlowDot": {
     "0%": {
-      transform: "scale(0.95)",
-      opacity: 0.7,
+      transform: "scale(1)",
+      boxShadow: "0 0 4px 1px #ffb74d, 0 0 8px #ff9800",
+      opacity: 0.85,
     },
     "50%": {
-      transform: "scale(1.25)",
+      transform: "scale(1.4)",
+      boxShadow: "0 0 9px 2.5px #ffb74d, 0 0 15px #ff9800",
       opacity: 1,
     },
     "100%": {
-      transform: "scale(0.95)",
-      opacity: 0.7,
+      transform: "scale(1)",
+      boxShadow: "0 0 4px 1px #ffb74d, 0 0 8px #ff9800",
+      opacity: 0.85,
+    },
+  },
+  "@keyframes pulseFastDot": {
+    "0%": {
+      transform: "scale(0.9)",
+      boxShadow: "0 0 4px 1px #ff4d4d, 0 0 8px #f44336",
+      opacity: 0.75,
+    },
+    "50%": {
+      transform: "scale(1.5)",
+      boxShadow: "0 0 12px 3px #ff4d4d, 0 0 20px #f44336",
+      opacity: 1,
+    },
+    "100%": {
+      transform: "scale(0.9)",
+      boxShadow: "0 0 4px 1px #ff4d4d, 0 0 8px #f44336",
+      opacity: 0.75,
     },
   },
   closedBadge: {
@@ -214,12 +252,24 @@ const useStyles = makeStyles((theme) => ({
     overflowY: "hidden",
     whiteSpace: "nowrap",
     flexWrap: "nowrap",
-    paddingBottom: 3,
+    scrollbarWidth: "none",
+    "&::-webkit-scrollbar": {
+      display: "none",
+    },
+  },
+  assignedTagsContainer: {
+    display: "flex",
+    alignItems: "center",
+    marginTop: 4,
+    maxWidth: "100%",
+    overflowX: "auto",
+    overflowY: "hidden",
+    whiteSpace: "nowrap",
+    flexWrap: "nowrap",
+    paddingBottom: 2,
     "-webkit-overflow-scrolling": "touch",
     scrollbarWidth: "thin",
-    scrollbarColor: (theme.palette?.type || theme.mode) === "dark" 
-      ? "rgba(255, 255, 255, 0.3) transparent" 
-      : "rgba(0, 0, 0, 0.25) transparent",
+    scrollbarColor: "#25d366 transparent",
     "&::-webkit-scrollbar": {
       height: 3,
     },
@@ -227,15 +277,11 @@ const useStyles = makeStyles((theme) => ({
       background: "transparent",
     },
     "&::-webkit-scrollbar-thumb": {
-      backgroundColor: (theme.palette?.type || theme.mode) === "dark" 
-        ? "rgba(255, 255, 255, 0.3)" 
-        : "rgba(0, 0, 0, 0.25)",
+      backgroundColor: "#25d366",
       borderRadius: 3,
     },
     "&::-webkit-scrollbar-thumb:hover": {
-      backgroundColor: (theme.palette?.type || theme.mode) === "dark" 
-        ? "rgba(255, 255, 255, 0.45)" 
-        : "rgba(0, 0, 0, 0.4)",
+      backgroundColor: "#1ebd5d",
     },
   },
   tagChip: {
@@ -482,28 +528,32 @@ const TicketListItemCustom = ({ ticket }) => {
 
       if (totalMinutes < 1) {
         labelText = "<1m";
-        badgeClass = classes.waitTimeRecent;
         tooltipTitle = "Última interacción: hace menos de 1 minuto";
       } else if (totalMinutes < 60) {
         labelText = `${totalMinutes}m`;
-        badgeClass = totalMinutes >= 15 ? classes.waitTimeWarning : classes.waitTimeRecent;
         tooltipTitle = `Última interacción: hace ${totalMinutes} minuto${totalMinutes === 1 ? "" : "s"}`;
       } else if (totalHours < 24) {
         const remMinutes = totalMinutes % 60;
         labelText = remMinutes > 0 ? `${totalHours}h ${remMinutes}m` : `${totalHours}h`;
-        badgeClass = totalHours >= 2 ? classes.waitTimeCritical : classes.waitTimeWarning;
         tooltipTitle = `Última interacción: hace ${totalHours}h ${remMinutes}m`;
       } else {
         const remHours = totalHours % 24;
         labelText = remHours > 0 ? `${totalDays}d ${remHours}h` : `${totalDays}d`;
-        badgeClass = classes.waitTimeCritical;
         tooltipTitle = `Última interacción: hace ${totalDays} día${totalDays === 1 ? "" : "s"} y ${remHours}h`;
+      }
+
+      if (totalMinutes < 15) {
+        badgeClass = classes.waitTimeRecent;
+      } else if (totalMinutes < 90) {
+        badgeClass = classes.waitTimeWarning;
+      } else {
+        badgeClass = classes.waitTimeCritical;
       }
 
       return (
         <Tooltip arrow placement="top" title={tooltipTitle}>
           <span className={clsx(classes.waitTimeBadge, badgeClass)}>
-            <span className={classes.waitDot} />
+            <span className={classes.lightDot} />
             {labelText}
           </span>
         </Tooltip>
@@ -730,17 +780,25 @@ const TicketListItemCustom = ({ ticket }) => {
                     </button>
                   </Tooltip>
                 )}
-                {Array.isArray(tagsToRender) && tagsToRender.length > 0 && (
-                  <div className={classes.tagsWrapper}>
-                    {tagsToRender.map((t) => (
-                      <ContactTag
-                        tag={t}
-                        key={`ticket-contact-tag-${ticket.id}-${t.id ?? t.name}`}
-                      />
-                    ))}
-                  </div>
-                )}
               </div>
+
+              {Array.isArray(tagsToRender) && tagsToRender.length > 0 && (
+                <div
+                  className={classes.assignedTagsContainer}
+                  onWheel={(e) => {
+                    if (e.deltaY) {
+                      e.currentTarget.scrollLeft += e.deltaY;
+                    }
+                  }}
+                >
+                  {tagsToRender.map((t) => (
+                    <ContactTag
+                      tag={t}
+                      key={`ticket-contact-tag-${ticket.id}-${t.id ?? t.name}`}
+                    />
+                  ))}
+                </div>
+              )}
             </span>
           }
         />

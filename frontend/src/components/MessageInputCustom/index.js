@@ -1,15 +1,16 @@
-import React, { useState, useEffect, useContext, useRef } from "react";
+import React, { useState, useEffect, useContext, useRef, useMemo } from "react";
 import withWidth, { isWidthUp } from "@material-ui/core/withWidth";
 import Picker from "@emoji-mart/react";
 import data from "@emoji-mart/data";
 import MicRecorder from "mic-recorder-to-mp3";
 import clsx from "clsx";
 import { isNil } from "lodash";
-import { Reply, ChevronLeft, ChevronRight, Message, TrendingUp } from "@material-ui/icons";
+import { Reply, ChevronLeft, ChevronRight, Message, TrendingUp, Edit as EditIcon, AttachFile as AttachFileIcon } from "@material-ui/icons";
 import { makeStyles, useTheme } from "@material-ui/core/styles";
 import Paper from "@material-ui/core/Paper";
 import InputBase from "@material-ui/core/InputBase";
 import CircularProgress from "@material-ui/core/CircularProgress";
+import Tooltip from "@material-ui/core/Tooltip";
 import { green, grey, blue, pink, purple, orange } from "@material-ui/core/colors";
 import IconButton from "@material-ui/core/IconButton";
 import MoodIcon from "@material-ui/icons/Mood";
@@ -19,7 +20,7 @@ import ClearIcon from "@material-ui/icons/Clear";
 import MicIcon from "@material-ui/icons/Mic";
 import CheckCircleOutlineIcon from "@material-ui/icons/CheckCircleOutline";
 import HighlightOffIcon from "@material-ui/icons/HighlightOff";
-import { FormControlLabel, Switch } from "@material-ui/core";
+import { FormControlLabel, Switch, ClickAwayListener } from "@material-ui/core";
 import { isString, isEmpty, isObject, has } from "lodash";
 import AddIcon from "@material-ui/icons/Add";
 import ImageIcon from "@material-ui/icons/Image";
@@ -40,6 +41,8 @@ import RecordingTimer from "./RecordingTimer";
 import { ReplyMessageContext } from "../../context/ReplyingMessage/ReplyingMessageContext";
 import { ForwardMessageContext } from "../../context/ForwarMessage/ForwardMessageContext";
 import { AuthContext } from "../../context/Auth/AuthContext";
+import { SocketContext } from "../../context/Socket/SocketContext";
+import { useHistory } from "react-router-dom";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 import toastError from "../../errors/toastError";
 
@@ -107,13 +110,32 @@ const useStyles = makeStyles((theme) => ({
   },
   attachmentMenu: {
     position: "absolute",
-    bottom: "100%",
+    bottom: "calc(100% + 8px)",
     left: 0,
-    width: "200px",
-    backgroundColor: "#fff",
-    borderRadius: "8px",
-    boxShadow: "0 2px 5px rgba(0,0,0,0.2)",
-    zIndex: 1000,
+    width: "190px",
+    backgroundColor: theme.palette.type === "dark" ? "#202c33" : "#ffffff",
+    borderRadius: "12px",
+    boxShadow: theme.palette.type === "dark"
+      ? "0 8px 24px rgba(0, 0, 0, 0.6)"
+      : "0 4px 20px rgba(0, 0, 0, 0.15)",
+    border: theme.palette.type === "dark"
+      ? "1px solid rgba(255, 255, 255, 0.1)"
+      : "1px solid rgba(0, 0, 0, 0.08)",
+    zIndex: 1200,
+    padding: "6px 0",
+    overflow: "hidden",
+  },
+  attachmentMenuItem: {
+    padding: "8px 16px",
+    transition: "background-color 0.15s ease",
+    "&:hover": {
+      backgroundColor: theme.palette.type === "dark" ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.04)",
+    },
+    "& .MuiListItemText-primary": {
+      fontSize: "0.88rem",
+      fontWeight: 500,
+      color: theme.palette.type === "dark" ? "#e9edef" : "#111b21",
+    },
   },
   circleLoading: {
     color: green[500],
@@ -232,6 +254,95 @@ const useStyles = makeStyles((theme) => ({
       right: '5px',
     },
   },
+  floatingWrapper: {
+    position: 'absolute',
+    bottom: 'calc(100% + 6px)',
+    left: '10px',
+    right: '10px',
+    maxHeight: '340px',
+    backgroundColor: theme.palette.type === 'dark' ? '#111b21' : '#ffffff',
+    borderRadius: '12px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.45)',
+    border: theme.palette.type === 'dark' ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.12)',
+    zIndex: 1300,
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+    animation: '$fadeIn 0.15s ease-out',
+  },
+  '@keyframes fadeIn': {
+    from: {
+      opacity: 0,
+      transform: 'translateY(6px)',
+    },
+    to: {
+      opacity: 1,
+      transform: 'translateY(0)',
+    },
+  },
+  floatingHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '10px 14px 6px 14px',
+    borderBottom: theme.palette.type === 'dark' ? '1px solid rgba(255, 255, 255, 0.06)' : '1px solid rgba(0, 0, 0, 0.06)',
+  },
+  floatingHeaderTitle: {
+    fontSize: '0.85rem',
+    fontWeight: 600,
+    color: theme.palette.type === 'dark' ? '#8696a0' : '#54656f',
+    letterSpacing: '0.3px',
+  },
+  floatingList: {
+    overflowY: 'auto',
+    padding: '6px 8px',
+    margin: 0,
+    listStyle: 'none',
+    maxHeight: '280px',
+    ...theme.scrollbarStyles,
+  },
+  floatingItem: {
+    padding: '8px 12px',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    margin: '3px 0',
+    transition: 'background-color 0.12s ease',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '3px',
+    '&:hover': {
+      backgroundColor: theme.palette.type === 'dark' ? '#182229' : '#f0f2f5',
+    },
+  },
+  floatingItemSelected: {
+    backgroundColor: theme.palette.type === 'dark' ? '#202c33 !important' : '#e9edef !important',
+  },
+  floatingItemShortcode: {
+    fontSize: '0.92rem',
+    fontWeight: 600,
+    color: theme.palette.type === 'dark' ? '#e9edef' : '#111b21',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+  },
+  floatingItemMessage: {
+    fontSize: '0.82rem',
+    color: theme.palette.type === 'dark' ? '#8696a0' : '#667781',
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    lineHeight: 1.35,
+    whiteSpace: 'pre-wrap',
+  },
+  floatingItemMediaBadge: {
+    fontSize: '11px',
+    color: '#25d366',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '3px',
+  },
   imageIcon: {
     color: blue[500],
   },
@@ -279,6 +390,63 @@ const useStyles = makeStyles((theme) => ({
     border: "2px dashed #f5a623",
     borderRadius: 8,
     padding: "8px"
+  },
+  attachedMediaWrapper: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "6px 14px",
+    backgroundColor: theme.palette.type === "dark" ? "#1e293b" : "#f1f5f9",
+    borderTop: theme.palette.type === "dark" ? "1px solid rgba(255, 255, 255, 0.08)" : "1px solid rgba(0, 0, 0, 0.08)",
+    borderBottom: theme.palette.type === "dark" ? "1px solid rgba(255, 255, 255, 0.05)" : "1px solid rgba(0, 0, 0, 0.05)",
+    width: "100%",
+    boxSizing: "border-box",
+  },
+  attachedMediaContainer: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    overflow: "hidden",
+    flex: 1,
+    minWidth: 0,
+  },
+  attachedMediaThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 6,
+    objectFit: "cover",
+    border: "1px solid rgba(0, 0, 0, 0.15)",
+    flexShrink: 0,
+  },
+  attachedMediaIcon: {
+    color: "#25d366",
+    fontSize: 28,
+    flexShrink: 0,
+  },
+  attachedMediaInfo: {
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+    minWidth: 0,
+  },
+  attachedMediaName: {
+    fontSize: "0.85rem",
+    fontWeight: 600,
+    color: theme.palette.type === "dark" ? "#e2e8f0" : "#0f172a",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  attachedMediaSize: {
+    fontSize: "0.75rem",
+    color: theme.palette.type === "dark" ? "#94a3b8" : "#64748b",
+  },
+  attachedMediaClose: {
+    color: theme.palette.type === "dark" ? "#94a3b8" : "#64748b",
+    padding: 6,
+    "&:hover": {
+      color: "#ef4444",
+    },
   }
 
 }));
@@ -400,46 +568,40 @@ const FileInput = (props) => {
         </IconButton>
 
         {showOptions && (
-          <Paper elevation={3} className={classes.attachmentMenu}>
-            <MenuItem onClick={() => handleOptionClick('image')}>
-              <ListItemIcon>
-                <ImageIcon fontSize="small" className={classes.imageIcon} />
-              </ListItemIcon>
-              {/* PARCHE BASE 1.3 */}
-              <ListItemText primary="Imagen" />
-              {/* PARCHE BASE 1.3 -  FIN*/}
-            </MenuItem>
-            <MenuItem onClick={() => handleOptionClick('document')}>
-              <ListItemIcon>
-                <DescriptionIcon fontSize="small" className={classes.documentIcon} />
-              </ListItemIcon>
-              <ListItemText primary="Documento" />
-            </MenuItem>
-            <MenuItem onClick={() => handleOptionClick('video')}>
-              <ListItemIcon>
-                <VideocamIcon fontSize="small" className={classes.videoIcon} />
-              </ListItemIcon>
-              {/* PARCHE BASE 1.3 */}
-              <ListItemText primary="Video" />
-              {/* PARCHE BASE 1.3 -  FIN*/}
-            </MenuItem>
-            <MenuItem onClick={() => handleOptionClick('location')}>
-              <ListItemIcon>
-                <LocationOnIcon fontSize="small" className={classes.locationIcon} />
-              </ListItemIcon>
-              {/* PARCHE BASE 1.3 */}
-              <ListItemText primary="Ubicación" />
-              {/* PARCHE BASE 1.3 -  FIN*/}
-            </MenuItem>
-            <MenuItem onClick={() => handleOptionClick('audio')}>
-              <ListItemIcon>
-                <MicIcon fontSize="small" className={classes.audioIcon} />
-              </ListItemIcon>
-              {/* PARCHE BASE 1.3 */}
-              <ListItemText primary="Audio" />
-              {/* PARCHE BASE 1.3 -  FIN*/}
-            </MenuItem>
-          </Paper>
+          <ClickAwayListener onClickAway={() => setShowOptions(false)}>
+            <Paper elevation={4} className={classes.attachmentMenu}>
+              <MenuItem className={classes.attachmentMenuItem} onClick={() => handleOptionClick('image')}>
+                <ListItemIcon style={{ minWidth: 36 }}>
+                  <ImageIcon fontSize="small" className={classes.imageIcon} />
+                </ListItemIcon>
+                <ListItemText primary="Imagen" />
+              </MenuItem>
+              <MenuItem className={classes.attachmentMenuItem} onClick={() => handleOptionClick('document')}>
+                <ListItemIcon style={{ minWidth: 36 }}>
+                  <DescriptionIcon fontSize="small" className={classes.documentIcon} />
+                </ListItemIcon>
+                <ListItemText primary="Documento" />
+              </MenuItem>
+              <MenuItem className={classes.attachmentMenuItem} onClick={() => handleOptionClick('video')}>
+                <ListItemIcon style={{ minWidth: 36 }}>
+                  <VideocamIcon fontSize="small" className={classes.videoIcon} />
+                </ListItemIcon>
+                <ListItemText primary="Video" />
+              </MenuItem>
+              <MenuItem className={classes.attachmentMenuItem} onClick={() => handleOptionClick('location')}>
+                <ListItemIcon style={{ minWidth: 36 }}>
+                  <LocationOnIcon fontSize="small" className={classes.locationIcon} />
+                </ListItemIcon>
+                <ListItemText primary="Ubicación" />
+              </MenuItem>
+              <MenuItem className={classes.attachmentMenuItem} onClick={() => handleOptionClick('audio')}>
+                <ListItemIcon style={{ minWidth: 36 }}>
+                  <MicIcon fontSize="small" className={classes.audioIcon} />
+                </ListItemIcon>
+                <ListItemText primary="Audio" />
+              </MenuItem>
+            </Paper>
+          </ClickAwayListener>
         )}
       </div>
 
@@ -485,6 +647,7 @@ const FileInput = (props) => {
 const ActionButtons = (props) => {
   const {
     inputMessage,
+    medias = [],
     loading,
     recording,
     ticketStatus,
@@ -531,16 +694,15 @@ const ActionButtons = (props) => {
       </div>
     );
   } else {
-    // Mostrar siempre el botón de enviar (mejor UX)
-    // Deshabilitado cuando: no hay texto, pasaron 24 horas, está cargando, o ticket no está abierto
-    const hasText = inputMessage || showSelectMessageCheckbox;
-    const isDisabled = loading || is24HoursExceeded || !hasText || ticketStatus !== "open";
+    // Habilitado cuando: hay texto, hay selección de reenvío, o hay archivo adjunto en borrador
+    const hasContent = (inputMessage && inputMessage.trim().length > 0) || showSelectMessageCheckbox || (medias && medias.length > 0);
+    const isDisabled = loading || is24HoursExceeded || !hasContent || ticketStatus !== "open";
     
     let tooltipText = "";
     if (is24HoursExceeded) {
       tooltipText = "No puedes enviar mensajes: han pasado más de 24 horas desde el último mensaje del cliente";
-    } else if (!hasText) {
-      tooltipText = "Escribe un mensaje para enviar";
+    } else if (!hasContent) {
+      tooltipText = "Escribe un mensaje o adjunta un archivo para enviar";
     } else if (ticketStatus !== "open") {
       tooltipText = "El ticket debe estar abierto para enviar mensajes";
     }
@@ -571,9 +733,18 @@ const CustomInput = (props) => {
     handleInputPaste,
     disableOption,
     replyingMessage,
-    sendPrivate
+    sendPrivate,
+    floatingOpen,
+    onFloatingKeyDown
   } = props;
   const classes = useStyles();
+
+  const handleKeyDown = (e) => {
+    if (floatingOpen && onFloatingKeyDown) {
+      const handled = onFloatingKeyDown(e);
+      if (handled) return;
+    }
+  };
 
   const onKeyPress = (e) => {
     if (loading || e.shiftKey) return;
@@ -615,6 +786,7 @@ const CustomInput = (props) => {
         value={inputMessage}
         onChange={(e) => setInputMessage(e.target.value)}
         onPaste={onPaste}
+        onKeyDown={handleKeyDown}
         onKeyPress={onKeyPress}
         disabled={disableOption()}
         className={clsx(classes.messageInput, {
@@ -634,11 +806,44 @@ const QuickMessages = ({ quickMessages, handleQuickMessageClick, inputMessage })
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
 
-  const filteredQuickMessages = inputMessage.startsWith('/')
-    ? quickMessages.filter(msg =>
-      msg.shortcode.toLowerCase().includes(inputMessage.slice(1).toLowerCase())
-    )
-    : quickMessages;
+  const filteredQuickMessages = useMemo(() => {
+    if (!inputMessage.startsWith('/')) return quickMessages;
+    const query = inputMessage.slice(1).trim().toLowerCase();
+    if (!query) return quickMessages;
+
+    const matches = [];
+    for (const msg of quickMessages) {
+      const code = (msg.shortcode || "").replace(/^\//, "").trim().toLowerCase();
+      const body = (msg.message || "").toLowerCase();
+
+      const codeExact = code === query;
+      const codeStarts = code.startsWith(query);
+      const codeIncludes = code.includes(query);
+      const bodyIncludes = body.includes(query);
+
+      if (codeExact || codeStarts || codeIncludes || bodyIncludes) {
+        let score = 5;
+        if (codeExact) {
+          score = 1;
+        } else if (codeStarts) {
+          score = 2;
+        } else if (codeIncludes) {
+          score = 3;
+        } else {
+          score = 4;
+        }
+        matches.push({ msg, score, code });
+      }
+    }
+
+    matches.sort((a, b) => {
+      if (a.score !== b.score) return a.score - b.score;
+      if (a.code.length !== b.code.length) return a.code.length - b.code.length;
+      return a.code.localeCompare(b.code);
+    });
+
+    return matches.map(m => m.msg);
+  }, [inputMessage, quickMessages]);
 
   useEffect(() => {
     if (containerRef.current) {
@@ -738,7 +943,7 @@ const QuickMessages = ({ quickMessages, handleQuickMessageClick, inputMessage })
             onClick={() => handleQuickMessageClick(message)}
           >
             <Message className="start-icon" />
-            {message.shortcode}
+            {(message.shortcode || "").replace(/^\//, "")}
             <TrendingUp className="end-icon" />
           </Button>
         ))}
@@ -752,6 +957,61 @@ const QuickMessages = ({ quickMessages, handleQuickMessageClick, inputMessage })
           <ChevronRight />
         </IconButton>
       )}
+    </div>
+  );
+};
+
+const QuickMessagesFloating = ({
+  messages,
+  selectedIndex,
+  onSelect,
+  classes
+}) => {
+  const history = useHistory();
+
+  return (
+    <div className={classes.floatingWrapper}>
+      <div className={classes.floatingHeader}>
+        <span className={classes.floatingHeaderTitle}>
+          {i18n.t("quickMessages.title", "Respuestas rápidas")}
+        </span>
+        <Tooltip title="Administrar respuestas rápidas">
+          <IconButton
+            size="small"
+            style={{ color: "#8696a0", padding: 4 }}
+            onClick={() => history.push("/quick-messages")}
+          >
+            <EditIcon style={{ fontSize: 16 }} />
+          </IconButton>
+        </Tooltip>
+      </div>
+      <div className={classes.floatingList}>
+        {messages.map((item, index) => {
+          const isSelected = index === selectedIndex;
+          return (
+            <div
+              key={item.id || index}
+              id={`quick-floating-item-${index}`}
+              className={clsx(classes.floatingItem, {
+                [classes.floatingItemSelected]: isSelected
+              })}
+              onClick={() => onSelect(item)}
+            >
+              <div className={classes.floatingItemShortcode}>
+                <span>{(item.shortcode || "").replace(/^\//, "")}</span>
+                {item.mediaPath && (
+                  <span className={classes.floatingItemMediaBadge} title="Contiene multimedia">
+                    <AttachFileIcon style={{ fontSize: 13 }} />
+                  </span>
+                )}
+              </div>
+              <div className={classes.floatingItemMessage}>
+                {item.message}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };
@@ -824,6 +1084,147 @@ const MessageInputCustom = (props) => {
     };
   }, [ticketId, setReplyingMessage]);
 
+  const socketManager = useContext(SocketContext);
+  const [quickMessagesMode, setQuickMessagesMode] = useState("both");
+  const [selectedQuickIndex, setSelectedQuickIndex] = useState(0);
+
+  useEffect(() => {
+    async function fetchSettings() {
+      try {
+        const { data } = await api.get("/settings");
+        if (Array.isArray(data)) {
+          const setting = data.find(s => s.key === "quickMessagesMode");
+          if (setting) {
+            setQuickMessagesMode(setting.value);
+          }
+        }
+      } catch (err) {}
+    }
+    fetchSettings();
+  }, []);
+
+  useEffect(() => {
+    const companyId = user?.companyId || localStorage.getItem("companyId");
+    if (!companyId || !socketManager) return;
+    const socket = socketManager.getSocket(companyId);
+    if (!socket) return;
+    const onSettingUpdate = (data) => {
+      if (data.action === "update" && data.setting?.key === "quickMessagesMode") {
+        setQuickMessagesMode(data.setting.value);
+      }
+    };
+    socket.on(`company-${companyId}-settings`, onSettingUpdate);
+    return () => {
+      socket.off(`company-${companyId}-settings`, onSettingUpdate);
+    };
+  }, [socketManager, user]);
+
+  const filteredFloatingMessages = useMemo(() => {
+    if (!inputMessage.startsWith("/")) return [];
+    const query = inputMessage.slice(1).trim().toLowerCase();
+    if (!query) return quickMessages;
+
+    const matches = [];
+    for (const msg of quickMessages) {
+      const code = (msg.shortcode || "").replace(/^\//, "").trim().toLowerCase();
+      const body = (msg.message || "").toLowerCase();
+
+      const codeExact = code === query;
+      const codeStarts = code.startsWith(query);
+      const codeIncludes = code.includes(query);
+      const bodyIncludes = body.includes(query);
+
+      if (codeExact || codeStarts || codeIncludes || bodyIncludes) {
+        let score = 5;
+        if (codeExact) {
+          score = 1; // Coincidencia exacta del acceso directo (ej. tidal === tidal)
+        } else if (codeStarts) {
+          score = 2; // El acceso empieza con el término buscado
+        } else if (codeIncludes) {
+          score = 3; // El acceso contiene el término buscado
+        } else {
+          // Coincidencia dentro del texto del mensaje
+          const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const isWord = new RegExp(`(^|[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ])${escapedQuery}([^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]|$)`, "i").test(body);
+          score = isWord ? 4 : 5;
+        }
+
+        matches.push({ msg, score, code });
+      }
+    }
+
+    matches.sort((a, b) => {
+      if (a.score !== b.score) return a.score - b.score;
+      if (a.code.length !== b.code.length) return a.code.length - b.code.length;
+      return a.code.localeCompare(b.code);
+    });
+
+    return matches.map(m => m.msg);
+  }, [inputMessage, quickMessages]);
+
+  const isFloatingOpen =
+    (quickMessagesMode === "floating" || quickMessagesMode === "both") &&
+    inputMessage.startsWith("/") &&
+    filteredFloatingMessages.length > 0;
+
+  useEffect(() => {
+    setSelectedQuickIndex(0);
+  }, [filteredFloatingMessages]);
+
+  useEffect(() => {
+    if (isFloatingOpen) {
+      const el = document.getElementById(`quick-floating-item-${selectedQuickIndex}`);
+      if (el) {
+        el.scrollIntoView({ block: "nearest" });
+      }
+    }
+  }, [selectedQuickIndex, isFloatingOpen]);
+
+  const handleSelectQuickMessage = (message) => {
+    if (!message) return;
+    if (message.mediaPath) {
+      handleQuickMessageClick(message);
+    } else {
+      setInputMessage(message.message || "");
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 50);
+    }
+  };
+
+  const handleFloatingKeyDown = (e) => {
+    if (!isFloatingOpen) return false;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedQuickIndex((prev) => (prev + 1) % filteredFloatingMessages.length);
+      return true;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedQuickIndex((prev) => (prev - 1 + filteredFloatingMessages.length) % filteredFloatingMessages.length);
+      return true;
+    }
+    if (e.key === "Tab") {
+      e.preventDefault();
+      handleSelectQuickMessage(filteredFloatingMessages[selectedQuickIndex]);
+      return true;
+    }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSelectQuickMessage(filteredFloatingMessages[selectedQuickIndex]);
+      return true;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setInputMessage("");
+      return true;
+    }
+    return false;
+  };
+
   useEffect(() => {
     async function fetchData() {
       const companyId = localStorage.getItem("companyId");
@@ -892,13 +1293,35 @@ const MessageInputCustom = (props) => {
     if (message.mediaPath) {
       console.log("RESP.RAPIDA MESSAGE:: ", message);
       try {
-        const { data } = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/public/company${message.companyId}/quick/${message.mediaPath.split("/").pop()}`, {
+        setLoading(true);
+        const fileName = message.mediaPath.split("/").pop();
+        const { data } = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/public/company${message.companyId}/quick/${fileName}`, {
           responseType: "blob",
         });
-        await handleUploadQuickMessageMedia(data, message.message);
+
+        // Crear objeto File para agregarlo a medias como borrador
+        const extension = data.type ? (data.type.split("/")[1] || "dat") : "dat";
+        const file = new File([data], fileName || `archivo.${extension}`, { type: data.type || "application/octet-stream" });
+        setMedias([file]);
+
+        // Cargar el texto en el input para que el usuario pueda editarlo
+        setInputMessage(message.message || "");
+        setLoading(false);
+
+        // Enfocar el campo de texto y posicionar el cursor al final
+        setTimeout(() => {
+          if (inputRef.current) {
+            inputRef.current.focus();
+            if (typeof inputRef.current.setSelectionRange === "function") {
+              const len = (message.message || "").length;
+              inputRef.current.setSelectionRange(len, len);
+            }
+          }
+        }, 80);
         return;
       } catch (err) {
         toastError(err);
+        setLoading(false);
       }
     } else {
       const messageToSend = signMessage
@@ -929,17 +1352,22 @@ const MessageInputCustom = (props) => {
   };
 
   const handleUploadMedia = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
+    if (!medias || medias.length === 0) return;
     setLoading(true);
 
     const formData = new FormData();
     formData.append("fromMe", true);
 
+    const captionText = signMessage
+      ? `*${user?.name}:*\n${inputMessage.trim()}`
+      : inputMessage.trim();
+
     // Procesamiento de archivos con compresión para imágenes
     for (const media of medias) {
       if (!media) continue;
 
-      const isImage = media?.type.split("/")[0] === "image";
+      const isImage = media?.type?.split("/")[0] === "image";
 
       if (isImage) {
         try {
@@ -951,13 +1379,15 @@ const MessageInputCustom = (props) => {
             });
           });
           formData.append("medias", compressed);
-          formData.append("body", compressed.name);
+          formData.append("body", captionText || compressed.name);
         } catch (err) {
           console.error("Error al comprimir imagen:", err.message);
+          formData.append("medias", media);
+          formData.append("body", captionText || media.name);
         }
       } else {
         formData.append("medias", media);
-        formData.append("body", media.name);
+        formData.append("body", captionText || media.name);
       }
     }
 
@@ -972,14 +1402,14 @@ const MessageInputCustom = (props) => {
         onUploadProgress: (event) => {
           const progress = Math.round((event.loaded * 100) / event.total);
           setPercentLoading(progress);
-          console.log(`La imagen está cargada al ${progress}%...`);
         },
       });
 
       setLoading(false);
       setMedias([]);
+      setInputMessage("");
       setPercentLoading(0);
-      console.log("¡La imagen fue enviada al servidor!");
+      setReplyingMessage(null);
     } catch (err) {
       console.error("Hubo un problema al subir la imagen.", err);
       toastError(err);
@@ -989,6 +1419,12 @@ const MessageInputCustom = (props) => {
 
 
   const handleSendMessage = async () => {
+    // Si hay archivo adjunto, se envía con el texto como pie de foto
+    if (medias && medias.length > 0) {
+      await handleUploadMedia();
+      return;
+    }
+
     if (inputMessage.trim() === "") return;
     setLoading(true);
 
@@ -1126,129 +1562,172 @@ const MessageInputCustom = (props) => {
     );
   };
 
-  if (medias.length > 0)
-    return (
-      <Paper elevation={0} square className={classes.viewMediaInputWrapper}>
-        <IconButton
-          aria-label="cancel-upload"
-          component="span"
-          onClick={(e) => setMedias([])}
-        >
-          <CancelIcon className={classes.sendMessageIcons} />
-        </IconButton>
+  const renderAttachedMedia = () => {
+    const file = medias[0];
+    if (!file) return null;
+    const isImage = file.type?.startsWith("image/");
+    let previewUrl = null;
+    try {
+      if (isImage && (file instanceof Blob || file instanceof File)) {
+        previewUrl = URL.createObjectURL(file);
+      }
+    } catch (e) {
+      previewUrl = null;
+    }
 
-        {loading ? (
-          <div>
-            <LinearWithValueLabel progress={percentLoading} />
+    return (
+      <div className={classes.attachedMediaWrapper}>
+        <div className={classes.attachedMediaContainer}>
+          {isImage && previewUrl ? (
+            <img
+              src={previewUrl}
+              alt="preview"
+              className={classes.attachedMediaThumb}
+            />
+          ) : (
+            <AttachFileIcon className={classes.attachedMediaIcon} />
+          )}
+          <div className={classes.attachedMediaInfo}>
+            <span className={classes.attachedMediaName} title={file.name}>
+              {file.name}
+            </span>
+            {file.size ? (
+              <span className={classes.attachedMediaSize}>
+                {(file.size / 1024).toFixed(1)} KB
+              </span>
+            ) : null}
           </div>
-        ) : (
-          <span>
-            {medias[0]?.name}
-          </span>
-        )}
+          {loading && percentLoading > 0 && (
+            <div style={{ marginLeft: "auto", marginRight: 8 }}>
+              <LinearWithValueLabel progress={percentLoading} />
+            </div>
+          )}
+        </div>
         <IconButton
-          aria-label="send-upload"
-          component="span"
-          onClick={handleUploadMedia}
-          disabled={loading || is24HoursExceeded}
-          title={is24HoursExceeded ? "No puedes enviar mensajes: han pasado más de 24 horas desde el último mensaje del cliente" : ""}
+          size="small"
+          aria-label="cancel-upload"
+          disabled={loading}
+          onClick={() => {
+            setMedias([]);
+            setPercentLoading(0);
+          }}
+          className={classes.attachedMediaClose}
+          title="Quitar archivo adjunto"
         >
-          <SendIcon className={classes.sendMessageIcons} />
+          <CancelIcon style={{ fontSize: 22 }} />
         </IconButton>
-      </Paper>
+      </div>
     );
-  else {
-    return (
-      <Paper square elevation={0} className={classes.mainWrapper}>
-        {replyingMessage && renderReplyingMessage(replyingMessage)}
+  };
 
-        {quickMessages.length > 0 && (
+  return (
+    <Paper square elevation={0} className={classes.mainWrapper}>
+      {replyingMessage && renderReplyingMessage(replyingMessage)}
+
+      {medias.length > 0 && renderAttachedMedia()}
+
+      {/* CAROUSEL TRADICIONAL (SI ESTÁ EN MODO CAROUSEL O BOTH, Y NO SE ESTÁ ESCRIBIENDO /) */}
+      {(quickMessagesMode === "carousel" || quickMessagesMode === "both") &&
+        quickMessages.length > 0 &&
+        !inputMessage.startsWith("/") && (
           <QuickMessages
             quickMessages={quickMessages}
             handleQuickMessageClick={handleQuickMessageClick}
             inputMessage={inputMessage}
           />
+      )}
+
+      <div className={classes.newMessageBox}>
+        {/* POPUP FLOTANTE FORMATO WHATSAPP WEB */}
+        {isFloatingOpen && (
+          <QuickMessagesFloating
+            messages={filteredFloatingMessages}
+            selectedIndex={selectedQuickIndex}
+            onSelect={handleSelectQuickMessage}
+            classes={classes}
+          />
         )}
 
-        <div className={classes.newMessageBox}>
-          <div className={classes.toolbarRow}>
-            <EmojiOptions
-              disabled={disableOption()}
-              handleAddEmoji={handleAddEmoji}
-              showEmoji={showEmoji}
-              setShowEmoji={setShowEmoji}
-            />
+        <div className={classes.toolbarRow}>
+          <EmojiOptions
+            disabled={disableOption()}
+            handleAddEmoji={handleAddEmoji}
+            showEmoji={showEmoji}
+            setShowEmoji={setShowEmoji}
+          />
 
-            <FileInput
-              disableOption={disableOption}
-              handleChangeMedias={handleChangeMedias}
-              setMedias={setMedias}
-              setInputMessage={setInputMessage}
-            />
+          <FileInput
+            disableOption={disableOption}
+            handleChangeMedias={handleChangeMedias}
+            setMedias={setMedias}
+            setInputMessage={setInputMessage}
+          />
 
-            <FormControlLabel
-              label="Firma"
-              labelPlacement="end"
-              className={classes.switchLabel}
-              control={
-                <Switch
-                  size="small"
-                  checked={signMessage}
-                  onChange={(e) => setSignMessage(e.target.checked)}
-                  color="primary"
-                />
-              }
-            />
+          <FormControlLabel
+            label="Firma"
+            labelPlacement="end"
+            className={classes.switchLabel}
+            control={
+              <Switch
+                size="small"
+                checked={signMessage}
+                onChange={(e) => setSignMessage(e.target.checked)}
+                color="primary"
+              />
+            }
+          />
 
-            <FormControlLabel
-              label="Privado"
-              labelPlacement="end"
-              className={classes.switchLabel}
-              style={{ color: sendPrivate ? "#ff9800" : "gray" }}
-              control={
-                <Switch
-                  size="small"
-                  checked={sendPrivate}
-                  onChange={(e) => setSendPrivate(e.target.checked)}
-                  color="secondary"
-                />
-              }
-            />
-          </div>
-
-          <div className={classes.inputRow}>
-            <CustomInput
-              loading={loading}
-              inputRef={inputRef}
-              ticketStatus={ticketStatus}
-              inputMessage={inputMessage}
-              setInputMessage={setInputMessage}
-              handleSendMessage={handleSendMessage}
-              handleInputPaste={handleInputPaste}
-              disableOption={disableOption}
-              replyingMessage={replyingMessage}
-              sendPrivate={sendPrivate}
-            />
-
-            <ActionButtons
-              inputMessage={inputMessage}
-              loading={loading}
-              recording={recording}
-              ticketStatus={ticketStatus}
-              handleSendMessage={handleSendMessage}
-              handleCancelAudio={handleCancelAudio}
-              handleUploadAudio={handleUploadAudio}
-              handleStartRecording={handleStartRecording}
-              handleOpenModalForward={handleOpenModalForward}
-              showSelectMessageCheckbox={showSelectMessageCheckbox}
-              is24HoursExceeded={is24HoursExceeded}
-            />
-          </div>
+          <FormControlLabel
+            label="Privado"
+            labelPlacement="end"
+            className={classes.switchLabel}
+            style={{ color: sendPrivate ? "#ff9800" : "gray" }}
+            control={
+              <Switch
+                size="small"
+                checked={sendPrivate}
+                onChange={(e) => setSendPrivate(e.target.checked)}
+                color="secondary"
+              />
+            }
+          />
         </div>
 
-      </Paper>
-    );
-  }
+        <div className={classes.inputRow}>
+          <CustomInput
+            loading={loading}
+            inputRef={inputRef}
+            ticketStatus={ticketStatus}
+            inputMessage={inputMessage}
+            setInputMessage={setInputMessage}
+            handleSendMessage={handleSendMessage}
+            handleInputPaste={handleInputPaste}
+            disableOption={disableOption}
+            replyingMessage={replyingMessage}
+            sendPrivate={sendPrivate}
+            floatingOpen={isFloatingOpen}
+            onFloatingKeyDown={handleFloatingKeyDown}
+          />
+
+          <ActionButtons
+            inputMessage={inputMessage}
+            medias={medias}
+            loading={loading}
+            recording={recording}
+            ticketStatus={ticketStatus}
+            handleSendMessage={handleSendMessage}
+            handleCancelAudio={handleCancelAudio}
+            handleUploadAudio={handleUploadAudio}
+            handleStartRecording={handleStartRecording}
+            handleOpenModalForward={handleOpenModalForward}
+            showSelectMessageCheckbox={showSelectMessageCheckbox}
+            is24HoursExceeded={is24HoursExceeded}
+          />
+        </div>
+      </div>
+
+    </Paper>
+  );
 };
 
 export default withWidth()(MessageInputCustom);

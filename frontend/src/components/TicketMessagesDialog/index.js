@@ -239,7 +239,7 @@ export default function TicketMessagesDialog({ open, onClose, ticketId }) {
   };
 
   const renderTicketInfo = () => {
-    if (ticket.user !== undefined) {
+    if (ticket.id || ticket.user !== undefined) {
       return (
         <TicketInfo
           contact={contact}

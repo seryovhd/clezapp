@@ -168,6 +168,13 @@ module.exports = {
                             companyId: 1,
                             createdAt: new Date(),
                             updatedAt: new Date()
+                        },
+                        {
+                            key: "quickMessagesMode",
+                            value: "both",
+                            companyId: 1,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
                         }
                     ],
                     { transaction: t }

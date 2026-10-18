@@ -16,6 +16,11 @@ const GetWbot = async (whatsappId: number): Promise<WASocket> => {
       throw new AppError("ERR_FACEBOOK_NO_WBOT", 400);
     }
 
+    if (whatsapp.type === "evolution" || whatsapp.connectionType === "evolution") {
+      const EvolutionApiService = (await import("../services/EvolutionApiServices/EvolutionApiService")).default;
+      return EvolutionApiService.buildEvolutionSession(whatsapp) as any;
+    }
+
     const wbot = getWbotLib(whatsappId);
     
     if (!wbot) {

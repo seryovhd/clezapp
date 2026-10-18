@@ -175,59 +175,8 @@ class EvolutionMonitorService {
       const records = res?.messages?.records || res?.records || [];
       if (!Array.isArray(records) || records.length === 0) return;
 
-      const cleanWappNumber = whatsapp.number ? whatsapp.number.replace(/\D/g, "") : "";
-      const fakeSession: any = {
-        id: whatsapp.id,
-        type: "evolution",
-        user: {
-          id: cleanWappNumber ? `${cleanWappNumber}@s.whatsapp.net` : "bot@s.whatsapp.net",
-          name: whatsapp.name || "Clezapp"
-        },
-        presenceSubscribe: async () => {},
-        sendPresenceUpdate: async () => {},
-        groupMetadata: async (jid: string) => ({ id: jid, subject: "Grupo" }),
-        sendMessage: async (jid: string, content: any, options: any) => {
-          if (!content) return;
-          let destination = jid;
-          if (jid.endsWith("@lid") || (jid.replace(/\D/g, "").length >= 14 && !jid.includes("@s.whatsapp.net") && !jid.includes("@g.us"))) {
-            const cleanLid = jid.replace("@lid", "").replace(/\D/g, "");
-            const resolved = await resolveLidToPhone(cleanLid, undefined, whatsapp?.companyId);
-            if (resolved) {
-              destination = `${resolved}@s.whatsapp.net`;
-            } else {
-              destination = `${cleanLid}@lid`;
-            }
-          }
-
-          if (content.text) {
-            return await EvolutionApiService.sendTextMessage(whatsapp, destination, content.text, {
-              quotedMessageId: options?.quoted?.key?.id
-            });
-          } else if (content.image || content.video || content.audio || content.document) {
-            const mediaType = content.image ? "image" : content.video ? "video" : content.audio ? "audio" : "document";
-            let media: any;
-            if (Buffer.isBuffer(content.image)) {
-              media = content.image.toString("base64");
-            } else if (Buffer.isBuffer(content.video)) {
-              media = content.video.toString("base64");
-            } else if (Buffer.isBuffer(content.audio)) {
-              media = content.audio.toString("base64");
-            } else if (Buffer.isBuffer(content.document)) {
-              media = content.document.toString("base64");
-            } else {
-              media = content.image?.url || content.video?.url || content.audio?.url || content.document?.url || content.image || content.video || content.audio || content.document;
-            }
-            return await EvolutionApiService.sendMediaMessage(whatsapp, destination, {
-              media,
-              mediaType: mediaType as any,
-              caption: content.caption,
-              mimetype: content.mimetype,
-              fileName: content.fileName || (mediaType === "video" && content.gifPlayback ? "animation.mp4" : undefined),
-              gifPlayback: !!content.gifPlayback
-            });
-          }
-        }
-      };
+      // Usar adaptador WASocket unificado para Evolution API
+      const fakeSession = EvolutionApiService.buildEvolutionSession(whatsapp);
 
       // Ordenar cronológicamente (los más antiguos primero para procesamiento secuencial)
       const sortedRecords = [...records].reverse();

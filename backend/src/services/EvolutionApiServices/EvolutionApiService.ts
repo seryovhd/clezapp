@@ -6,6 +6,7 @@ import Message from "../../models/Message";
 import Ticket from "../../models/Ticket";
 import { logger } from "../../utils/logger";
 import AppError from "../../errors/AppError";
+import { resolveLidToPhone } from "../../helpers/ResolveLidHelper";
 
 export interface EvolutionConfig {
   url: string;
@@ -187,7 +188,8 @@ export class EvolutionApiService {
           "MESSAGES_DELETE",
           "SEND_MESSAGE",
           "CONNECTION_UPDATE",
-          "CALL"
+          "CALL",
+          "PRESENCE_UPDATE"
         ]
       }
     };
@@ -238,7 +240,8 @@ export class EvolutionApiService {
           "MESSAGES_DELETE",
           "SEND_MESSAGE",
           "CONNECTION_UPDATE",
-          "CALL"
+          "CALL",
+          "PRESENCE_UPDATE"
         ]
       }
     };
@@ -677,6 +680,269 @@ export class EvolutionApiService {
         message: `No se pudo conectar al servidor Evolution API: ${error?.message || "Error desconocido"}`
       };
     }
+  }
+
+  /**
+   * Obtiene la URL de la foto de perfil del contacto en Evolution API
+   */
+  public static async getProfilePictureUrl(whatsapp: Whatsapp, number: string): Promise<string> {
+    try {
+      const instanceName = this.getInstanceName(whatsapp);
+      const cleanNumber = this.cleanNumberForEvolution(number);
+      const res = await this.request(
+        whatsapp.companyId,
+        `/chat/fetchProfilePictureUrl/${encodeURIComponent(instanceName)}`,
+        "POST",
+        { number: cleanNumber }
+      );
+      if (res?.profilePictureUrl) {
+        return res.profilePictureUrl;
+      }
+      return `${process.env.FRONTEND_URL}/nopicture.png`;
+    } catch (err: any) {
+      logger.warn(`[Evolution] Error obteniendo foto de perfil para ${number}: ${err?.message}`);
+      return `${process.env.FRONTEND_URL}/nopicture.png`;
+    }
+  }
+
+  /**
+   * Envía estado de presencia ("composing", "recording", "paused") a través de Evolution API
+   */
+  public static async sendPresenceUpdate(
+    whatsapp: Whatsapp,
+    number: string,
+    presence: "composing" | "recording" | "paused" | "available" | string
+  ): Promise<any> {
+    try {
+      const instanceName = this.getInstanceName(whatsapp);
+      const cleanNumber = this.cleanNumberForEvolution(number);
+      let evoPresence = presence;
+      if (presence === "composing") evoPresence = "composing";
+      else if (presence === "recording") evoPresence = "recording";
+      else if (presence === "paused") evoPresence = "paused";
+      else evoPresence = "available";
+
+      return await this.request(
+        whatsapp.companyId,
+        `/chat/sendPresence/${encodeURIComponent(instanceName)}`,
+        "POST",
+        {
+          number: cleanNumber,
+          presence: evoPresence,
+          delay: 1200
+        }
+      );
+    } catch (err: any) {
+      logger.warn(`[Evolution] Error enviando estado de presencia a ${number}: ${err?.message}`);
+    }
+  }
+
+  /**
+   * Obtiene los metadatos reales de un grupo de WhatsApp vía Evolution API
+   */
+  public static async getGroupMetadata(
+    whatsapp: Whatsapp,
+    groupJid: string
+  ): Promise<{ id: string; subject: string; participants?: any[] }> {
+    try {
+      const instanceName = this.getInstanceName(whatsapp);
+      const cleanJid = groupJid.includes("@") ? groupJid : `${groupJid}@g.us`;
+      const res = await this.request(
+        whatsapp.companyId,
+        `/group/findGroupInfos/${encodeURIComponent(instanceName)}?groupJid=${encodeURIComponent(cleanJid)}`,
+        "GET"
+      );
+
+      const subject = res?.subject || res?.name || "Grupo";
+      const id = res?.id || cleanJid;
+      return { id, subject, participants: res?.participants || [] };
+    } catch (err: any) {
+      logger.warn(`[Evolution] Error obteniendo metadata de grupo ${groupJid}: ${err?.message}`);
+      return { id: groupJid, subject: "Grupo" };
+    }
+  }
+
+  /**
+   * Envía una reacción con emoji a un mensaje en WhatsApp vía Evolution API
+   */
+  public static async sendReaction(
+    whatsapp: Whatsapp,
+    remoteJid: string,
+    messageId: string,
+    reaction: string,
+    fromMe: boolean = true
+  ): Promise<any> {
+    try {
+      const instanceName = this.getInstanceName(whatsapp);
+      const cleanNumber = this.cleanNumberForEvolution(remoteJid);
+      const jid = remoteJid.includes("@") ? remoteJid : (remoteJid.length >= 15 ? `${cleanNumber}@lid` : `${cleanNumber}@s.whatsapp.net`);
+
+      const payload = {
+        key: {
+          remoteJid: jid,
+          fromMe,
+          id: messageId
+        },
+        reaction
+      };
+
+      return await this.request(
+        whatsapp.companyId,
+        `/message/sendReaction/${encodeURIComponent(instanceName)}`,
+        "POST",
+        payload
+      );
+    } catch (err: any) {
+      logger.warn(`[Evolution] Error enviando reacción a ${messageId}: ${err?.message}`);
+    }
+  }
+
+  /**
+   * Envía una ubicación geográfica en WhatsApp vía Evolution API
+   */
+  public static async sendLocation(
+    whatsapp: Whatsapp,
+    number: string,
+    latitude: number,
+    longitude: number,
+    name?: string,
+    address?: string
+  ): Promise<any> {
+    try {
+      const instanceName = this.getInstanceName(whatsapp);
+      const cleanNumber = this.cleanNumberForEvolution(number);
+      return await this.request(
+        whatsapp.companyId,
+        `/message/sendLocation/${encodeURIComponent(instanceName)}`,
+        "POST",
+        {
+          number: cleanNumber,
+          name: name || "Ubicación",
+          address: address || "",
+          latitude,
+          longitude
+        }
+      );
+    } catch (err: any) {
+      logger.warn(`[Evolution] Error enviando ubicación a ${number}: ${err?.message}`);
+    }
+  }
+
+  /**
+   * Construye un adaptador de sesión compatible con WASocket (Baileys) para Evolution API
+   */
+  public static buildEvolutionSession(whatsapp: Whatsapp): any {
+    const cleanWappNumber = whatsapp.number ? whatsapp.number.replace(/\D/g, "") : "";
+    return {
+      id: whatsapp.id,
+      type: "evolution",
+      user: {
+        id: cleanWappNumber ? `${cleanWappNumber}@s.whatsapp.net` : "bot@s.whatsapp.net",
+        name: whatsapp.name || "Clezapp"
+      },
+      presenceSubscribe: async (_jid: string) => {},
+      sendPresenceUpdate: async (type: string, jid: string) => {
+        return await EvolutionApiService.sendPresenceUpdate(whatsapp, jid, type);
+      },
+      profilePictureUrl: async (jid: string, _type: "image" | "preview" = "image") => {
+        return await EvolutionApiService.getProfilePictureUrl(whatsapp, jid);
+      },
+      groupMetadata: async (jid: string) => {
+        return await EvolutionApiService.getGroupMetadata(whatsapp, jid);
+      },
+      readMessages: async (keys: any[]) => {
+        const payload = (keys || []).map(k => ({
+          id: k.id,
+          fromMe: k.fromMe,
+          remoteJid: k.remoteJid
+        }));
+        return await EvolutionApiService.markMessagesAsRead(whatsapp, payload);
+      },
+      chatModify: async (mod: any, jid: string) => {
+        if (mod?.markRead && mod?.lastMessages?.[0]?.key) {
+          const k = mod.lastMessages[0].key;
+          return await EvolutionApiService.markMessagesAsRead(whatsapp, [{
+            id: k.id,
+            fromMe: k.fromMe,
+            remoteJid: k.remoteJid || jid
+          }]);
+        }
+      },
+      sendMessage: async (jid: string, content: any, options?: any) => {
+        if (!content) return;
+        let destination = jid;
+        if (jid.endsWith("@lid") || (jid.replace(/\D/g, "").length >= 14 && !jid.includes("@s.whatsapp.net") && !jid.includes("@g.us"))) {
+          const cleanLid = jid.replace("@lid", "").replace(/\D/g, "");
+          const resolved = await resolveLidToPhone(cleanLid, undefined, whatsapp?.companyId);
+          if (resolved) {
+            destination = `${resolved}@s.whatsapp.net`;
+          } else {
+            destination = `${cleanLid}@lid`;
+          }
+        }
+
+        // 1. Reacciones con emojis
+        if (content.react) {
+          const targetKey = content.react.key;
+          return await EvolutionApiService.sendReaction(
+            whatsapp,
+            targetKey?.remoteJid || destination,
+            targetKey?.id,
+            content.react.text,
+            targetKey?.fromMe ?? true
+          );
+        }
+
+        // 2. Ubicación
+        if (content.location) {
+          return await EvolutionApiService.sendLocation(
+            whatsapp,
+            destination,
+            content.location.degreesLatitude,
+            content.location.degreesLongitude,
+            content.location.name,
+            content.location.address
+          );
+        }
+
+        // 3. Texto
+        if (content.text) {
+          return await EvolutionApiService.sendTextMessage(whatsapp, destination, content.text, {
+            quotedMessageId: options?.quoted?.key?.id,
+            quoted: options?.quoted
+          });
+        }
+
+        // 4. Multimedia (imagen, video, audio, documento, notas de voz)
+        if (content.image || content.video || content.audio || content.document) {
+          const mediaType = content.image ? "image" : content.video ? "video" : content.audio ? "audio" : "document";
+          let media: any;
+          if (Buffer.isBuffer(content.image)) {
+            media = content.image.toString("base64");
+          } else if (Buffer.isBuffer(content.video)) {
+            media = content.video.toString("base64");
+          } else if (Buffer.isBuffer(content.audio)) {
+            media = content.audio.toString("base64");
+          } else if (Buffer.isBuffer(content.document)) {
+            media = content.document.toString("base64");
+          } else {
+            media = content.image?.url || content.video?.url || content.audio?.url || content.document?.url || content.image || content.video || content.audio || content.document;
+          }
+
+          return await EvolutionApiService.sendMediaMessage(whatsapp, destination, {
+            media,
+            mediaType: mediaType as any,
+            caption: content.caption,
+            mimetype: content.mimetype,
+            fileName: content.fileName || (mediaType === "video" && content.gifPlayback ? "animation.mp4" : undefined),
+            gifPlayback: !!content.gifPlayback
+          }, {
+            quotedMessageId: options?.quoted?.key?.id,
+            quoted: options?.quoted
+          });
+        }
+      }
+    };
   }
 }
 
