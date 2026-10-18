@@ -119,11 +119,18 @@ const ContactModal = ({ open, onClose, contactId, initialValues, onSave }) => {
 
 	const handleSaveContact = async values => {
 		try {
+			const contactPayload = {
+				name: values.name,
+				number: values.number,
+				email: values.email || "",
+				disableBot: Boolean(values.disableBot),
+				extraInfo: values.extraInfo || []
+			};
 			if (contactId) {
-				await api.put(`/contacts/${contactId}`, values);
+				await api.put(`/contacts/${contactId}`, contactPayload);
 				handleClose();
 			} else {
-				const { data } = await api.post("/contacts", values);
+				const { data } = await api.post("/contacts", contactPayload);
 				if (onSave) {
 					onSave(data);
 				}

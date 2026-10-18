@@ -70,10 +70,16 @@ export function ContactForm ({ initialContact, onSave, onCancel }) {
 
 	const handleSaveContact = async values => {
 		try {
+			const contactPayload = {
+				name: values.name,
+				number: values.number,
+				email: values.email || "",
+				extraInfo: values.extraInfo || []
+			};
 			if (contact.id) {
-				await api.put(`/contacts/${contact.id}`, values);
+				await api.put(`/contacts/${contact.id}`, contactPayload);
 			} else {
-				const { data } = await api.post("/contacts", values);
+				const { data } = await api.post("/contacts", contactPayload);
 				if (onSave) {
 					onSave(data);
 				}
