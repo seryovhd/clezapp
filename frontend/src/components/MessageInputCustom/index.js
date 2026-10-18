@@ -386,10 +386,21 @@ const useStyles = makeStyles((theme) => ({
     marginRight: 4
   },
   privateInput: {
-    backgroundColor: "#fff8dc",
-    border: "2px dashed #f5a623",
+    backgroundColor: "#fff8dc !important",
+    border: "2px dashed #f5a623 !important",
     borderRadius: 8,
-    padding: "8px"
+    padding: "8px",
+    color: "#111b21 !important",
+    "& input, & textarea, & .MuiInputBase-input": {
+      color: "#111b21 !important",
+      "-webkit-text-fill-color": "#111b21 !important",
+      caretColor: "#111b21 !important",
+    },
+    "& input::placeholder, & textarea::placeholder, & .MuiInputBase-input::placeholder": {
+      color: "#667781 !important",
+      "-webkit-text-fill-color": "#667781 !important",
+      opacity: "1 !important",
+    },
   },
   attachedMediaWrapper: {
     display: "flex",
