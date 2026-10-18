@@ -155,7 +155,7 @@ const VersionLog = () => {
   useEffect(() => {
     const fetchReadme = async () => {
       try {
-        const inputUrl = 'https://github.com/seryovhd/clezapp/blob/main/LogLauncher.md';
+        const inputUrl = 'https://github.com/seryovhd/INFO/blob/main/LogLauncher.md';
         const targetUrl = normalizeGithubUrl(inputUrl);
         const response = await axios.get(targetUrl);
 
