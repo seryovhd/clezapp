@@ -38,6 +38,7 @@ import NewTicketModal from "../../components/NewTicketModal";
 import { SocketContext } from "../../context/Socket/SocketContext";
 import { generateColor } from "../../helpers/colorGenerator";
 import { getInitials } from "../../helpers/getInitials";
+import { AvatarWithPreview } from "../../components/ProfilePicModal";
 import { CSVLink } from "react-csv";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
@@ -516,7 +517,14 @@ const Contacts = () => {
                     />
                   </TableCell>
                   <TableCell style={{ paddingLeft: 40 }}>
-                    {<Avatar src={contact.profilePicUrl} />}
+                    <AvatarWithPreview
+                      contact={contact}
+                      src={contact.profilePicUrl}
+                      alt={contact.name}
+                      style={{ backgroundColor: generateColor(contact.number), color: "white", fontWeight: "bold" }}
+                    >
+                      {getInitials(contact.name)}
+                    </AvatarWithPreview>
                   </TableCell>
                   <TableCell>{contact.name}</TableCell>
                   <TableCell align="center">{contact.number}</TableCell>

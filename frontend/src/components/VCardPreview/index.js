@@ -14,6 +14,7 @@ import PhoneIcon from '@material-ui/icons/Phone';
 import PersonIcon from '@material-ui/icons/Person';
 import ChatBubbleIcon from '@material-ui/icons/ChatBubble';
 import CopyNumberButton from '../CopyNumberButton';
+import { AvatarWithPreview } from '../ProfilePicModal';
 
 const VCardPreview = ({ contact, numbers }) => {
     const history = useHistory();
@@ -171,8 +172,10 @@ const VCardPreview = ({ contact, numbers }) => {
                 <Box p={2}>
                     <Grid container spacing={2} alignItems="center">
                         <Grid item>
-                            <Avatar 
+                            <AvatarWithPreview 
                                 src={selectedContact.profilePicUrl} 
+                                contact={selectedContact}
+                                alt={selectedContact.name}
                                 style={{
                                     width: "60px",
                                     height: "60px",
@@ -180,7 +183,7 @@ const VCardPreview = ({ contact, numbers }) => {
                                 }}
                             >
                                 {selectedContact.name.charAt(0)}
-                            </Avatar>
+                            </AvatarWithPreview>
                         </Grid>
                         <Grid item xs>
                             <Typography 

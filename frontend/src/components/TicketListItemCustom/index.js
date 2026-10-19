@@ -38,6 +38,7 @@ import { FaRegEye } from "react-icons/fa";
 import Button from "@material-ui/core/Button";
 import CheckCircleOutlineIcon from "@material-ui/icons/CheckCircleOutline";
 import ContactTag from "../ContactTag";
+import { AvatarWithPreview } from "../ProfilePicModal";
 const iconContainerStyle = {
   display: "flex",
   alignItems: "center",
@@ -690,7 +691,7 @@ const TicketListItemCustom = ({ ticket }) => {
 
         <ListItemAvatar>
           <div style={{ display: "flex", alignItems: "center" }}>
-            <Avatar src={ticket?.contact?.profilePicUrl} className={classes.customAvatar} />
+            <AvatarWithPreview contact={ticket?.contact} src={ticket?.contact?.profilePicUrl} className={classes.customAvatar} />
             <Tooltip
               arrow
               placement="right"

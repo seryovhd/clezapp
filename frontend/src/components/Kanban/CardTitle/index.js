@@ -1,6 +1,7 @@
 import { Avatar, makeStyles } from '@material-ui/core';
 import React from 'react';
 import CopyNumberButton from '../../CopyNumberButton';
+import { AvatarWithPreview } from '../../ProfilePicModal';
 
 const useStyles = makeStyles(theme => ({
     container: {
@@ -42,9 +43,10 @@ const CardTitle = ({ticket, userProfile}) => {
 
     return (
         <div className={classes.container}>
-            <Avatar
+            <AvatarWithPreview
                 alt={ticket.contact.name} 
                 src={ticket.contact.profilePicUrl}
+                contact={ticket.contact}
             />
         <div className={classes.titlesAndDeleteButtonWrapper}>    
             <div className={classes.titleAndSubtitleContainer}>
