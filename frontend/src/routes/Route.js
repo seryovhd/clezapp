@@ -1,4 +1,4 @@
-import React, { useContext } from "react";
+import React, { useContext, Suspense } from "react";
 import { Route as RouterRoute, Redirect } from "react-router-dom";
 
 import { AuthContext } from "../context/Auth/AuthContext";
@@ -20,16 +20,16 @@ const Route = ({ component: Component, isPrivate = false, ...rest }) => {
 		return (
 			<>
 				{loading && <BackdropLoading />}
-				<Redirect to={{ pathname: "/", state: { from: rest.location } }} />;
+				<Redirect to={{ pathname: "/", state: { from: rest.location } }} />
 			</>
 		);
 	}
 
 	return (
-		<>
+		<Suspense fallback={<BackdropLoading />}>
 			{loading && <BackdropLoading />}
 			<RouterRoute {...rest} component={Component} />
-		</>
+		</Suspense>
 	);
 };
 

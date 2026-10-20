@@ -205,12 +205,17 @@ export const initWASocket = async (whatsapp: Whatsapp): Promise<Session> => {
           msgRetryCounterCache,
           markOnlineOnConnect: false,
           connectTimeoutMs: 25_000,
+          keepAliveIntervalMs: 25_000,
+          syncFullHistory: false,
+          maxMsgRetryCount: 3,
           retryRequestDelayMs: 500,
           getMessage: msgDB.get,
           emitOwnEvents: true,
           fireInitQueries: true,
           transactionOpts: { maxCommitRetries: 10, delayBetweenTriesMs: 3000 },
-          shouldIgnoreJid: jid => isJidBroadcast(jid),
+          shouldIgnoreJid: jid =>
+            isJidBroadcast(jid) ||
+            (typeof jid === "string" && (jid.endsWith("@newsletter") || jid.endsWith("@call"))),
         });
 
         wsocket.ev.on("creds.update", saveState);

@@ -13,6 +13,10 @@ app.use(
   express.static(path.join(__dirname, "build"), {
     maxAge: "1y",
     setHeaders: (res, filePath) => {
+      // Recursos con hash estático son inmutables
+      if (filePath.includes("static")) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      }
       // index.html NUNCA debe guardarse en caché para que las actualizaciones se apliquen de inmediato
       if (filePath.endsWith("index.html")) {
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");

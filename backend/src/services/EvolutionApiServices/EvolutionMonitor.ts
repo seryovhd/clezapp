@@ -20,6 +20,18 @@ class EvolutionMonitorService {
       this.deletedMessageIds.add(id);
       this.processedMessageIds.add(id);
     });
+    this.pruneMemory();
+  }
+
+  private pruneMemory() {
+    if (this.processedMessageIds.size > 5000) {
+      const arr = Array.from(this.processedMessageIds);
+      this.processedMessageIds = new Set(arr.slice(-2000));
+    }
+    if (this.deletedMessageIds.size > 2000) {
+      const arr = Array.from(this.deletedMessageIds);
+      this.deletedMessageIds = new Set(arr.slice(-1000));
+    }
   }
 
   public start() {
