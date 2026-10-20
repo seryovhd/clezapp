@@ -25,6 +25,7 @@ const useStyles = makeStyles((theme) => ({
     maxHeight: "100%",
     overflowY: "scroll",
     overflowX: "hidden",
+    scrollBehavior: "smooth",
     ...theme.scrollbarStyles,
     borderTop: "2px solid rgba(0, 0, 0, 0.12)",
   },
@@ -193,13 +194,14 @@ const TicketsListCustom = (props) => {
         });
       }
 
-      // 2. Sincronización silenciosa en background (sin loader visual ni parpadeos)
+      // 2. Sincronización silenciosa en background con debounce inteligente (1500ms)
+      // Evita saturar peticiones HTTP en ráfagas de mensajes simultáneos
       if (socketReloadTimer.current) {
         clearTimeout(socketReloadTimer.current);
       }
       socketReloadTimer.current = setTimeout(() => {
         loadTickets(1, true, true);
-      }, 400);
+      }, 1500);
     };
 
     socket.on(`company-${companyId}-ticket`, handleSocketEvent);
@@ -274,4 +276,4 @@ const TicketsListCustom = (props) => {
   );
 };
 
-export default TicketsListCustom;
+export default React.memo(TicketsListCustom);

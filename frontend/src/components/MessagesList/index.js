@@ -439,50 +439,95 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
+// Cache LRU en memoria para mensajes de tickets recientes (render instantáneo 0ms al alternar chats)
+const recentMessagesCache = new Map();
+const MAX_CACHED_TICKETS = 30;
+
+const setTicketMessagesCache = (id, messages, hasMore = false) => {
+  if (!id) return;
+  const numId = +id;
+  if (recentMessagesCache.has(numId)) {
+    recentMessagesCache.delete(numId);
+  } else if (recentMessagesCache.size >= MAX_CACHED_TICKETS) {
+    const oldestKey = recentMessagesCache.keys().next().value;
+    recentMessagesCache.delete(oldestKey);
+  }
+  recentMessagesCache.set(numId, { messages, hasMore });
+};
+
+// Ordenamiento cronológico estricto por fecha de creación (createdAt ASC)
+const sortMessages = (list) => {
+  if (!Array.isArray(list)) return [];
+  return [...list].sort((a, b) => {
+    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    if (timeA !== timeB) return timeA - timeB;
+    return (a.id || "").toString().localeCompare((b.id || "").toString());
+  });
+};
+
 const reducer = (state, action) => {
+  if (action.type === "HYDRATE_CACHED") {
+    return sortMessages(action.payload);
+  }
+
   if (action.type === "LOAD_MESSAGES") {
-    const messages = action.payload;
-    const newMessages = [];
+    const messages = action.payload || [];
+    let combined;
 
-    messages.forEach((message) => {
-      const messageIndex = state.findIndex((m) => m.id === message.id);
-      if (messageIndex !== -1) {
-        state[messageIndex] = message;
-      } else {
-        newMessages.push(message);
-      }
-    });
+    if (action.isPageOne) {
+      // Página 1: Reemplaza con los mensajes más recientes del backend,
+      // preservando únicamente mensajes optimistas pendientes de confirmación
+      const existingIds = new Set(messages.map((m) => m.id));
+      const optimistic = state.filter(
+        (m) =>
+          !existingIds.has(m.id) &&
+          (typeof m.id === "string" || m.id < 0 || m.status === "pending")
+      );
+      combined = [...messages, ...optimistic];
+    } else {
+      // Paginación hacia arriba (mensajes más antiguos)
+      const existingIds = new Set(state.map((m) => m.id));
+      const newOlderMessages = messages.filter((m) => !existingIds.has(m.id));
+      combined = [...newOlderMessages, ...state];
+    }
 
-    return [...newMessages, ...state];
+    return sortMessages(combined);
   }
 
   if (action.type === "ADD_MESSAGE") {
     const newMessage = action.payload;
+    if (!newMessage) return state;
     const messageIndex = state.findIndex((m) => m.id === newMessage.id);
 
+    let updated;
     if (messageIndex !== -1) {
-      state[messageIndex] = newMessage;
+      updated = [...state];
+      updated[messageIndex] = newMessage;
     } else {
-      state.push(newMessage);
+      updated = [...state, newMessage];
     }
 
-    return [...state];
+    return sortMessages(updated);
   }
 
   if (action.type === "UPDATE_MESSAGE") {
     const messageToUpdate = action.payload;
+    if (!messageToUpdate) return state;
     const messageIndex = state.findIndex((m) => m.id === messageToUpdate.id);
 
     if (messageIndex !== -1) {
       const prevMessage = state[messageIndex];
-      state[messageIndex] = {
+      const updated = [...state];
+      updated[messageIndex] = {
         ...prevMessage,
         ...messageToUpdate,
         quotedMsg: messageToUpdate.quotedMsg || prevMessage.quotedMsg,
       };
+      return sortMessages(updated);
     }
 
-    return [...state];
+    return state;
   }
 
   if (action.type === "RESET") {
@@ -510,7 +555,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
   const [pageNumber, setPageNumber] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
-  const lastMessageRef = useRef();
+  const lastMessageRef = useRef(null);
   const [contactPresence, setContactPresence] = useState("available");
   const [selectedMessage, setSelectedMessage] = useState({});
   const [anchorEl, setAnchorEl] = useState(null);
@@ -521,14 +566,52 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
   const { setReplyingMessage } = useContext(ReplyMessageContext);
   const { showSelectMessageCheckbox } = useContext(ForwardMessageContext);
 
+  const isInitialLoad = useRef(true);
+
+  const scrollToBottomInstant = () => {
+    const container = document.getElementById("messagesList");
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  };
+
+  const scrollToBottom = () => {
+    if (lastMessageRef.current) {
+      lastMessageRef.current.scrollIntoView({ behavior: "smooth" });
+    } else {
+      scrollToBottomInstant();
+    }
+  };
+
   useEffect(() => {
-    dispatch({ type: "RESET" });
+    isInitialLoad.current = true;
     setPageNumber(1);
     currentTicketId.current = ticketId;
+
+    if (ticketId) {
+      const cached = recentMessagesCache.get(+ticketId);
+      if (cached && cached.messages && cached.messages.length > 0) {
+        dispatch({ type: "HYDRATE_CACHED", payload: cached.messages });
+        setHasMore(cached.hasMore);
+        setTimeout(() => {
+          scrollToBottomInstant();
+          setTimeout(() => {
+            isInitialLoad.current = false;
+          }, 300);
+        }, 0);
+      } else {
+        dispatch({ type: "RESET" });
+      }
+    } else {
+      dispatch({ type: "RESET" });
+    }
   }, [ticketId]);
 
   useEffect(() => {
-    setLoading(true);
+    const hasCache = ticketId && recentMessagesCache.has(+ticketId);
+    if (!hasCache) {
+      setLoading(true);
+    }
     let isMounted = true;
 
     const fetchMessages = async () => {
@@ -539,13 +622,23 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
         });
 
         if (isMounted && currentTicketId.current === ticketId) {
-          dispatch({ type: "LOAD_MESSAGES", payload: data.messages });
+          dispatch({
+            type: "LOAD_MESSAGES",
+            payload: data.messages,
+            isPageOne: pageNumber === 1,
+          });
           setHasMore(data.hasMore);
           setLoading(false);
-        }
 
-        if (pageNumber === 1 && data.messages.length > 1) {
-          scrollToBottom();
+          if (pageNumber === 1) {
+            setTicketMessagesCache(+ticketId, sortMessages(data.messages), data.hasMore);
+            setTimeout(() => {
+              scrollToBottomInstant();
+              setTimeout(() => {
+                isInitialLoad.current = false;
+              }, 300);
+            }, 0);
+          }
         }
       } catch (err) {
         if (isMounted) {
@@ -566,15 +659,26 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
     const companyId = localStorage.getItem("companyId");
     const socket = socketManager.getSocket(companyId);
 
-    socket.on("ready", () => {
+    const onReady = () => {
       if (ticket?.id) {
         socket.emit("joinChatBox", `${ticket.id}`);
       }
-    });
+    };
 
-    socket.on(`company-${companyId}-appMessage`, (data) => {
+    const onAppMessage = (data) => {
       if (data.action === "create" && data.message.ticketId === currentTicketId.current) {
         dispatch({ type: "ADD_MESSAGE", payload: data.message });
+        const cached = recentMessagesCache.get(+currentTicketId.current);
+        if (cached) {
+          const exists = cached.messages.some((m) => m.id === data.message.id);
+          if (!exists) {
+            setTicketMessagesCache(
+              +currentTicketId.current,
+              sortMessages([...cached.messages, data.message]),
+              cached.hasMore
+            );
+          }
+        }
         scrollToBottom();
       }
 
@@ -589,13 +693,20 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
           });
         } else {
           dispatch({ type: "UPDATE_MESSAGE", payload: data.message });
-          //console.log("✅ Mensaje actualizado en estado:", data.message);
         }
       }
-    });
+    };
+
+    socket.on("ready", onReady);
+    socket.on(`company-${companyId}-appMessage`, onAppMessage);
+
+    if (ticket?.id && socket.connected) {
+      socket.emit("joinChatBox", `${ticket.id}`);
+    }
 
     return () => {
-      socket.disconnect();
+      socket.off("ready", onReady);
+      socket.off(`company-${companyId}-appMessage`, onAppMessage);
     };
   }, [ticketId, ticket, socketManager]);
 
@@ -603,22 +714,13 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
     setPageNumber((prevPageNumber) => prevPageNumber + 1);
   };
 
-  const scrollToBottom = () => {
-    if (lastMessageRef.current) {
-      lastMessageRef.current.scrollIntoView({});
-    }
-  };
-
   const handleScroll = (e) => {
-    if (!hasMore) return;
+    if (isInitialLoad.current) return;
+    if (!hasMore || loading) return;
     const { scrollTop } = e.currentTarget;
 
     if (scrollTop === 0) {
       document.getElementById("messagesList").scrollTop = 1;
-    }
-
-    if (loading) {
-      return;
     }
 
     if (scrollTop < 50) {
@@ -1254,6 +1356,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
         onScroll={handleScroll}
       >
         {messagesList.length > 0 ? renderMessages() : []}
+        <div ref={lastMessageRef} style={{ float: "left", clear: "both", height: 1 }} />
         {contactPresence === "composing" && (
           <div className={classes.messageLeft}>
             <div className={classes.wave}>
@@ -1284,4 +1387,4 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
   );
 };
 
-export default MessagesList;
+export default React.memo(MessagesList);

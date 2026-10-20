@@ -926,4 +926,27 @@ const TicketListItemCustom = ({ ticket }) => {
     </>
   );
 };
-export default TicketListItemCustom;
+export default React.memo(TicketListItemCustom, (prevProps, nextProps) => {
+  const p = prevProps.ticket;
+  const n = nextProps.ticket;
+  if (!p || !n) return false;
+  return (
+    p.id === n.id &&
+    p.updatedAt === n.updatedAt &&
+    p.unreadMessages === n.unreadMessages &&
+    p.lastMessage === n.lastMessage &&
+    p.status === n.status &&
+    p.userId === n.userId &&
+    p.queueId === n.queueId &&
+    p.presence === n.presence &&
+    p.isGroup === n.isGroup &&
+    p.uuid === n.uuid &&
+    p.user?.name === n.user?.name &&
+    p.contact?.name === n.contact?.name &&
+    p.contact?.profilePicUrl === n.contact?.profilePicUrl &&
+    p.whatsapp?.name === n.whatsapp?.name &&
+    p.queue?.name === n.queue?.name &&
+    p.queue?.color === n.queue?.color &&
+    (p.tags === n.tags || JSON.stringify(p.tags) === JSON.stringify(n.tags))
+  );
+});

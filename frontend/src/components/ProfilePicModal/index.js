@@ -200,6 +200,8 @@ export const ProfilePicModal = ({
 					<img
 						src={effectiveUrl}
 						alt={displayName}
+						loading="lazy"
+						decoding="async"
 						className={classes.previewImage}
 						style={{
 							filter: loadingPic ? "brightness(0.65)" : "none",
@@ -220,7 +222,7 @@ export const ProfilePicModal = ({
 	);
 };
 
-export const AvatarWithPreview = ({
+export const AvatarWithPreview = React.memo(({
 	contact,
 	src,
 	alt,
@@ -244,6 +246,7 @@ export const AvatarWithPreview = ({
 				alt={alt || contact?.name}
 				className={className}
 				style={style}
+				imgProps={{ loading: "lazy", decoding: "async", ...(rest.imgProps || {}) }}
 				{...rest}
 			>
 				{children}
@@ -266,6 +269,7 @@ export const AvatarWithPreview = ({
 					className={`${className || ""} ${classes.avatarClickable}`.trim()}
 					style={style}
 					onClick={handleClick}
+					imgProps={{ loading: "lazy", decoding: "async", ...(rest.imgProps || {}) }}
 					{...rest}
 				>
 					{children}
@@ -280,6 +284,6 @@ export const AvatarWithPreview = ({
 			/>
 		</>
 	);
-};
+});
 
-export default ProfilePicModal;
+export default React.memo(ProfilePicModal);

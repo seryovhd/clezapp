@@ -174,4 +174,4 @@ const ModalImageCors = ({ imageUrl }) => {
 	);
 };
 
-export default ModalImageCors;
+export default React.memo(ModalImageCors);

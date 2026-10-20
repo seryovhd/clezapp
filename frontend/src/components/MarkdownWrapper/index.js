@@ -244,4 +244,4 @@ const MarkdownWrapper = ({ children, message }) => {
 	return <Markdown options={options}>{children}</Markdown>;
 };
 
-export default MarkdownWrapper;
+export default React.memo(MarkdownWrapper);
