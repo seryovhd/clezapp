@@ -52,6 +52,7 @@ const useStyles = makeStyles((theme) => ({
   ticket: {
     position: "relative",
     minHeight: 74,
+    maxHeight: 140,
     height: "auto",
     paddingTop: 6,
     paddingBottom: 6,
@@ -59,10 +60,22 @@ const useStyles = makeStyles((theme) => ({
     margin: "2px 6px",
     width: "calc(100% - 12px)",
     boxSizing: "border-box",
-    transition: "background-color 0.15s ease",
+    transition: "background-color 0.15s ease, opacity 0.22s cubic-bezier(0.4, 0, 0.2, 1), transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), max-height 0.25s cubic-bezier(0.4, 0, 0.2, 1), min-height 0.25s cubic-bezier(0.4, 0, 0.2, 1), padding 0.22s ease, margin 0.22s ease",
     "&:hover": {
       backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "#202c33" : "#f5f6f6",
     },
+  },
+  ticketClosing: {
+    opacity: "0 !important",
+    transform: "translateX(-18px) scale(0.96) !important",
+    maxHeight: "0px !important",
+    minHeight: "0px !important",
+    paddingTop: "0px !important",
+    paddingBottom: "0px !important",
+    marginTop: "0px !important",
+    marginBottom: "0px !important",
+    overflow: "hidden !important",
+    pointerEvents: "none !important",
   },
   selectedTicket: {
     backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "#2a3942 !important" : "#f0f2f5 !important",
@@ -424,7 +437,7 @@ const useStyles = makeStyles((theme) => ({
     },
   }
 }));
-const TicketListItemCustom = ({ ticket }) => {
+const TicketListItemCustom = ({ ticket, isClosing = false }) => {
   const classes = useStyles();
   const history = useHistory();
   const [loading, setLoading] = useState(false);
@@ -583,6 +596,10 @@ const TicketListItemCustom = ({ ticket }) => {
         }
       })
     );
+    if (ticketId && Number(ticketId) === Number(id)) {
+      setCurrentTicket({ id: null, code: null });
+      history.push("/tickets/");
+    }
     setLoading(true);
     try {
       await api.put(`/tickets/${id}`, {
@@ -590,7 +607,6 @@ const TicketListItemCustom = ({ ticket }) => {
         userId: null,
         queueId: null,
       });
-      history.push("/tickets/");
     } catch (err) {
       window.dispatchEvent(
         new CustomEvent("ticket-optimistic-update", {
@@ -739,6 +755,7 @@ const TicketListItemCustom = ({ ticket }) => {
         className={clsx(classes.ticket, {
           [classes.pendingTicket]: ticket.status === "pending",
           [classes.selectedTicket]: ticketId && +ticketId === ticket.id,
+          [classes.ticketClosing]: isClosing,
         })}
       >
         <span
@@ -979,11 +996,12 @@ const TicketListItemCustom = ({ ticket }) => {
         </ListItemSecondaryAction>
       </ListItem>
 
-      <Divider variant="inset" component="li" />
+      {!isClosing && <Divider variant="inset" component="li" />}
     </>
   );
 };
 export default React.memo(TicketListItemCustom, (prevProps, nextProps) => {
+  if (prevProps.isClosing !== nextProps.isClosing) return false;
   const p = prevProps.ticket;
   const n = nextProps.ticket;
   if (!p || !n) return false;

@@ -73,6 +73,21 @@ const TicketsListCustom = (props) => {
   const socketManager = useContext(SocketContext);
   const socketReloadTimer = useRef(null);
   const closedTicketIdsRef = useRef(new Set());
+  const [closingTicketIds, setClosingTicketIds] = useState(() => new Set());
+
+  const removeTicketSmoothly = (ticketIdToRemove) => {
+    const idNum = Number(ticketIdToRemove);
+    closedTicketIdsRef.current.add(idNum);
+    setClosingTicketIds((prev) => new Set(prev).add(idNum));
+    setTimeout(() => {
+      setTicketsList((current) => current.filter((t) => Number(t.id) !== idNum));
+      setClosingTicketIds((prev) => {
+        const next = new Set(prev);
+        next.delete(idNum);
+        return next;
+      });
+    }, 250);
+  };
 
   // CARGA DE TICKETS (Permite modo silencioso para evitar parpadeos / flash)
   const loadTickets = async (page = 1, shouldReset = true, isSilent = false) => {
@@ -155,19 +170,9 @@ const TicketsListCustom = (props) => {
     const socket = socketManager.getSocket(companyId);
 
     const handleSocketEvent = (data) => {
-      // 0. Eliminación reactiva instantánea por socket (ej. ticket cerrado o borrado)
+      // 0. Eliminación reactiva con transición suave (ej. ticket cerrado o borrado)
       if (data?.action === "delete" && data?.ticketId) {
-        const deletedId = Number(data.ticketId);
-        closedTicketIdsRef.current.add(deletedId);
-        setTicketsList((prev) => {
-          const existsIndex = prev.findIndex((t) => Number(t.id) === deletedId);
-          if (existsIndex !== -1) {
-            const updated = [...prev];
-            updated.splice(existsIndex, 1);
-            return updated;
-          }
-          return prev;
-        });
+        removeTicketSmoothly(data.ticketId);
         return;
       }
 
@@ -291,11 +296,9 @@ const TicketsListCustom = (props) => {
 
         if (type === "status") {
           if (newStatus === "closed") {
-            closedTicketIdsRef.current.add(targetId);
             if (existsIndex !== -1 && (status === "open" || status === "pending")) {
-              const updated = [...prev];
-              updated.splice(existsIndex, 1);
-              return updated;
+              removeTicketSmoothly(targetId);
+              return prev;
             }
             return prev;
           }
@@ -401,7 +404,13 @@ const TicketsListCustom = (props) => {
               <p className={classes.noTicketsText}>{i18n.t("ticketsList.noTicketsMessage")}</p>
             </div>
           ) : (
-            nonGroupTickets.map((ticket) => <TicketListItem ticket={ticket} key={ticket.id} />)
+            nonGroupTickets.map((ticket) => (
+              <TicketListItem
+                ticket={ticket}
+                key={ticket.id}
+                isClosing={closingTicketIds.has(Number(ticket.id))}
+              />
+            ))
           )}
           {loading && nonGroupTickets.length === 0 && <TicketsListSkeleton />}
         </List>

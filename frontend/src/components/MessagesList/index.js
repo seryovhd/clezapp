@@ -102,6 +102,16 @@ const useStyles = makeStyles((theme) => ({
     display: "block",
     textAlign: "left",
   },
+  "@keyframes fadeInBubble": {
+    "0%": {
+      opacity: 0,
+      transform: "translateY(4px) scale(0.985)",
+    },
+    "100%": {
+      opacity: 1,
+      transform: "translateY(0) scale(1)",
+    },
+  },
   messageLeft: {
     marginRight: 20,
     marginTop: 2,
@@ -110,6 +120,7 @@ const useStyles = makeStyles((theme) => ({
     height: "auto",
     display: "block",
     position: "relative",
+    animation: "$fadeInBubble 0.18s cubic-bezier(0.1, 0.9, 0.2, 1)",
     "&:hover #messageActionsButton": {
       display: "flex",
       position: "absolute",
@@ -173,6 +184,7 @@ const useStyles = makeStyles((theme) => ({
     height: "auto",
     display: "block",
     position: "relative",
+    animation: "$fadeInBubble 0.18s cubic-bezier(0.1, 0.9, 0.2, 1)",
     "&:hover #messageActionsButton": {
       display: "flex",
       position: "absolute",
@@ -980,7 +992,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
   const renderMessageAck = (message) => {
     if (message.isPrivate) return null;
     if (message.ack === 0) {
-      return <AccessTime fontSize="small" className={classes.ackIcons} />;
+      return <Done fontSize="small" className={classes.ackIcons} />;
     }
     if (message.ack === 1) {
       return <Done fontSize="small" className={classes.ackIcons} />;
