@@ -58,6 +58,7 @@ const useStyles = makeStyles((theme) => ({
     flexDirection: "column",
     alignItems: "center",
     borderTop: "1px solid rgba(0, 0, 0, 0.12)",
+    flexShrink: 0,
   },
   newMessageBox: {
     backgroundColor: theme.palette.newmessagebox,
@@ -722,6 +723,7 @@ const ActionButtons = (props) => {
       <IconButton
         aria-label="sendMessage"
         component="span"
+        onMouseDown={(e) => e.preventDefault()}
         onClick={showSelectMessageCheckbox ? handleOpenModalForward : handleSendMessage}
         disabled={isDisabled}
         title={tooltipText}
@@ -1449,6 +1451,13 @@ const MessageInputCustom = (props) => {
     setInputMessage("");
     setReplyingMessage(null);
     setShowEmoji(false);
+
+    // Mantener siempre el foco activo en el input para que el teclado móvil no se oculte ni se desplace
+    setTimeout(() => {
+      if (inputRef && inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 10);
 
     //HUB INICIO
     const message = {

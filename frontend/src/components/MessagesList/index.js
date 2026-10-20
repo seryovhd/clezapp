@@ -64,10 +64,11 @@ const useStyles = makeStyles((theme) => ({
     position: "relative",
     display: "flex",
     flexDirection: "column",
+    flex: 1,
     flexGrow: 1,
     width: "100%",
-    minWidth: 300,
-    minHeight: 200,
+    minWidth: 0,
+    minHeight: 0,
   },
   messagesList: {
     backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "#0b141a" : "#efeae2",
@@ -585,17 +586,15 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
-    if (lastMessageRef.current) {
-      try {
-        lastMessageRef.current.scrollIntoView({ behavior: "auto", block: "end" });
-      } catch (e) {}
-    }
   };
 
   const scrollToBottom = () => {
-    if (lastMessageRef.current) {
+    if (messagesContainerRef.current) {
       try {
-        lastMessageRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+        messagesContainerRef.current.scrollTo({
+          top: messagesContainerRef.current.scrollHeight,
+          behavior: "smooth"
+        });
       } catch (e) {
         scrollToBottomInstant();
       }

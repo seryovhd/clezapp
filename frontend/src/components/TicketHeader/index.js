@@ -9,6 +9,10 @@ const useStyles = makeStyles(theme => ({
 		display: "flex",
 		backgroundColor: theme.palette.tabHeaderBackground,
 		flex: "none",
+		flexShrink: 0,
+		position: "sticky",
+		top: 0,
+		zIndex: 20,
 		borderBottom: theme.palette.divider
 			? `1px solid ${theme.palette.divider}`
 			: "1px solid rgba(0, 0, 0, 0.12)",

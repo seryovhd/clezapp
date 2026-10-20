@@ -321,7 +321,7 @@ if (isAssignedToOtherUser && !loading) {
           {renderTicketInfo()}
           <TicketActionButtons ticket={ticket} />
         </TicketHeader>
-        <Paper style={{boxShadow: "none"}}>
+        <Paper style={{boxShadow: "none", flexShrink: 0}}>
           <TagsContainer ticket={ticket} />
         </Paper>
         {(() => {

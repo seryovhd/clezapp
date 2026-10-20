@@ -17,9 +17,18 @@ import { i18n } from "../../translate/i18n";
 
 const useStyles = makeStyles(theme => ({
     header: {
+        flexShrink: 0,
     },
     content: {
-        overflow: "auto"
+        overflow: "hidden",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+    },
+    contentTabs: {
+        overflow: "auto",
+        height: "100%",
     },
     placeholderContainer: {
         display: "flex",
@@ -106,7 +115,7 @@ const TicketAdvanced = (props) => {
                     <BottomNavigationAction label="Atendimentos" icon={<QuestionAnswerIcon />} />
                 </BottomNavigation>
             </Box>
-            <Box className={classes.content}>
+            <Box className={option === 0 ? classes.content : classes.contentTabs}>
                 { option === 0 ? renderMessageContext() : renderTicketsManagerTabs() }
             </Box>
         </TicketAdvancedLayout>
