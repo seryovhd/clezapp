@@ -75,7 +75,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     flexDirection: "column",
     flexGrow: 1,
-    padding: "10px 20px 10px 20px",
+    padding: "10px 20px 18px 20px",
     overflowY: "scroll",
     ...theme.scrollbarStyles,
     "& a": {
@@ -617,6 +617,11 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
+    if (lastMessageRef.current) {
+      try {
+        lastMessageRef.current.scrollIntoView({ block: "end", behavior: "auto" });
+      } catch (e) {}
+    }
   };
 
   const scrollToBottom = () => {
@@ -639,11 +644,54 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
     requestAnimationFrame(() => {
       scrollToBottomInstant();
     });
-    setTimeout(scrollToBottomInstant, 50);
-    setTimeout(scrollToBottomInstant, 150);
-    setTimeout(scrollToBottomInstant, 300);
-    setTimeout(scrollToBottomInstant, 600);
+    setTimeout(scrollToBottomInstant, 30);
+    setTimeout(scrollToBottomInstant, 80);
+    setTimeout(scrollToBottomInstant, 180);
+    setTimeout(scrollToBottomInstant, 350);
   };
+
+  // ⚡ Detección reactiva de nuevos mensajes para hacer scroll instantáneo
+  const lastMessage = messagesList.length > 0 ? messagesList[messagesList.length - 1] : null;
+  const lastMessageIdRef = useRef(null);
+
+  useEffect(() => {
+    if (isInitialLoad.current) return;
+    if (!lastMessage) return;
+
+    if (lastMessageIdRef.current !== lastMessage.id) {
+      lastMessageIdRef.current = lastMessage.id;
+      const container = messagesContainerRef.current;
+      const isFromMe = Boolean(lastMessage.fromMe);
+      const isNearBottom = container
+        ? container.scrollHeight - container.scrollTop - container.clientHeight < 300
+        : true;
+
+      if (isFromMe || isNearBottom) {
+        ensureScrollToBottom();
+      }
+    }
+  }, [lastMessage]);
+
+  // ⚡ ResizeObserver: Si el contenedor cambia de tamaño (por el carousel, input multilínea o teclado),
+  // y el usuario estaba al fondo, mantenerlo perfectamente al fondo
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container || typeof ResizeObserver === "undefined") return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      const isNearBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight < 300;
+      if (isNearBottom) {
+        container.scrollTop = container.scrollHeight;
+      }
+    });
+
+    resizeObserver.observe(container);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     if (isInitialLoad.current && messagesList.length > 0) {
@@ -765,7 +813,15 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
             );
           }
         }
-        scrollToBottom();
+        const container = messagesContainerRef.current;
+        const isNearBottom = container
+          ? container.scrollHeight - container.scrollTop - container.clientHeight < 300
+          : true;
+        if (data.message.fromMe || isNearBottom) {
+          ensureScrollToBottom();
+        } else {
+          scrollToBottom();
+        }
       }
 
       if (data.action === "update" && data.message.ticketId === currentTicketId.current) {
@@ -789,7 +845,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
         dispatch({ type: "ADD_MESSAGE", payload: msg });
         // No guardar mensajes provisionales temporales en la caché persistente
         // para garantizar que al cambiar de chat y regresar nunca aparezcan duplicados
-        scrollToBottom();
+        ensureScrollToBottom();
       }
     };
 
@@ -1465,7 +1521,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
         onScroll={handleScroll}
       >
         {messagesList.length > 0 ? renderMessages() : []}
-        <div ref={lastMessageRef} style={{ float: "left", clear: "both", height: 1 }} />
+        <div ref={lastMessageRef} style={{ float: "left", clear: "both", height: 10, width: "100%" }} />
         {contactPresence === "composing" && (
           <div className={classes.messageLeft}>
             <div className={classes.wave}>
