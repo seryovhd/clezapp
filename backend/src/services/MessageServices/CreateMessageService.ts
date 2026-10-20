@@ -45,10 +45,11 @@ const CreateMessageService = async ({
         include: [
           "contact",
           "queue",
+          "user",
+          "tags",
           {
             model: Whatsapp,
-            as: "whatsapp",
-            attributes: ["name"]
+            as: "whatsapp"
           }
         ]
       },

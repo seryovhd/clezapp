@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useRef, useState } from "react";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { format, isSameDay, parseISO } from "date-fns";
 import { useHistory, useParams } from "react-router-dom";
@@ -496,7 +496,15 @@ const TicketListItemCustom = ({ ticket }) => {
     };
   }, [ticket]);
 
-  const tagsToRender = Array.isArray(ticket?.tags) ? ticket.tags : lastTagsRef.current;
+  const rawTags = Array.isArray(ticket?.tags) ? ticket.tags : lastTagsRef.current;
+  const tagsToRender = useMemo(() => {
+    if (!Array.isArray(rawTags)) return [];
+    return [...rawTags].sort((a, b) => {
+      const nameA = (a?.name || "").toLowerCase();
+      const nameB = (b?.name || "").toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+  }, [rawTags]);
   const getTimeLabel = () => {
     if (!ticket.updatedAt) return "";
     const lastInteractionDate = parseISO(ticket.updatedAt);

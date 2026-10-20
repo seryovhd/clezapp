@@ -36,7 +36,10 @@ export function TagsContainer({ ticket }) {
   // Sincronizar tags solo cuando cambia el ticketId
   useEffect(() => {
     if (Array.isArray(ticket?.tags)) {
-      setSelecteds(ticket.tags);
+      const sorted = [...ticket.tags].sort((a, b) =>
+        (a?.name || "").toLowerCase().localeCompare((b?.name || "").toLowerCase())
+      );
+      setSelecteds(sorted);
     } else {
       setSelecteds([]);
     }
@@ -54,7 +57,12 @@ export function TagsContainer({ ticket }) {
   const loadTags = async () => {
     try {
       const { data } = await api.get(`/tags/list`);
-      if (isMounted.current) setTags(data);
+      if (isMounted.current) {
+        const sorted = Array.isArray(data)
+          ? [...data].sort((a, b) => (a?.name || "").toLowerCase().localeCompare((b?.name || "").toLowerCase()))
+          : [];
+        setTags(sorted);
+      }
     } catch (err) {
       if (isMounted.current) toastError(err);
     }
@@ -104,8 +112,12 @@ export function TagsContainer({ ticket }) {
       optionsChanged = value || [];
     }
 
+    const sorted = [...optionsChanged].sort((a, b) =>
+      (a?.name || "").toLowerCase().localeCompare((b?.name || "").toLowerCase())
+    );
+
     if (isMounted.current) {
-      setSelecteds(optionsChanged);
+      setSelecteds(sorted);
       setInputValue("");
       setOpen(true);
     }
@@ -116,7 +128,7 @@ export function TagsContainer({ ticket }) {
         detail: {
           type: "tags",
           ticketId: ticket.id,
-          tags: optionsChanged
+          tags: sorted
         }
       })
     );
@@ -124,7 +136,7 @@ export function TagsContainer({ ticket }) {
     // Mantener siempre el foco activo en el input de inmediato
     focusInput();
 
-    await syncTags({ ticketId: ticket.id, tags: optionsChanged });
+    await syncTags({ ticketId: ticket.id, tags: sorted });
   };
 
   return (

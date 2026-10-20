@@ -15,7 +15,10 @@ const SyncTags = async ({
   ticketId,
   companyId
 }: Request): Promise<Ticket | null> => {
-  const tagList = tags.map(t => ({ tagId: t.id, ticketId }));
+  const sortedTags = Array.isArray(tags)
+    ? [...tags].sort((a, b) => (a.name || "").toLowerCase().localeCompare((b.name || "").toLowerCase()))
+    : [];
+  const tagList = sortedTags.map(t => ({ tagId: t.id, ticketId }));
 
   await TicketTag.destroy({ where: { ticketId } });
   await TicketTag.bulkCreate(tagList);
@@ -26,6 +29,9 @@ const SyncTags = async ({
   if (currentCompanyId) {
     try {
       ticket = await ShowTicketService(ticketId, currentCompanyId);
+      if (ticket && Array.isArray(ticket.tags)) {
+        ticket.tags.sort((a, b) => (a.name || "").toLowerCase().localeCompare((b.name || "").toLowerCase()));
+      }
       const io = getIO();
       io.to(`company-${currentCompanyId}-mainchannel`)
         .to(`company-${currentCompanyId}-${ticket.status}`)
@@ -39,9 +45,15 @@ const SyncTags = async ({
         });
     } catch (e) {
       ticket = await Ticket.findByPk(ticketId, { include: [Tag] });
+      if (ticket && Array.isArray(ticket.tags)) {
+        ticket.tags.sort((a, b) => (a.name || "").toLowerCase().localeCompare((b.name || "").toLowerCase()));
+      }
     }
   } else {
     ticket = await Ticket.findByPk(ticketId, { include: [Tag] });
+    if (ticket && Array.isArray(ticket.tags)) {
+      ticket.tags.sort((a, b) => (a.name || "").toLowerCase().localeCompare((b.name || "").toLowerCase()));
+    }
   }
 
   return ticket;
