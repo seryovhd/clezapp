@@ -9,32 +9,34 @@ import Signup from "../pages/Signup/";
 import Login from "../pages/Login/";
 import ForgetPassword from "../pages/ForgetPassWord/";
 
+// Módulos operativos de alta frecuencia (Carga directa instantánea a 0ms sin loading)
+import Connections from "../pages/Connections/";
+import SettingsCustom from "../pages/SettingsCustom/";
+import Users from "../pages/Users";
+import Contacts from "../pages/Contacts/";
+import Queues from "../pages/Queues/";
+import Tags from "../pages/Tags/";
+import QuickMessages from "../pages/QuickMessages/";
+import Kanban from "../pages/Kanban";
+import Chat from "../pages/Chat";
+
 import { ForwardMessageProvider } from "../context/ForwarMessage/ForwardMessageContext";
 import { AuthProvider } from "../context/Auth/AuthContext";
 import { TicketsContextProvider } from "../context/Tickets/TicketsContext";
 import { WhatsAppsProvider } from "../context/WhatsApp/WhatsAppsContext";
 import Route from "./Route";
 
-// Páginas secundarias con carga perezosa (Code-Splitting) para acelerar la carga inicial
-const Connections = lazy(() => import("../pages/Connections/"));
-const SettingsCustom = lazy(() => import("../pages/SettingsCustom/"));
+// Módulos administrativos y de uso esporádico (Carga perezosa Code-Splitting para aligerar la app)
 const Financeiro = lazy(() => import("../pages/Financeiro/"));
-const Users = lazy(() => import("../pages/Users"));
-const Contacts = lazy(() => import("../pages/Contacts/"));
-const Queues = lazy(() => import("../pages/Queues/"));
-const Tags = lazy(() => import("../pages/Tags/"));
 const MessagesAPI = lazy(() => import("../pages/MessagesAPI/"));
 const Helps = lazy(() => import("../pages/Helps/"));
 const ContactLists = lazy(() => import("../pages/ContactLists/"));
 const ContactListItems = lazy(() => import("../pages/ContactListItems/"));
-const QuickMessages = lazy(() => import("../pages/QuickMessages/"));
-const Kanban = lazy(() => import("../pages/Kanban"));
 const Schedules = lazy(() => import("../pages/Schedules"));
 const Campaigns = lazy(() => import("../pages/Campaigns"));
 const CampaignsConfig = lazy(() => import("../pages/CampaignsConfig"));
 const CampaignReport = lazy(() => import("../pages/CampaignReport"));
 const Annoucements = lazy(() => import("../pages/Annoucements"));
-const Chat = lazy(() => import("../pages/Chat"));
 const ToDoList = lazy(() => import("../pages/ToDoList/"));
 const Subscription = lazy(() => import("../pages/Subscription/"));
 const Files = lazy(() => import("../pages/Files/"));
