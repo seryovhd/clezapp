@@ -1352,6 +1352,48 @@ const MessageInputCustom = (props) => {
         ? `*${user?.name}:*\n${message.message}`
         : message.message;
 
+      const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      const optimisticMessage = {
+        id: optimisticId,
+        ticketId: Number(ticketId),
+        body: messageToSend,
+        fromMe: true,
+        read: true,
+        ack: 1, // ⚡ 1 = check inmediato sin reloj
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        mediaType: "chat",
+        mediaUrl: null,
+        quotedMsg: replyingMessage,
+        isPrivate: sendPrivate,
+        isOptimistic: true,
+        sender: user?.name,
+        contact: null
+      };
+
+      // ⚡ Despachar mensaje a la pantalla de chat y barra lateral en 0 ms
+      window.dispatchEvent(
+        new CustomEvent("chat-optimistic-message", {
+          detail: {
+            message: optimisticMessage
+          }
+        })
+      );
+      window.dispatchEvent(
+        new CustomEvent("ticket-optimistic-update", {
+          detail: {
+            type: "lastMessage",
+            ticketId: Number(ticketId),
+            lastMessage: messageToSend
+          }
+        })
+      );
+
+      setInputMessage("");
+      if (inputRef && inputRef.current) {
+        inputRef.current.focus();
+      }
+
       try {
         const payload = {
           read: 1,
@@ -1368,7 +1410,6 @@ const MessageInputCustom = (props) => {
             companyId: user?.companyId, // por si hub lo requiere
           });
         }
-        setInputMessage("");
         if (inputRef && inputRef.current) {
           inputRef.current.focus();
         }
@@ -1500,7 +1541,7 @@ const MessageInputCustom = (props) => {
       body: finalBody,
       fromMe: true,
       read: true,
-      ack: 0, // 0 = icono de relojito (esperando confirmación del servidor)
+      ack: 1, // ⚡ 1 = check inmediato sin reloj de espera
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       mediaType: "chat",

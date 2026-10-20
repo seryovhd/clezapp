@@ -89,15 +89,38 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
 
       case "whatsapp":
       default:
-        await handleWhatsAppMessage(
-          ticket,
-          body,
-          quotedMsg,
-          medias,
-          isPrivate,
-          companyId,
-          parseInt(userId, 10)
-        );
+        if (!medias || medias.length === 0) {
+          // ⚡ Envío Asíncrono en background para Baileys y Evolution API:
+          // Se despacha a WhatsApp sin bloquear el ciclo de respuesta HTTP.
+          // El frontend recibe respuesta inmediata (HTTP 200 en ~5ms)
+          handleWhatsAppMessage(
+            ticket,
+            body,
+            quotedMsg,
+            medias,
+            isPrivate,
+            companyId,
+            parseInt(userId, 10)
+          ).catch((bgErr: any) => {
+            console.error(`❌ [Async Dispatch Error] Ticket ${ticket.id}:`, bgErr?.message || bgErr);
+            const io = getIO();
+            io.to(`company-${companyId}-mainchannel`).emit(`company-${companyId}-appMessage`, {
+              action: "sendError",
+              ticketId: ticket.id,
+              error: bgErr?.message || "Error al enviar mensaje a WhatsApp"
+            });
+          });
+        } else {
+          await handleWhatsAppMessage(
+            ticket,
+            body,
+            quotedMsg,
+            medias,
+            isPrivate,
+            companyId,
+            parseInt(userId, 10)
+          );
+        }
         break;
     }
 
