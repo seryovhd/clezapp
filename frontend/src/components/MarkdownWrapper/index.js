@@ -233,7 +233,7 @@ const MarkdownWrapper = ({ children, message }) => {
 	if (type === 'contactMessage') {
 		return (
 			<div style={vcardStyle}>
-				<Avatar style={avatar} src={message.contact.profilePicUrl} alt="contact_image" />
+				<Avatar style={avatar} src={message?.contact?.profilePicUrl} alt={contact || "Foto de contacto"} />
 				<div style={infoStyle}>
 					<p style={p}><strong>Nome:</strong> {contact}</p>
 					<p style={p}><strong>Número:</strong> {number}</p>

@@ -80,7 +80,8 @@ const TicketInfo = ({ contact, ticket, onClick }) => {
 					contact={currentContact}
 					src={currentContact?.profilePicUrl}
 					style={{ backgroundColor: generateColor(currentContact?.number), color: "white", fontWeight: "bold" }}
-					alt="contact_image"
+					alt={contactName || currentContact?.name || "Foto de contacto"}
+					title={contactName || currentContact?.name || "Foto de contacto"}
 				>
 					{getInitials(currentContact?.name)}
 				</AvatarWithPreview>

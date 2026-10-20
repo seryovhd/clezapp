@@ -555,6 +555,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
   const [pageNumber, setPageNumber] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
+  const messagesContainerRef = useRef(null);
   const lastMessageRef = useRef(null);
   const [contactPresence, setContactPresence] = useState("available");
   const [selectedMessage, setSelectedMessage] = useState({});
@@ -569,19 +570,49 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
   const isInitialLoad = useRef(true);
 
   const scrollToBottomInstant = () => {
-    const container = document.getElementById("messagesList");
-    if (container) {
-      container.scrollTop = container.scrollHeight;
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
+    if (lastMessageRef.current) {
+      try {
+        lastMessageRef.current.scrollIntoView({ behavior: "auto", block: "end" });
+      } catch (e) {}
     }
   };
 
   const scrollToBottom = () => {
     if (lastMessageRef.current) {
-      lastMessageRef.current.scrollIntoView({ behavior: "smooth" });
+      try {
+        lastMessageRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+      } catch (e) {
+        scrollToBottomInstant();
+      }
     } else {
       scrollToBottomInstant();
     }
   };
+
+  const ensureScrollToBottom = () => {
+    scrollToBottomInstant();
+    requestAnimationFrame(() => {
+      scrollToBottomInstant();
+    });
+    setTimeout(scrollToBottomInstant, 50);
+    setTimeout(scrollToBottomInstant, 150);
+    setTimeout(scrollToBottomInstant, 300);
+    setTimeout(scrollToBottomInstant, 600);
+  };
+
+  useEffect(() => {
+    if (isInitialLoad.current && messagesList.length > 0) {
+      ensureScrollToBottom();
+      const timer = setTimeout(() => {
+        ensureScrollToBottom();
+        isInitialLoad.current = false;
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [messagesList]);
 
   useEffect(() => {
     isInitialLoad.current = true;
@@ -593,12 +624,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
       if (cached && cached.messages && cached.messages.length > 0) {
         dispatch({ type: "HYDRATE_CACHED", payload: cached.messages });
         setHasMore(cached.hasMore);
-        setTimeout(() => {
-          scrollToBottomInstant();
-          setTimeout(() => {
-            isInitialLoad.current = false;
-          }, 300);
-        }, 0);
+        ensureScrollToBottom();
       } else {
         dispatch({ type: "RESET" });
       }
@@ -622,7 +648,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
         });
 
         if (isMounted && currentTicketId.current === ticketId) {
-          const container = document.getElementById("messagesList");
+          const container = messagesContainerRef.current;
           const previousScrollHeight = container ? container.scrollHeight : 0;
           const previousScrollTop = container ? container.scrollTop : 0;
 
@@ -636,12 +662,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
 
           if (pageNumber === 1) {
             setTicketMessagesCache(+ticketId, sortMessages(data.messages), data.hasMore);
-            setTimeout(() => {
-              scrollToBottomInstant();
-              setTimeout(() => {
-                isInitialLoad.current = false;
-              }, 300);
-            }, 0);
+            ensureScrollToBottom();
           } else {
             // Mantener la posición exacta de lectura al cargar páginas anteriores hacia arriba
             requestAnimationFrame(() => {
@@ -732,8 +753,8 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
     if (!hasMore || loading) return;
     const { scrollTop } = e.currentTarget;
 
-    if (scrollTop === 0) {
-      document.getElementById("messagesList").scrollTop = 1;
+    if (scrollTop === 0 && messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = 1;
     }
 
     if (scrollTop < 50) {
@@ -865,15 +886,6 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
           </span>
         );
       }
-    }
-    if (index === messagesList.length - 1) {
-      return (
-        <div
-          key={`ref-${message.createdAt}`}
-          ref={lastMessageRef}
-          style={{ float: "left", clear: "both" }}
-        />
-      );
     }
   };
 
@@ -1364,6 +1376,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
         handleClose={handleCloseMessageOptionsMenu}
       />
       <div
+        ref={messagesContainerRef}
         id="messagesList"
         className={classes.messagesList}
         onScroll={handleScroll}

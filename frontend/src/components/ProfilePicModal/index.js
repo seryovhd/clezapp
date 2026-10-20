@@ -138,7 +138,10 @@ export const ProfilePicModal = ({
 
 	if (!open) return null;
 
-	const displayName = title || contact?.name || "Foto de perfil";
+	const displayName =
+		contact?.name ||
+		(title && title !== "contact_image" ? title : null) ||
+		(contact?.number ? contact.number : "Foto de perfil");
 	const effectiveUrl = picUrl || initialUrl;
 
 	return (
@@ -226,6 +229,7 @@ export const AvatarWithPreview = React.memo(({
 	contact,
 	src,
 	alt,
+	title,
 	className,
 	style,
 	children,
@@ -280,7 +284,7 @@ export const AvatarWithPreview = React.memo(({
 				onClose={() => setModalOpen(false)}
 				contact={contact}
 				src={effectiveSrc}
-				title={alt || contact?.name}
+				title={contact?.name || (title && title !== "contact_image" ? title : null) || (alt && alt !== "contact_image" ? alt : null) || "Foto de perfil"}
 			/>
 		</>
 	);

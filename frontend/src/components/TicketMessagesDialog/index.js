@@ -122,48 +122,47 @@ export default function TicketMessagesDialog({ open, onClose, ticketId }) {
   const socketManager = useContext(SocketContext);
 
   useEffect(() => {
-    let delayDebounceFn = null;
+    let isMounted = true;
 
-    if (open) {
+    if (open && ticketId) {
       setLoading(true);
-      delayDebounceFn = setTimeout(() => {
-        const fetchTicket = async () => {
-          try {
-            const { data } = await api.get("/tickets/" + ticketId);
-            const { queueId, whatsappId, userId } = data;
-            const { queues, profile, id, whatsappId: userWhatsapp } = user;
+      const fetchTicket = async () => {
+        try {
+          const { data } = await api.get("/tickets/" + ticketId);
+          if (!isMounted) return;
+          const { queueId, whatsappId, userId } = data;
+          const { queues, profile, id, whatsappId: userWhatsapp } = user;
 
-            const queueAllowed = queues.find((q) => q.id === queueId);
-            const hasWhatsappPermission =
-              whatsappId != null &&
-              (Array.isArray(userWhatsapp)
-                ? userWhatsapp.map(String).includes(String(whatsappId))
-                : String(userWhatsapp) === String(whatsappId));
-            const isAssigned = userId === id;
+          const queueAllowed = queues.find((q) => q.id === queueId);
+          const hasWhatsappPermission =
+            whatsappId != null &&
+            (Array.isArray(userWhatsapp)
+              ? userWhatsapp.map(String).includes(String(whatsappId))
+              : String(userWhatsapp) === String(whatsappId));
+          const isAssigned = userId === id;
 
-            if (!queueAllowed && profile !== "admin" && !hasWhatsappPermission && !isAssigned) {
-              toast.error("Acceso no permitido");
-              history.push("/tickets");
-              return;
-            }
+          if (!queueAllowed && profile !== "admin" && !hasWhatsappPermission && !isAssigned) {
+            toast.error("Acceso no permitido");
+            history.push("/tickets");
+            return;
+          }
 
-            setContact(data.contact);
-            setTicket(data);
-            setLoading(false);
-          } catch (err) {
+          setContact(data.contact);
+          setTicket(data);
+          setLoading(false);
+        } catch (err) {
+          if (isMounted) {
             setLoading(false);
             toastError(err);
           }
-        };
+        }
+      };
 
-        fetchTicket();
-      }, 500);
+      fetchTicket();
     }
 
     return () => {
-      if (delayDebounceFn !== null) {
-        clearTimeout(delayDebounceFn);
-      }
+      isMounted = false;
     };
   }, [ticketId, user, history, open]);
 
@@ -238,6 +237,8 @@ export default function TicketMessagesDialog({ open, onClose, ticketId }) {
     }
   };
 
+  if (!open) return null;
+
   const renderTicketInfo = () => {
     if (ticket.id || ticket.user !== undefined) {
       return (
@@ -254,9 +255,9 @@ export default function TicketMessagesDialog({ open, onClose, ticketId }) {
     return (
       <Box className={classes.root}>
         <MessagesList
-          ticket={ticket}
-          ticketId={ticket.id}
-          isGroup={ticket.isGroup}
+          ticket={ticket?.id ? ticket : { id: ticketId }}
+          ticketId={ticketId || ticket?.id}
+          isGroup={ticket?.isGroup}
         />
       </Box>
     );
@@ -269,9 +270,24 @@ export default function TicketMessagesDialog({ open, onClose, ticketId }) {
   const isTicketAssignedToMe = ticket.userId === user?.id;
 
   return (
-    <Dialog maxWidth="md" onClose={onClose} open={open}>
+    <Dialog
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        style: {
+          height: "85vh",
+          maxHeight: "85vh",
+          display: "flex",
+          flexDirection: "column",
+        },
+      }}
+      onClose={onClose}
+      open={open}
+    >
       <TicketHeader loading={loading}>{renderTicketInfo()}</TicketHeader>
-      <ReplyMessageProvider>{renderMessagesList()}</ReplyMessageProvider>
+      <Box style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <ReplyMessageProvider>{renderMessagesList()}</ReplyMessageProvider>
+      </Box>
       <DialogActions>
         <Box className={classes.buttonContainer}>
           <Button

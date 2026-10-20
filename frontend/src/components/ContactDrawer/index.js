@@ -196,7 +196,7 @@ const ContactDrawer = ({ open, handleDrawerClose, contact, ticket, loading }) =>
 										<Tooltip title="Clic para ampliar foto" arrow>
 											<Avatar
 												src={profilePic || contact.profilePicUrl}
-												alt="contact_image"
+												alt={contact?.name || "Foto de contacto"}
 												className={classes.avatarClickable}
 												style={{ backgroundColor: generateColor(contact?.number) }}
 												onClick={(e) => {
@@ -210,7 +210,7 @@ const ContactDrawer = ({ open, handleDrawerClose, contact, ticket, loading }) =>
 									) : (
 										<Avatar
 											src={profilePic || contact?.profilePicUrl}
-											alt="contact_image"
+											alt={contact?.name || "Foto de contacto"}
 											className={classes.avatarDefault}
 											style={{ backgroundColor: generateColor(contact?.number) }}
 										>
