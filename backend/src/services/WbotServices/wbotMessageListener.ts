@@ -1432,7 +1432,8 @@ const verifyQueue = async (
 
     if (
       greetingMessage.length > 1 &&
-      sendGreetingMessageOneQueues?.value === "enabled"
+      sendGreetingMessageOneQueues?.value === "enabled" &&
+      !contact.disableBot
     ) {
       const body = formatBody(`${greetingMessage}`, contact);
 
@@ -1446,7 +1447,7 @@ const verifyQueue = async (
 
     const firstQueue = head(queues);
     let chatbot = false;
-    if (firstQueue?.options) {
+    if (firstQueue?.options && !contact.disableBot) {
       chatbot = firstQueue.options.length > 0;
     }
 
@@ -1459,10 +1460,11 @@ const verifyQueue = async (
 
     await ticket.reload();
 
-    // 2. Si la fila única asignada tiene integración (Typebot), ejecutarla
+    // 2. Si la fila única asignada tiene integración (Typebot), ejecutarla solo si no está deshabilitado el bot
     if (
       !msg.key.fromMe &&
       !ticket.isGroup &&
+      !contact.disableBot &&
       !isNil(firstQueue?.integrationId)
     ) {
       try {
@@ -1491,7 +1493,7 @@ const verifyQueue = async (
       }
     }
 
-    if (!msg.key.fromMe && !ticket.isGroup && !isNil(firstQueue?.promptId)) {
+    if (!msg.key.fromMe && !ticket.isGroup && !contact.disableBot && !isNil(firstQueue?.promptId)) {
       try {
         await ticket.update({
           useIntegration: true,
@@ -1541,7 +1543,7 @@ const verifyQueue = async (
 
   if (choosenQueue) {
     let chatbot = false;
-    if (choosenQueue?.options) {
+    if (choosenQueue?.options && !contact.disableBot) {
       chatbot = choosenQueue.options.length > 0;
     }
     console.log("Se va a asignar la fila:", {
@@ -1555,7 +1557,7 @@ const verifyQueue = async (
       companyId: ticket.companyId
     });
 
-    if (choosenQueue.options.length === 0) {
+    if (choosenQueue.options.length === 0 || contact.disableBot) {
       const queue = await Queue.findByPk(choosenQueue.id);
       const { schedules }: any = queue;
       const now = moment();
@@ -1601,7 +1603,7 @@ const verifyQueue = async (
         }
       }
 
-      if (!msg.key.fromMe && !ticket.isGroup && choosenQueue.integrationId) {
+      if (!msg.key.fromMe && !ticket.isGroup && !contact.disableBot && choosenQueue.integrationId) {
         const integrations = await ShowQueueIntegrationService(
           choosenQueue.integrationId,
           companyId
@@ -1627,6 +1629,7 @@ const verifyQueue = async (
       if (
         !msg.key.fromMe &&
         !ticket.isGroup &&
+        !contact.disableBot &&
         !isNil(choosenQueue?.promptId)
       ) {
         await handleOpenAi(msg, wbot, ticket, contact, mediaSent);
@@ -1637,11 +1640,12 @@ const verifyQueue = async (
         });
       }
 
-      const body = formatBody(
-        `\u200e${choosenQueue.greetingMessage}`,
-        ticket.contact
-      );
-      if (choosenQueue.greetingMessage) {
+      // Opción B: Si contact.disableBot está activo, silencio absoluto (no enviar greetingMessage)
+      if (!contact.disableBot && choosenQueue.greetingMessage) {
+        const body = formatBody(
+          `\u200e${choosenQueue.greetingMessage}`,
+          ticket.contact
+        );
         const sentMessage = await wbot.sendMessage(
           `${contact.number}@${ticket.isGroup ? "g.us" : "s.whatsapp.net"}`,
           {
@@ -1739,7 +1743,7 @@ export const handleRating = async (
     rate: finalRate
   });
 
-  if (complationMessage) {
+  if (complationMessage && !ticket.contact?.disableBot) {
     const body = formatBody(`\u200e${complationMessage}`, ticket.contact);
     await SendWhatsAppMessage({ body, ticket });
   }
@@ -1781,6 +1785,9 @@ const handleChartbot = async (
   wbot: Session,
   dontReadTheFirstQuestion: boolean = false
 ) => {
+  if (ticket.contact?.disableBot) {
+    return;
+  }
   const queue = await Queue.findByPk(ticket.queueId, {
     include: [
       {
@@ -2205,7 +2212,7 @@ const flowbuilderIntegration = async (
     }
   }
 
-  if (listPhrase.some(item => item.phrase === "*" || (item.phrase && body && item.phrase.toLowerCase() === body.toLowerCase()))) {
+  if (!contact.disableBot && listPhrase.some(item => item.phrase === "*" || (item.phrase && body && item.phrase.toLowerCase() === body.toLowerCase()))) {
 
     const flowDispar = listPhrase.find(item => item.phrase === "*" || (item.phrase && body && item.phrase.toLowerCase() === body.toLowerCase()));
     const flow = await FlowBuilderModel.findOne({
@@ -2322,6 +2329,9 @@ export const handleMessageIntegration = async (
     return;
   }
   if (msg.message?.protocolMessage && msg.message.protocolMessage.type !== 14) {
+    return;
+  }
+  if (contact?.disableBot || ticket.contact?.disableBot) {
     return;
   }
   console.log("handleMessageIntegration llamado - Tipo:", queueIntegration?.type);
@@ -3272,7 +3282,7 @@ const handleMessage = async (
       ]
     });
 
-    if (ticket.useIntegration && ticket.integrationId === null && ticket.queue?.integrationId) {
+    if (!contact.disableBot && !ticket.contact?.disableBot && ticket.useIntegration && ticket.integrationId === null && ticket.queue?.integrationId) {
       await ticket.update({
         integrationId: ticket.queue.integrationId
       });
@@ -3288,6 +3298,8 @@ const handleMessage = async (
       !msg.key.fromMe &&
       !ticket.isGroup &&
       !ticket.userId &&
+      !contact.disableBot &&
+      !ticket.contact?.disableBot &&
       ticket.integrationId &&
       ticket.useIntegration &&
       ticket.queue
@@ -3497,7 +3509,7 @@ const handleMessage = async (
         return;
       }
 
-      if (whatsapp.greetingMessage) {
+      if (whatsapp.greetingMessage && !contact.disableBot && !ticket.contact?.disableBot) {
         const debouncedSentMessage = debounce(
           async () => {
             await wbot.sendMessage(
@@ -3517,13 +3529,13 @@ const handleMessage = async (
     }
 
     if (whatsapp.queues.length == 1 && ticket.queue) {
-      if (ticket.chatbot && !msg.key.fromMe) {
+      if (ticket.chatbot && !msg.key.fromMe && !contact.disableBot && !ticket.contact?.disableBot) {
         await handleChartbot(ticket, msg as any, wbot);
       }
     }
 
     if (whatsapp.queues.length > 1 && ticket.queue) {
-      if (ticket.chatbot && !msg.key.fromMe) {
+      if (ticket.chatbot && !msg.key.fromMe && !contact.disableBot && !ticket.contact?.disableBot) {
         await handleChartbot(ticket, msg as any, wbot, dontReadTheFirstQuestion);
       }
     }

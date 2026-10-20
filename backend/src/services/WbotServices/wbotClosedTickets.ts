@@ -90,7 +90,7 @@ export const ClosedAllOpenTickets = async (companyId: number): Promise<void> => 
             logger.info(`✅ TICKET ${ticket.id} CERRADO POR INACTIVIDAD`);
             closeTicket(showTicket, showTicket.status, bodyExpiresMessageInactive);
 
-            if (expiresInactiveMessage !== "" && expiresInactiveMessage !== undefined) {
+            if (expiresInactiveMessage !== "" && expiresInactiveMessage !== undefined && !showTicket.contact?.disableBot) {
               const sentMessage = await SendWhatsAppMessage({ body: bodyExpiresMessageInactive, ticket: showTicket });
 
               await verifyMessage(sentMessage, showTicket, showTicket.contact);

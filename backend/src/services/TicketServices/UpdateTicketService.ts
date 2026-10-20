@@ -84,6 +84,14 @@ const UpdateTicketService = async ({
     const oldUserId = ticket.user?.id;
     const oldQueueId = ticket.queueId;
 
+    if (ticket.contact?.disableBot) {
+      chatbot = false;
+      queueOptionId = null;
+      promptId = null;
+      useIntegration = false;
+      integrationId = null;
+    }
+
     if (oldStatus === "closed" || Number(whatsappId) !== ticket.whatsappId) {
       await CheckContactOpenTickets(ticket.contact.id, whatsappId);
       chatbot = null;
@@ -168,7 +176,7 @@ const UpdateTicketService = async ({
 
     const settingsTransfTicket = await ListSettingsServiceOne({ companyId: companyId, key: "sendMsgTransfTicket" });
 
-    if (settingsTransfTicket?.value === "enabled") {
+    if (settingsTransfTicket?.value === "enabled" && !ticket.contact?.disableBot) {
       try {
         // Mensagem de transferencia da FILA
         if (oldQueueId !== queueId && oldUserId === userId && !isNil(oldQueueId) && !isNil(queueId)) {
@@ -225,8 +233,11 @@ por favor, espera, ¡te atenderemos en breve!`;
       queueId,
       userId,
       whatsappId,
-      chatbot,
-      queueOptionId,
+      chatbot: ticket.contact?.disableBot ? false : chatbot,
+      queueOptionId: ticket.contact?.disableBot ? null : queueOptionId,
+      promptId: ticket.contact?.disableBot ? null : promptId,
+      useIntegration: ticket.contact?.disableBot ? false : useIntegration,
+      integrationId: ticket.contact?.disableBot ? null : integrationId,
       lastMessage: lastMessage !== null ? lastMessage : ticket.lastMessage,
       flowStopped: flowStopped !== undefined ? flowStopped : ticket.flowStopped,
       flowWebhook: flowWebhook !== undefined ? flowWebhook : ticket.flowWebhook
