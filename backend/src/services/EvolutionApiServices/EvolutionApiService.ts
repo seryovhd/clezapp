@@ -525,6 +525,53 @@ export class EvolutionApiService {
   }
 
   /**
+   * Envía un Sticker a través de Evolution API v2 (/message/sendSticker/{instance})
+   */
+  public static async sendSticker(
+    whatsapp: Whatsapp,
+    number: string,
+    stickerData: {
+      sticker: string; // base64 o URL
+    },
+    options?: { quoted?: any; quotedMessageId?: string; delay?: number }
+  ): Promise<any> {
+    const instanceName = this.getInstanceName(whatsapp);
+    const cleanNumber = this.cleanNumberForEvolution(number);
+    const isUrl = typeof stickerData.sticker === "string" && (stickerData.sticker.startsWith("http://") || stickerData.sticker.startsWith("https://"));
+
+    const pureSticker = isUrl
+      ? stickerData.sticker.trim()
+      : stickerData.sticker.replace(/^data:[^;]+;base64,/, "").trim();
+
+    const companyId = whatsapp.companyId || 1;
+    const payload: any = {
+      number: cleanNumber,
+      sticker: pureSticker,
+      delay: options?.delay || 0
+    };
+
+    if (options?.quoted) {
+      payload.quoted = options.quoted;
+    } else if (options?.quotedMessageId) {
+      payload.quoted = {
+        key: {
+          id: options.quotedMessageId
+        }
+      };
+    }
+
+    logger.info(`[Evolution] Enviando sendSticker a ${cleanNumber}`);
+    const res = await this.request(
+      companyId,
+      `/message/sendSticker/${encodeURIComponent(instanceName)}`,
+      "POST",
+      payload
+    );
+    logger.info(`[Evolution] Respuesta sendSticker de ${cleanNumber}: ${JSON.stringify(res)}`);
+    return res;
+  }
+
+  /**
    * Marca mensajes como leídos en Evolution API v2 (sincronizando WhatsApp Móvil y Web)
    */
   public static async markMessagesAsRead(
@@ -936,6 +983,23 @@ export class EvolutionApiService {
             mimetype: content.mimetype,
             fileName: content.fileName || (mediaType === "video" && content.gifPlayback ? "animation.mp4" : undefined),
             gifPlayback: !!content.gifPlayback
+          }, {
+            quotedMessageId: options?.quoted?.key?.id,
+            quoted: options?.quoted
+          });
+        }
+
+        // 5. Sticker
+        if (content.sticker) {
+          let media: any;
+          if (Buffer.isBuffer(content.sticker)) {
+            media = content.sticker.toString("base64");
+          } else {
+            media = content.sticker?.url || content.sticker;
+          }
+
+          return await EvolutionApiService.sendSticker(whatsapp, destination, {
+            sticker: media
           }, {
             quotedMessageId: options?.quoted?.key?.id,
             quoted: options?.quoted

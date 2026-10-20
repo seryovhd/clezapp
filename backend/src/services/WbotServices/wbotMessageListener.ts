@@ -641,11 +641,48 @@ const getContactMessage = async (msg: proto.IWebMessageInfo, wbot: Session) => {
 };
 
 const downloadMedia = async (msg: proto.IWebMessageInfo) => {
-  let buffer;
-  try {
-    buffer = await downloadMediaMessage(msg as any, "buffer", {});
-  } catch (err) {
-    console.error("Erro ao baixar mídia:", err);
+  let buffer: Buffer | undefined;
+
+  // 1. Si el mensaje ya trae base64 (frecuente en webhooks de Evolution API)
+  const anyMsg = msg as any;
+  const rawBase64 = anyMsg.base64 || anyMsg.message?.base64;
+  if (rawBase64 && typeof rawBase64 === "string") {
+    try {
+      const cleanBase64 = rawBase64.replace(/^data:[^;]+;base64,/, "");
+      buffer = Buffer.from(cleanBase64, "base64");
+    } catch (e) {
+      console.warn("No se pudo decodificar base64 directo:", e);
+    }
+  }
+
+  // 2. Si no hay buffer directo, descargar mediante Baileys con fallback de host mmg.whatsapp.net
+  if (!buffer) {
+    try {
+      // Clonar mensaje para sanitizar URLs no resolubles (ej: a.whatsapp.net en WhatsApp stickers)
+      const msgCloned = JSON.parse(JSON.stringify(msg));
+      const targetMedia =
+        msgCloned.message?.stickerMessage ||
+        msgCloned.message?.imageMessage ||
+        msgCloned.message?.videoMessage ||
+        msgCloned.message?.audioMessage ||
+        msgCloned.message?.documentMessage ||
+        msgCloned.message?.documentWithCaptionMessage?.message?.documentMessage;
+
+      if (targetMedia && typeof targetMedia.url === "string" && targetMedia.url.includes("a.whatsapp.net")) {
+        targetMedia.url = undefined;
+      }
+
+      try {
+        buffer = await downloadMediaMessage(msgCloned as any, "buffer", {
+          host: "mmg.whatsapp.net"
+        });
+      } catch (firstErr) {
+        // Fallback estándar
+        buffer = await downloadMediaMessage(msg as any, "buffer", {});
+      }
+    } catch (err) {
+      console.error("Erro ao baixar mídia:", err);
+    }
   }
 
   let filename = msg.message?.documentMessage?.fileName || "";
@@ -1145,7 +1182,7 @@ export const verifyMediaMessage = async (
   const quotedMsg = await verifyQuotedMessage(msg);
   const media = await downloadMedia(msg);
 
-  if (!media) {
+  if (!media || !media.data) {
     throw new Error("ERR_WAPP_DOWNLOAD_MEDIA");
   }
 
@@ -1174,19 +1211,20 @@ export const verifyMediaMessage = async (
 
     await writeFile(
       path.join(folder, uniqueFilename),
-      media.data,
-      "base64"
+      media.data
     );
 
   } catch (err) {
     Sentry.captureException(err);
     logger.error(err);
+    throw err;
   }
 
+  const isSticker = Boolean(msg.message?.stickerMessage || detectMediaTypeFromMessage(msg) === "sticker");
   const body = getBodyMessage(msg);
 
   const hasCap = hasCaption(body, media.filename);
-  const bodyMessage = body ? hasCap ? formatBody(body, ticket.contact) : "-" : "-";
+  const bodyMessage = isSticker ? "sticker" : (body ? (hasCap ? formatBody(body, ticket.contact) : "-") : "-");
 
   const messageData = {
     id: msg.key.id,
@@ -1196,7 +1234,7 @@ export const verifyMediaMessage = async (
     fromMe: msg.key.fromMe,
     read: msg.key.fromMe,
     mediaUrl: media.filename,
-    mediaType: media.mimetype.split("/")[0],
+    mediaType: isSticker ? "sticker" : media.mimetype.split("/")[0],
     detectedMediaType: detectMediaTypeFromMessage(msg),
     quotedMsgId: quotedMsg?.id,
     ack: getAckFromStatus(msg.status, msg.key?.fromMe),

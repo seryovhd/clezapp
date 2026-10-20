@@ -549,6 +549,18 @@ const isMediaFilename = (body, mediaUrl) => {
   return /^[^\n\r]+\.(png|jpe?g|webp|gif|bmp|svg|mp4|mov|avi|mkv|ogg|mp3|wav|m4a|opus|bin|pdf|docx?|xlsx?|pptx?|txt|zip|rar)$/i.test(trimmed);
 };
 
+const isStickerMessage = (message) => {
+  if (!message) return false;
+  return (
+    message.mediaType === "sticker" ||
+    message.detectedMediaType === "sticker" ||
+    (message.mediaType === "image" && (
+      message.body?.toLowerCase() === "sticker" ||
+      (typeof message.mediaUrl === "string" && message.mediaUrl.toLowerCase().includes(".webp"))
+    ))
+  );
+};
+
 const MessagesList = ({ ticket, ticketId, isGroup }) => {
   const classes = useStyles();
   const [messagesList, dispatch] = useReducer(reducer, []);
@@ -807,18 +819,19 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
           }
         }
         return <VCardPreview contact={contact} numbers={obj[0].number} />
+      } else if (isStickerMessage(message)) {
+        return <ModalImageCors imageUrl={message.mediaUrl} isSticker={true} />;
       } else if (message.mediaType === "image") {
         return <ModalImageCors imageUrl={message.mediaUrl} />;
       } else if (message.mediaType === "audio") {
         return <AudioModal url={message.mediaUrl} />;
       } else if (message.mediaType === "video") {
-        return (
-          <video
-            className={classes.messageMedia}
-            src={message.mediaUrl}
-            controls
-          />
+        const isGif = Boolean(
+          message.body?.toLowerCase() === "gif" ||
+          message.mediaUrl?.toLowerCase().endsWith(".gif") ||
+          (typeof message.dataJson === "string" && message.dataJson.includes('"gifPlayback":true'))
         );
+        return <ModalImageCors imageUrl={message.mediaUrl} mediaType="video" isGif={isGif} />;
       } else {
         return (
           <>
@@ -955,12 +968,10 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
               </audio>
             </div>
           )}
-          {message.quotedMsg.mediaType === "video" && (
-            <video
-              className={classes.messageMedia}
-              src={message.quotedMsg.mediaUrl}
-              controls
-            />
+          {message.quotedMsg.mediaType === "video" && message.quotedMsg.mediaUrl && (
+            <div style={{ maxWidth: 180, maxHeight: 130, borderRadius: 6, overflow: "hidden", marginBottom: 4 }}>
+              <ModalImageCors imageUrl={message.quotedMsg.mediaUrl} mediaType="video" />
+            </div>
           )}
           {message.quotedMsg.mediaType === "application" && (
             <div className={classes.downloadMedia}>
@@ -985,14 +996,14 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
             </div>
           )}
 
-          {message.quotedMsg.mediaType === "image" && message.quotedMsg.mediaUrl && (
+          {(message.quotedMsg.mediaType === "image" || message.quotedMsg.mediaType === "sticker") && message.quotedMsg.mediaUrl && (
             <div style={{ maxWidth: 90, maxHeight: 90, overflow: 'hidden', borderRadius: 4, marginBottom: 4 }}>
-              <ModalImageCors imageUrl={message.quotedMsg.mediaUrl} />
+              <ModalImageCors imageUrl={message.quotedMsg.mediaUrl} isSticker={isStickerMessage(message.quotedMsg)} />
             </div>
           )}
 
           {message.quotedMsg.body && (
-            ((message.quotedMsg.mediaType === "image" && message.quotedMsg.body === "sticker") || isMediaFilename(message.quotedMsg.body, message.quotedMsg.mediaUrl)) ? null : (
+            ((message.quotedMsg.mediaType === "image" && message.quotedMsg.body === "sticker") || message.quotedMsg.mediaType === "sticker" || isMediaFilename(message.quotedMsg.body, message.quotedMsg.mediaUrl)) ? null : (
               <span style={{ fontSize: "0.85rem", opacity: 0.9 }}>
                 {message.quotedMsg.body}
               </span>
@@ -1095,6 +1106,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
                 </div>
                 <div
                   className={classes.messageLeft}
+                  style={isStickerMessage(message) ? { backgroundColor: "transparent", boxShadow: "none", padding: 0 } : undefined}
                   title={message.queueId && message.queue?.name}
                   onDoubleClick={(e) => hanldeReplyMessage(e, message)}
                 >
@@ -1150,7 +1162,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
                   ) && checkMessageMedia(message)}
                   <div className={classes.textContentItem}>
                     {message.quotedMsg && renderQuotedMessage(message)}
-                    {message.mediaType !== "reactionMessage" && message.body && !isMediaFilename(message.body, message.mediaUrl) && (
+                    {message.mediaType !== "reactionMessage" && !isStickerMessage(message) && message.body && !isMediaFilename(message.body, message.mediaUrl) && (
                       <MarkdownWrapper>
                         {message.mediaType === "locationMessage" || message.mediaType === "contactMessage"
                           ? null
@@ -1224,6 +1236,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
               {renderMessageDivider(message, index)}
               <div
                 className={message.isPrivate ? classes.messageRightPrivate : classes.messageRight}
+                style={isStickerMessage(message) ? { backgroundColor: "transparent", boxShadow: "none", padding: 0 } : undefined}
                 onDoubleClick={(e) => hanldeReplyMessage(e, message)}
               >
                 {message.isPrivate && <div className={classes.messagePrivateIndicator} />}
@@ -1293,7 +1306,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
                       {message.quotedMsg && renderQuotedMessage(message)}
 
                       {/* Contenido del mensaje normal */}
-                      {message.mediaType !== "reactionMessage" && message.body && !isMediaFilename(message.body, message.mediaUrl) && (
+                      {message.mediaType !== "reactionMessage" && !isStickerMessage(message) && message.body && !isMediaFilename(message.body, message.mediaUrl) && (
                         <MarkdownWrapper>{message.body}</MarkdownWrapper>
                       )}
 

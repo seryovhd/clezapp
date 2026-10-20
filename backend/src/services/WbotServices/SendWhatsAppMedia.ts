@@ -209,27 +209,33 @@ const SendWhatsAppMedia = async ({
 
       const isFileBody = isFileNameOnly(body, media.originalname);
       const evoCaption = isFileBody ? "" : (formatBody(body, ticket.contact) || "");
+      const isSticker = media.mimetype === "image/webp" ||
+        media.originalname?.toLowerCase().endsWith(".webp") ||
+        body?.toLowerCase().trim() === "sticker";
 
       let sentRes: any;
-      try {
-        sentRes = await EvolutionApiService.sendMediaMessage(
-          ticket.whatsapp,
-          destination,
-          {
-            media: base64Media,
-            mediaType: mediaType as any,
-            caption: evoCaption,
-            fileName: media.originalname,
-            mimetype: evoMime
-          },
-          {
-            quoted: quotedPayload,
-            quotedMessageId: quotedMsgIdToSave
+      if (isSticker) {
+        try {
+          sentRes = await EvolutionApiService.sendSticker(
+            ticket.whatsapp,
+            destination,
+            { sticker: base64Media },
+            { quoted: quotedPayload, quotedMessageId: quotedMsgIdToSave }
+          );
+        } catch (evoStickerErr: any) {
+          if (quotedPayload || quotedMsgIdToSave) {
+            console.warn(`[Evolution] Falló envío de sticker con cita (${evoStickerErr?.message}), reintentando sin cita...`);
+            sentRes = await EvolutionApiService.sendSticker(
+              ticket.whatsapp,
+              destination,
+              { sticker: base64Media }
+            );
+          } else {
+            throw evoStickerErr;
           }
-        );
-      } catch (evoMediaErr: any) {
-        if (quotedPayload || quotedMsgIdToSave) {
-          console.warn(`[Evolution] Falló envío de media con cita (${evoMediaErr?.message}), reintentando sin cita...`);
+        }
+      } else {
+        try {
           sentRes = await EvolutionApiService.sendMediaMessage(
             ticket.whatsapp,
             destination,
@@ -239,10 +245,29 @@ const SendWhatsAppMedia = async ({
               caption: evoCaption,
               fileName: media.originalname,
               mimetype: evoMime
+            },
+            {
+              quoted: quotedPayload,
+              quotedMessageId: quotedMsgIdToSave
             }
           );
-        } else {
-          throw evoMediaErr;
+        } catch (evoMediaErr: any) {
+          if (quotedPayload || quotedMsgIdToSave) {
+            console.warn(`[Evolution] Falló envío de media con cita (${evoMediaErr?.message}), reintentando sin cita...`);
+            sentRes = await EvolutionApiService.sendMediaMessage(
+              ticket.whatsapp,
+              destination,
+              {
+                media: base64Media,
+                mediaType: mediaType as any,
+                caption: evoCaption,
+                fileName: media.originalname,
+                mimetype: evoMime
+              }
+            );
+          } else {
+            throw evoMediaErr;
+          }
         }
       }
 
@@ -252,11 +277,11 @@ const SendWhatsAppMedia = async ({
           messageData: {
             id: messageId,
             ticketId: ticket.id,
-            body: isFileBody ? "" : (formatBody(body, ticket.contact) || ""),
+            body: isSticker ? "sticker" : (isFileBody ? "" : (formatBody(body, ticket.contact) || "")),
             fromMe: true,
             read: true,
             mediaUrl: media.filename,
-            mediaType: mediaType,
+            mediaType: isSticker ? "sticker" : mediaType,
             ack: 1,
             queueId: ticket.queueId,
             quotedMsgId: quotedMsg?.id
@@ -267,9 +292,9 @@ const SendWhatsAppMedia = async ({
         console.error("[Evolution] Error guardando media saliente en BD:", err);
       }
 
-      const evoLastMsg = isFileBody
+      const evoLastMsg = isSticker ? "💟 Sticker" : (isFileBody
         ? (mediaType === "image" ? "📷 Imagen" : mediaType === "video" ? "📹 Video" : mediaType === "audio" ? "🎵 Audio" : "📄 Archivo")
-        : (formatBody(body, ticket.contact) || "📷 Archivo");
+        : (formatBody(body, ticket.contact) || "📷 Archivo"));
       await ticket.update({ lastMessage: evoLastMsg });
       return sentRes as any;
     }
@@ -319,10 +344,19 @@ const SendWhatsAppMedia = async ({
 
     const isFileText = isFileNameOnly(body, fileName) || isFileNameOnly(body, media.originalname);
     const captionToSend = isFileText ? undefined : (bodyMessage && bodyMessage.trim() ? bodyMessage.trim() : undefined);
+    const isSticker = mimeType === "image/webp" ||
+      fileName.toLowerCase().endsWith(".webp") ||
+      media.originalname?.toLowerCase().endsWith(".webp") ||
+      body?.toLowerCase().trim() === "sticker";
 
     let options: AnyMessageContent;
 
-    if (shouldBeDocument) {
+    if (isSticker) {
+      options = {
+        sticker: fs.readFileSync(pathMedia),
+        mimetype: "image/webp"
+      };
+    } else if (shouldBeDocument) {
       options = {
         document: fs.readFileSync(pathMedia),
         caption: captionToSend,
@@ -452,7 +486,9 @@ const SendWhatsAppMedia = async ({
       }
     }
 
-    const detectedMediaType = (typeMessage === "image" && isStandardImage)
+    const detectedMediaType = isSticker
+      ? "sticker"
+      : (typeMessage === "image" && isStandardImage)
       ? "image"
       : typeMessage === "video"
       ? "video"
@@ -466,7 +502,7 @@ const SendWhatsAppMedia = async ({
           id: sentMessage?.key?.id || `media_${Date.now()}`,
           ticketId: ticket.id,
           contactId: undefined,
-          body: isFileText ? "" : (bodyMessage || ""),
+          body: isSticker ? "sticker" : (isFileText ? "" : (bodyMessage || "")),
           fromMe: true,
           read: true,
           mediaUrl: media.filename,
@@ -481,9 +517,9 @@ const SendWhatsAppMedia = async ({
       console.error("[SendWhatsAppMedia] Error al guardar media saliente en BD:", saveErr);
     }
 
-    const baileysLastMsg = isFileText
+    const baileysLastMsg = isSticker ? "💟 Sticker" : (isFileText
       ? (detectedMediaType === "image" ? "📷 Imagen" : detectedMediaType === "video" ? "📹 Video" : detectedMediaType === "audio" ? "🎵 Audio" : "📄 Archivo")
-      : (bodyMessage || "📷 Archivo");
+      : (bodyMessage || "📷 Archivo"));
     await ticket.update({ lastMessage: baileysLastMsg });
 
     return sentMessage;
