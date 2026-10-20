@@ -609,7 +609,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
 
   useEffect(() => {
     const hasCache = ticketId && recentMessagesCache.has(+ticketId);
-    if (!hasCache) {
+    if (!hasCache || pageNumber > 1) {
       setLoading(true);
     }
     let isMounted = true;
@@ -622,6 +622,10 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
         });
 
         if (isMounted && currentTicketId.current === ticketId) {
+          const container = document.getElementById("messagesList");
+          const previousScrollHeight = container ? container.scrollHeight : 0;
+          const previousScrollTop = container ? container.scrollTop : 0;
+
           dispatch({
             type: "LOAD_MESSAGES",
             payload: data.messages,
@@ -638,11 +642,20 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
                 isInitialLoad.current = false;
               }, 300);
             }, 0);
+          } else {
+            // Mantener la posición exacta de lectura al cargar páginas anteriores hacia arriba
+            requestAnimationFrame(() => {
+              if (container) {
+                const heightDifference = container.scrollHeight - previousScrollHeight;
+                container.scrollTop = previousScrollTop + heightDifference;
+              }
+            });
           }
         }
       } catch (err) {
         if (isMounted) {
           setLoading(false);
+          isInitialLoad.current = false;
           toastError(err);
         }
       }
