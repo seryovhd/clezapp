@@ -18,19 +18,16 @@ export function TagsContainer({ ticket }) {
   }, []);
 
   useEffect(() => {
-    const fetchTags = async () => {
-      await loadTags();
-      if (!isMounted.current) return;
+    loadTags();
+  }, []);
 
-      if (Array.isArray(ticket.tags)) {
-        setSelecteds(ticket.tags);
-      } else {
-        setSelecteds([]);
-      }
-    };
-
-    fetchTags();
-  }, [ticket]);
+  useEffect(() => {
+    if (Array.isArray(ticket?.tags)) {
+      setSelecteds(ticket.tags);
+    } else {
+      setSelecteds([]);
+    }
+  }, [ticket?.tags]);
 
   const createTag = async (data) => {
     try {

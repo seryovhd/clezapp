@@ -14,6 +14,7 @@ import KanbanListService from "../services/TagServices/KanbanListService";
 import Ticket from "../models/Ticket";
 import Contact from "../models/Contact";
 import Tag from "../models/Tag";
+import ShowTicketService from "../services/TicketServices/ShowTicketService";
 
 type IndexQuery = {
   searchParam?: string;
@@ -126,6 +127,25 @@ export const syncTags = async (
   const { companyId } = req.user;
 
   const tags = await SyncTagService({ ...data, companyId });
+
+  if (data?.ticketId) {
+    try {
+      const ticket = await ShowTicketService(data.ticketId, companyId);
+      const io = getIO();
+      io.to(`company-${companyId}-${ticket.status}`)
+        .to(`company-${companyId}-notification`)
+        .to(`queue-${ticket.queueId}-${ticket.status}`)
+        .to(`queue-${ticket.queueId}-notification`)
+        .to(data.ticketId.toString())
+        .to(`user-${ticket?.userId}`)
+        .emit(`company-${companyId}-ticket`, {
+          action: "update",
+          ticket
+        });
+    } catch (err) {
+      console.error("Error al emitir socket de ticket tras syncTags:", err);
+    }
+  }
 
   return res.json(tags);
 };

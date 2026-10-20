@@ -114,11 +114,11 @@ const NotificationsPopOver = (volume) => {
 	}, [ticketIdUrl]);
 
 	useEffect(() => {
-    const socket = socketManager.getSocket(user.companyId);
+		const socket = socketManager.getSocket(user.companyId);
 
 		socket.on("ready", () => socket.emit("joinNotification"));
 
-		socket.on(`company-${user.companyId}-ticket`, data => {
+		const handleCompanyTicket = data => {
 			if (data.action === "updateUnread" || data.action === "delete") {
 				setNotifications(prevState => {
 					const ticketIndex = prevState.findIndex(t => t.id === data.ticketId);
@@ -141,9 +141,9 @@ const NotificationsPopOver = (volume) => {
 					return prevState;
 				});
 			}
-		});
+		};
 
-		socket.on(`company-${user.companyId}-appMessage`, data => {
+		const handleAppMessage = data => {
 			if (
 				data.action === "create" && !data.message.fromMe && 
 				(data.ticket.status !== "pending" ) &&
@@ -170,10 +170,14 @@ const NotificationsPopOver = (volume) => {
 
 				handleNotifications(data);
 			}
-		});
+		};
+
+		socket.on(`company-${user.companyId}-ticket`, handleCompanyTicket);
+		socket.on(`company-${user.companyId}-appMessage`, handleAppMessage);
 
 		return () => {
-			socket.disconnect();
+			socket.off(`company-${user.companyId}-ticket`, handleCompanyTicket);
+			socket.off(`company-${user.companyId}-appMessage`, handleAppMessage);
 		};
 	}, [user, showPendingTickets, socketManager]);
 

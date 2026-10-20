@@ -154,12 +154,33 @@ const TicketsListCustom = (props) => {
     const socket = socketManager.getSocket(companyId);
 
     const handleSocketEvent = (data) => {
-      // 1. Actualización reactiva instantánea en memoria
+      // 0. Eliminación o salida de cola/ticket
+      if (data?.action === "delete" && data?.ticketId) {
+        setTicketsList((prev) => prev.filter((t) => t.id !== +data.ticketId));
+        return;
+      }
+
+      // 1. Mensajes leídos: poner contador de no leídos en 0 al instante
+      if (data?.action === "updateUnread" && data?.ticketId) {
+        setTicketsList((prev) =>
+          prev.map((t) => (t.id === +data.ticketId ? { ...t, unreadMessages: 0 } : t))
+        );
+        return;
+      }
+
+      // 2. Actualización reactiva instantánea en memoria (tickets, tags, mensajes)
       if (data?.ticket) {
         setTicketsList((prev) => {
           const ticket = data.ticket;
           const isGroupTicket = ticket.isGroup === true || ticket.isGroup === "true";
           if (isGroupTicket) return prev;
+
+          // Si hay filtro de colas seleccionado y el ticket no pertenece a esas colas:
+          if (Array.isArray(selectedQueueIds) && selectedQueueIds.length > 0) {
+            if (ticket.queueId && !selectedQueueIds.includes(ticket.queueId)) {
+              return prev.filter((t) => t.id !== ticket.id);
+            }
+          }
 
           const existsIndex = prev.findIndex((t) => t.id === ticket.id);
 
@@ -194,14 +215,21 @@ const TicketsListCustom = (props) => {
         });
       }
 
-      // 2. Sincronización silenciosa en background con debounce inteligente (1500ms)
-      // Evita saturar peticiones HTTP en ráfagas de mensajes simultáneos
-      if (socketReloadTimer.current) {
-        clearTimeout(socketReloadTimer.current);
+      // 3. Sincronización en background con debounce SOLO si hay filtros complejos activos
+      const hasComplexFilters =
+        Boolean(searchParam) ||
+        (Array.isArray(tags) && tags.length > 0) ||
+        (Array.isArray(users) && users.length > 0) ||
+        Boolean(dateRange?.from);
+
+      if (hasComplexFilters) {
+        if (socketReloadTimer.current) {
+          clearTimeout(socketReloadTimer.current);
+        }
+        socketReloadTimer.current = setTimeout(() => {
+          loadTickets(1, true, true);
+        }, 1500);
       }
-      socketReloadTimer.current = setTimeout(() => {
-        loadTickets(1, true, true);
-      }, 1500);
     };
 
     socket.on(`company-${companyId}-ticket`, handleSocketEvent);
