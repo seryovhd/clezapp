@@ -10,6 +10,8 @@ import ListWhatsAppsService from "../services/WhatsappService/ListWhatsAppsServi
 import ShowWhatsAppService from "../services/WhatsappService/ShowWhatsAppService";
 import UpdateWhatsAppService from "../services/WhatsappService/UpdateWhatsAppService";
 import AppError from "../errors/AppError";
+import Whatsapp from "../models/Whatsapp";
+import User from "../models/User";
 
 interface WhatsappData {
   name: string;
@@ -210,7 +212,25 @@ export const remove = async (
   const { whatsappId } = req.params;
   const { companyId } = req.user;
 
-  const whatsapp = await ShowWhatsAppService(whatsappId, companyId);
+  let whatsapp = await Whatsapp.findByPk(whatsappId);
+
+  if (!whatsapp) {
+    throw new AppError("ERR_NO_WAPP_FOUND", 404);
+  }
+
+  // Validar empresa permitiendo superadmin y registros con companyId null
+  if (
+    whatsapp.companyId !== null &&
+    whatsapp.companyId !== undefined &&
+    companyId !== null &&
+    companyId !== undefined &&
+    Number(whatsapp.companyId) !== Number(companyId)
+  ) {
+    const user = await User.findByPk(req.user.id);
+    if (!user?.super) {
+      throw new AppError("Não é possível acessar registros de outra empresa", 403);
+    }
+  }
 
   if (whatsapp.type === "evolution" || whatsapp.connectionType === "evolution") {
     try {
@@ -218,8 +238,13 @@ export const remove = async (
     } catch (err) {}
   }
 
+  // 1. Cerrar y purgar socket de Baileys en memoria
+  try {
+    await removeWbot(+whatsappId, true);
+  } catch (err) {}
+
+  // 2. Eliminar de la base de datos limpiando relaciones dependientes
   await DeleteWhatsAppService(whatsappId);
-  removeWbot(+whatsappId);
 
   const io = getIO();
   io.to(`company-${companyId}-mainchannel`).emit(`company-${companyId}-whatsapp`, {

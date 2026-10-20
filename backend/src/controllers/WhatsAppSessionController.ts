@@ -5,12 +5,32 @@ import { StartWhatsAppSession } from "../services/WbotServices/StartWhatsAppSess
 import UpdateWhatsAppService from "../services/WhatsappService/UpdateWhatsAppService";
 import DeleteBaileysService from "../services/BaileysServices/DeleteBaileysService";
 import EvolutionApiService from "../services/EvolutionApiServices/EvolutionApiService";
+import Whatsapp from "../models/Whatsapp";
+import User from "../models/User";
+import AppError from "../errors/AppError";
 
 const store = async (req: Request, res: Response): Promise<Response> => {
   const { whatsappId } = req.params;
   const { companyId } = req.user;
 
-  const whatsapp = await ShowWhatsAppService(whatsappId, companyId);
+  let whatsapp = await Whatsapp.findByPk(whatsappId);
+
+  if (!whatsapp) {
+    throw new AppError("ERR_NO_WAPP_FOUND", 404);
+  }
+
+  if (
+    whatsapp.companyId !== null &&
+    whatsapp.companyId !== undefined &&
+    companyId !== null &&
+    companyId !== undefined &&
+    Number(whatsapp.companyId) !== Number(companyId)
+  ) {
+    const user = await User.findByPk(req.user.id);
+    if (!user?.super) {
+      throw new AppError("Não é possível acessar registros de outra empresa", 403);
+    }
+  }
 
   // Si no está conectado, limpiar sesión en memoria para forzar nuevo QR limpio
   if (whatsapp.status !== "CONNECTED") {
@@ -30,7 +50,24 @@ const update = async (req: Request, res: Response): Promise<Response> => {
   const { whatsappId } = req.params;
   const { companyId } = req.user;
 
-  const whatsapp = await ShowWhatsAppService(whatsappId, companyId);
+  let whatsapp = await Whatsapp.findByPk(whatsappId);
+
+  if (!whatsapp) {
+    throw new AppError("ERR_NO_WAPP_FOUND", 404);
+  }
+
+  if (
+    whatsapp.companyId !== null &&
+    whatsapp.companyId !== undefined &&
+    companyId !== null &&
+    companyId !== undefined &&
+    Number(whatsapp.companyId) !== Number(companyId)
+  ) {
+    const user = await User.findByPk(req.user.id);
+    if (!user?.super) {
+      throw new AppError("Não é possível acessar registros de outra empresa", 403);
+    }
+  }
 
   // Si es Evolution API, desconectar la instancia en Evolution
   if (whatsapp.type === "evolution" || whatsapp.connectionType === "evolution") {
@@ -48,8 +85,10 @@ const update = async (req: Request, res: Response): Promise<Response> => {
     // Si no existe la sesión, continuar normalmente
   }
 
-  // Limpiar datos de Baileys para forzar generación de nuevo QR
-  await DeleteBaileysService(whatsapp.id);
+  // Limpiar datos de Baileys para forzar generación de nuevo QR sin claves corruptas
+  try {
+    await DeleteBaileysService(whatsapp.id);
+  } catch (err) {}
 
   // Limpiar sesión en la base de datos
   await whatsapp.update({ session: "", status: "DISCONNECTED", qrcode: "" });
@@ -65,7 +104,25 @@ const update = async (req: Request, res: Response): Promise<Response> => {
 const remove = async (req: Request, res: Response): Promise<Response> => {
   const { whatsappId } = req.params;
   const { companyId } = req.user;
-  const whatsapp = await ShowWhatsAppService(whatsappId, companyId);
+  
+  let whatsapp = await Whatsapp.findByPk(whatsappId);
+
+  if (!whatsapp) {
+    throw new AppError("ERR_NO_WAPP_FOUND", 404);
+  }
+
+  if (
+    whatsapp.companyId !== null &&
+    whatsapp.companyId !== undefined &&
+    companyId !== null &&
+    companyId !== undefined &&
+    Number(whatsapp.companyId) !== Number(companyId)
+  ) {
+    const user = await User.findByPk(req.user.id);
+    if (!user?.super) {
+      throw new AppError("Não é possível acessar registros de outra empresa", 403);
+    }
+  }
 
   // Si es Evolution API, desconectar en Evolution API
   if (whatsapp.type === "evolution" || whatsapp.connectionType === "evolution") {
@@ -76,21 +133,18 @@ const remove = async (req: Request, res: Response): Promise<Response> => {
     }
   }
 
-  // Eliminar sesión del array en memoria
+  // Eliminar sesión del array en memoria de forma segura
   try {
-    const wbot = getWbot(whatsapp.id);
-    if (wbot) {
-      await wbot.logout();
-    }
-  } catch (err) {
-    // Si no existe la sesión, continuar con la limpieza
-  }
+    await removeWbot(whatsapp.id, true);
+  } catch (err) {}
 
-  // Limpiar sesión en la base de datos
+  // Limpiar sesión en la base de datos para eliminar claves corruptas (Bad MAC)
   await whatsapp.update({ status: "DISCONNECTED", session: "", qrcode: "" });
   
-  // Asegurarse de que la sesión se elimine del array
-  await removeWbot(whatsapp.id, false);
+  // Limpiar registros de Baileys
+  try {
+    await DeleteBaileysService(whatsapp.id);
+  } catch (err) {}
 
   return res.status(200).json({ message: "Session disconnected." });
 };

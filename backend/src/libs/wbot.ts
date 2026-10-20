@@ -98,15 +98,31 @@ export const removeWbot = async (
   try {
     const sessionIndex = sessions.findIndex(s => s.id === whatsappId);
     if (sessionIndex !== -1) {
-      if (isLogout) {
-        sessions[sessionIndex].logout();
-        sessions[sessionIndex].ws.close();
-      }
-
+      const session = sessions[sessionIndex];
+      // Remover de la lista inmediatamente para cortar procesamiento de mensajes entrantes o bucles de error
       sessions.splice(sessionIndex, 1);
+
+      if (isLogout && session) {
+        try {
+          if (typeof session.logout === "function") {
+            await session.logout();
+          }
+        } catch (e) {
+          logger.warn(`Aviso al hacer logout de sesión ${whatsappId}: ${e}`);
+        }
+
+        try {
+          if (session.ws && typeof session.ws.close === "function") {
+            session.ws.close();
+          }
+        } catch (e) {
+          logger.warn(`Aviso al cerrar ws de sesión ${whatsappId}: ${e}`);
+        }
+      }
     }
+    retriesQrCodeMap.delete(whatsappId);
   } catch (err) {
-    logger.error(err);
+    logger.error("Error en removeWbot:", err);
   }
 };
 
