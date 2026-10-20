@@ -72,6 +72,7 @@ const TicketsListCustom = (props) => {
   const { user } = useContext(AuthContext);
   const socketManager = useContext(SocketContext);
   const socketReloadTimer = useRef(null);
+  const closedTicketIdsRef = useRef(new Set());
 
   // CARGA DE TICKETS (Permite modo silencioso para evitar parpadeos / flash)
   const loadTickets = async (page = 1, shouldReset = true, isSilent = false) => {
@@ -156,8 +157,10 @@ const TicketsListCustom = (props) => {
     const handleSocketEvent = (data) => {
       // 0. Eliminación reactiva instantánea por socket (ej. ticket cerrado o borrado)
       if (data?.action === "delete" && data?.ticketId) {
+        const deletedId = Number(data.ticketId);
+        closedTicketIdsRef.current.add(deletedId);
         setTicketsList((prev) => {
-          const existsIndex = prev.findIndex((t) => t.id === data.ticketId);
+          const existsIndex = prev.findIndex((t) => Number(t.id) === deletedId);
           if (existsIndex !== -1) {
             const updated = [...prev];
             updated.splice(existsIndex, 1);
@@ -170,71 +173,75 @@ const TicketsListCustom = (props) => {
 
       // 1. Actualización reactiva instantánea en memoria
       const ticket = data?.ticket || data?.message?.ticket;
-      if (ticket) {
-        setTicketsList((prev) => {
-          const isGroupTicket = ticket.isGroup === true || ticket.isGroup === "true";
-          if (isGroupTicket) return prev;
+      const targetTicketId = Number(ticket?.id || data?.message?.ticketId || data?.ticketId);
 
-          const existsIndex = prev.findIndex((t) => t.id === ticket.id);
-
-          // Si el ticket cambió a otro estado (por ejemplo, cerrado o resuelto), remover de este tab
-          if (status && ticket.status !== status) {
-            if (existsIndex !== -1) {
-              const updated = [...prev];
-              updated.splice(existsIndex, 1);
-              return updated;
-            }
-            return prev;
-          }
-
-          // Si ya existe en la lista, actualizar sus datos in-place
-          if (existsIndex !== -1) {
-            const updated = [...prev];
-            const currentItem = updated[existsIndex];
-
-            const hasNewMessage = data.action === "create" || Boolean(data.message);
-            const isIncoming = data.message && !data.message.fromMe;
-
-            const newUnread = isIncoming 
-              ? (ticket.unreadMessages ?? ((currentItem.unreadMessages || 0) + 1))
-              : (ticket.unreadMessages !== undefined ? ticket.unreadMessages : currentItem.unreadMessages);
-
-            const lastBody = data.message?.body || ticket.lastMessage || currentItem.lastMessage;
-            const updatedDate = data.message?.createdAt || ticket.updatedAt || new Date().toISOString();
-
-            updated[existsIndex] = {
-              ...currentItem,
-              ...ticket,
-              lastMessage: lastBody,
-              updatedAt: updatedDate,
-              unreadMessages: newUnread
-            };
-
-            // Si llegó un nuevo mensaje, subirlo a la cabecera inmediatamente
-            if (hasNewMessage) {
-              const [movedItem] = updated.splice(existsIndex, 1);
-              updated.unshift(movedItem);
-            }
-            return updated;
-          }
-
-          // Si es un ticket nuevo de este mismo status, insertarlo arriba inmediatamente
-          if (!status || ticket.status === status) {
-            const lastBody = data.message?.body || ticket.lastMessage;
-            const updatedDate = data.message?.createdAt || ticket.updatedAt || new Date().toISOString();
-            return [{
-              ...ticket,
-              lastMessage: lastBody,
-              updatedAt: updatedDate
-            }, ...prev];
-          }
-
-          return prev;
-        });
+      // Si el ticket está marcado como cerrado y este panel muestra abiertos o pendientes, ignorar
+      if (targetTicketId && closedTicketIdsRef.current.has(targetTicketId) && (status === "open" || status === "pending")) {
+        return;
       }
 
+      setTicketsList((prev) => {
+        const isGroupTicket = ticket?.isGroup === true || ticket?.isGroup === "true";
+        if (isGroupTicket) return prev;
+
+        const existsIndex = prev.findIndex((t) => Number(t.id) === targetTicketId);
+
+        // Si el ticket cambió a otro estado (por ejemplo, cerrado o resuelto), remover de este tab
+        if (ticket?.status && status && ticket.status !== status) {
+          if (existsIndex !== -1) {
+            const updated = [...prev];
+            updated.splice(existsIndex, 1);
+            return updated;
+          }
+          return prev;
+        }
+
+        // Si ya existe en la lista, actualizar sus datos in-place en 0 ms
+        if (existsIndex !== -1) {
+          const updated = [...prev];
+          const currentItem = updated[existsIndex];
+
+          const hasNewMessage = data.action === "create" || Boolean(data.message);
+          const isIncoming = data.message && !data.message.fromMe;
+
+          const newUnread = isIncoming 
+            ? (ticket?.unreadMessages ?? ((currentItem.unreadMessages || 0) + 1))
+            : (ticket?.unreadMessages !== undefined ? ticket.unreadMessages : currentItem.unreadMessages);
+
+          const lastBody = data.message?.body || ticket?.lastMessage || currentItem.lastMessage;
+          const updatedDate = data.message?.createdAt || ticket?.updatedAt || new Date().toISOString();
+
+          updated[existsIndex] = {
+            ...currentItem,
+            ...(ticket || {}),
+            lastMessage: lastBody,
+            updatedAt: updatedDate,
+            unreadMessages: newUnread
+          };
+
+          // Si llegó un nuevo mensaje, subirlo a la cabecera inmediatamente
+          if (hasNewMessage) {
+            const [movedItem] = updated.splice(existsIndex, 1);
+            updated.unshift(movedItem);
+          }
+          return updated;
+        }
+
+        // Si es un ticket nuevo de este mismo status, insertarlo arriba inmediatamente
+        if (ticket && (!status || ticket.status === status)) {
+          const lastBody = data.message?.body || ticket.lastMessage;
+          const updatedDate = data.message?.createdAt || ticket.updatedAt || new Date().toISOString();
+          return [{
+            ...ticket,
+            lastMessage: lastBody,
+            updatedAt: updatedDate
+          }, ...prev];
+        }
+
+        return prev;
+      });
+
       // 2. Sincronización silenciosa en background con debounce inteligente (1500ms)
-      // Evita saturar peticiones HTTP en ráfagas de mensajes simultáneos
       if (socketReloadTimer.current) {
         clearTimeout(socketReloadTimer.current);
       }
@@ -267,11 +274,11 @@ const TicketsListCustom = (props) => {
   // LISTENER DE ACTUALIZACIONES OPTIMISTAS LOCALES A 0 MS
   useEffect(() => {
     const handleOptimisticUpdate = (e) => {
-      const { type, ticketId, tags, status: newStatus, unreadMessages, lastMessage, ticket: rollbackTicket } = e.detail || {};
+      const { type, ticketId, tags, status: newStatus, unreadMessages, lastMessage, ticket: optTicket, rollbackTicket } = e.detail || {};
 
       setTicketsList((prev) => {
         if (type === "rollback" && rollbackTicket) {
-          const exists = prev.some((t) => t.id === rollbackTicket.id);
+          const exists = prev.some((t) => Number(t.id) === Number(rollbackTicket.id));
           if (!exists && (!status || rollbackTicket.status === status)) {
             return [rollbackTicket, ...prev];
           }
@@ -279,18 +286,42 @@ const TicketsListCustom = (props) => {
         }
 
         if (!ticketId) return prev;
-        const existsIndex = prev.findIndex((t) => t.id === ticketId);
-        if (existsIndex === -1) return prev;
-
-        const updated = [...prev];
+        const targetId = Number(ticketId);
+        const existsIndex = prev.findIndex((t) => Number(t.id) === targetId);
 
         if (type === "status") {
-          // Si cambió a otro estado (ej. cerrado), remover de este tab de inmediato
-          if (status && newStatus && newStatus !== status) {
-            updated.splice(existsIndex, 1);
-            return updated;
+          if (newStatus === "closed") {
+            closedTicketIdsRef.current.add(targetId);
+            if (existsIndex !== -1 && (status === "open" || status === "pending")) {
+              const updated = [...prev];
+              updated.splice(existsIndex, 1);
+              return updated;
+            }
+            return prev;
+          }
+
+          if (newStatus === "open") {
+            closedTicketIdsRef.current.delete(targetId);
+            if (status === "pending" && existsIndex !== -1) {
+              const updated = [...prev];
+              updated.splice(existsIndex, 1);
+              return updated;
+            }
+            if (status === "open") {
+              if (existsIndex !== -1) {
+                const updated = [...prev];
+                updated[existsIndex] = { ...updated[existsIndex], status: "open" };
+                return updated;
+              }
+              if (optTicket) {
+                return [{ ...optTicket, status: "open", updatedAt: new Date().toISOString() }, ...prev];
+              }
+            }
           }
         }
+
+        if (existsIndex === -1) return prev;
+        const updated = [...prev];
 
         if (type === "tags") {
           updated[existsIndex] = {

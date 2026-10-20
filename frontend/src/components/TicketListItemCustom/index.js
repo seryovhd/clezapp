@@ -573,17 +573,33 @@ const TicketListItemCustom = ({ ticket }) => {
   };
 
   const handleCloseTicket = async (id) => {
+    // ⚡ Optimistic UI: Remover inmediatamente de la vista en 0 ms
+    window.dispatchEvent(
+      new CustomEvent("ticket-optimistic-update", {
+        detail: {
+          type: "status",
+          ticketId: id,
+          status: "closed"
+        }
+      })
+    );
     setLoading(true);
     try {
       await api.put(`/tickets/${id}`, {
         status: "closed",
         userId: null,
         queueId: null,
-        /*         userId: user?.id,
-                queueId: ticket?.queue?.id, */
       });
       history.push("/tickets/");
     } catch (err) {
+      window.dispatchEvent(
+        new CustomEvent("ticket-optimistic-update", {
+          detail: {
+            type: "rollback",
+            rollbackTicket: ticket
+          }
+        })
+      );
       toastError(err);
     } finally {
       if (isMounted.current) setLoading(false);
@@ -607,14 +623,36 @@ const TicketListItemCustom = ({ ticket }) => {
   };
 
   const handleAcceptTicket = async (id) => {
+    // ⚡ Optimistic UI: Mover de ESPERANDO a ATENDIENDO en 0 ms
+    window.dispatchEvent(
+      new CustomEvent("ticket-optimistic-update", {
+        detail: {
+          type: "status",
+          ticketId: id,
+          status: "open",
+          userId: user?.id,
+          ticket: { ...ticket, status: "open", userId: user?.id, user: user }
+        }
+      })
+    );
+    // Abrir de inmediato el chat del ticket sin esperar la petición de red
+    history.push(`/tickets/${ticket.uuid}`);
+
     setLoading(true);
     try {
       await api.put(`/tickets/${id}`, {
         status: "open",
         userId: user?.id,
       });
-      history.push(`/tickets/${ticket.uuid}`);
     } catch (err) {
+      window.dispatchEvent(
+        new CustomEvent("ticket-optimistic-update", {
+          detail: {
+            type: "rollback",
+            rollbackTicket: ticket
+          }
+        })
+      );
       toastError(err);
     } finally {
       if (isMounted.current) setLoading(false);

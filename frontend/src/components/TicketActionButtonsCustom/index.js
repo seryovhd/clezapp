@@ -85,7 +85,8 @@ const TicketActionButtonsCustom = ({ ticket, handleClose }) => {
 					type: "status",
 					ticketId: ticket.id,
 					status: status,
-					userId: userId
+					userId: userId,
+					ticket: { ...ticket, status: status, userId: userId }
 				}
 			})
 		);
