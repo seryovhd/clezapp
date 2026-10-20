@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { format, isSameDay, parseISO } from "date-fns";
 import { useHistory, useParams } from "react-router-dom";
@@ -52,7 +52,6 @@ const useStyles = makeStyles((theme) => ({
   ticket: {
     position: "relative",
     minHeight: 74,
-    maxHeight: 140,
     height: "auto",
     paddingTop: 6,
     paddingBottom: 6,
@@ -60,22 +59,10 @@ const useStyles = makeStyles((theme) => ({
     margin: "2px 6px",
     width: "calc(100% - 12px)",
     boxSizing: "border-box",
-    transition: "background-color 0.15s ease, opacity 0.22s cubic-bezier(0.4, 0, 0.2, 1), transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), max-height 0.25s cubic-bezier(0.4, 0, 0.2, 1), min-height 0.25s cubic-bezier(0.4, 0, 0.2, 1), padding 0.22s ease, margin 0.22s ease",
+    transition: "background-color 0.15s ease",
     "&:hover": {
       backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "#202c33" : "#f5f6f6",
     },
-  },
-  ticketClosing: {
-    opacity: "0 !important",
-    transform: "translateX(-18px) scale(0.96) !important",
-    maxHeight: "0px !important",
-    minHeight: "0px !important",
-    paddingTop: "0px !important",
-    paddingBottom: "0px !important",
-    marginTop: "0px !important",
-    marginBottom: "0px !important",
-    overflow: "hidden !important",
-    pointerEvents: "none !important",
   },
   selectedTicket: {
     backgroundColor: (theme.palette?.type || theme.mode) === 'dark' ? "#2a3942 !important" : "#f0f2f5 !important",
@@ -437,7 +424,7 @@ const useStyles = makeStyles((theme) => ({
     },
   }
 }));
-const TicketListItemCustom = ({ ticket, isClosing = false }) => {
+const TicketListItemCustom = ({ ticket }) => {
   const classes = useStyles();
   const history = useHistory();
   const [loading, setLoading] = useState(false);
@@ -509,15 +496,7 @@ const TicketListItemCustom = ({ ticket, isClosing = false }) => {
     };
   }, [ticket]);
 
-  const rawTags = Array.isArray(ticket?.tags) ? ticket.tags : lastTagsRef.current;
-  const tagsToRender = useMemo(() => {
-    if (!Array.isArray(rawTags)) return [];
-    return [...rawTags].sort((a, b) => {
-      const nameA = (a?.name || "").toLowerCase();
-      const nameB = (b?.name || "").toLowerCase();
-      return nameA.localeCompare(nameB);
-    });
-  }, [rawTags]);
+  const tagsToRender = Array.isArray(ticket?.tags) ? ticket.tags : lastTagsRef.current;
   const getTimeLabel = () => {
     if (!ticket.updatedAt) return "";
     const lastInteractionDate = parseISO(ticket.updatedAt);
@@ -586,36 +565,17 @@ const TicketListItemCustom = ({ ticket, isClosing = false }) => {
   };
 
   const handleCloseTicket = async (id) => {
-    // ⚡ Optimistic UI: Remover inmediatamente de la vista en 0 ms
-    window.dispatchEvent(
-      new CustomEvent("ticket-optimistic-update", {
-        detail: {
-          type: "status",
-          ticketId: id,
-          status: "closed"
-        }
-      })
-    );
-    if (ticketId && Number(ticketId) === Number(id)) {
-      setCurrentTicket({ id: null, code: null });
-      history.push("/tickets/");
-    }
     setLoading(true);
     try {
       await api.put(`/tickets/${id}`, {
         status: "closed",
         userId: null,
         queueId: null,
+        /*         userId: user?.id,
+                queueId: ticket?.queue?.id, */
       });
+      history.push("/tickets/");
     } catch (err) {
-      window.dispatchEvent(
-        new CustomEvent("ticket-optimistic-update", {
-          detail: {
-            type: "rollback",
-            rollbackTicket: ticket
-          }
-        })
-      );
       toastError(err);
     } finally {
       if (isMounted.current) setLoading(false);
@@ -639,36 +599,14 @@ const TicketListItemCustom = ({ ticket, isClosing = false }) => {
   };
 
   const handleAcceptTicket = async (id) => {
-    // ⚡ Optimistic UI: Mover de ESPERANDO a ATENDIENDO en 0 ms
-    window.dispatchEvent(
-      new CustomEvent("ticket-optimistic-update", {
-        detail: {
-          type: "status",
-          ticketId: id,
-          status: "open",
-          userId: user?.id,
-          ticket: { ...ticket, status: "open", userId: user?.id, user: user }
-        }
-      })
-    );
-    // Abrir de inmediato el chat del ticket sin esperar la petición de red
-    history.push(`/tickets/${ticket.uuid}`);
-
     setLoading(true);
     try {
       await api.put(`/tickets/${id}`, {
         status: "open",
         userId: user?.id,
       });
+      history.push(`/tickets/${ticket.uuid}`);
     } catch (err) {
-      window.dispatchEvent(
-        new CustomEvent("ticket-optimistic-update", {
-          detail: {
-            type: "rollback",
-            rollbackTicket: ticket
-          }
-        })
-      );
       toastError(err);
     } finally {
       if (isMounted.current) setLoading(false);
@@ -685,17 +623,6 @@ const TicketListItemCustom = ({ ticket, isClosing = false }) => {
 
   const handleSelectTicket = () => {
     if (ticket.status === "pending") return;
-    if (ticket.unreadMessages > 0) {
-      window.dispatchEvent(
-        new CustomEvent("ticket-optimistic-update", {
-          detail: {
-            type: "unread",
-            ticketId: ticket.id,
-            unreadMessages: 0
-          }
-        })
-      );
-    }
     const code = uuidv4();
     const { id, uuid } = ticket;
     setCurrentTicket({ id, uuid, code });
@@ -755,7 +682,6 @@ const TicketListItemCustom = ({ ticket, isClosing = false }) => {
         className={clsx(classes.ticket, {
           [classes.pendingTicket]: ticket.status === "pending",
           [classes.selectedTicket]: ticketId && +ticketId === ticket.id,
-          [classes.ticketClosing]: isClosing,
         })}
       >
         <span
@@ -996,12 +922,11 @@ const TicketListItemCustom = ({ ticket, isClosing = false }) => {
         </ListItemSecondaryAction>
       </ListItem>
 
-      {!isClosing && <Divider variant="inset" component="li" />}
+      <Divider variant="inset" component="li" />
     </>
   );
 };
 export default React.memo(TicketListItemCustom, (prevProps, nextProps) => {
-  if (prevProps.isClosing !== nextProps.isClosing) return false;
   const p = prevProps.ticket;
   const n = nextProps.ticket;
   if (!p || !n) return false;

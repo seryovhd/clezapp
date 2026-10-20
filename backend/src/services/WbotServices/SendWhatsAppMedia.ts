@@ -272,12 +272,8 @@ const SendWhatsAppMedia = async ({
       }
 
       const messageId = sentRes?.key?.id || sentRes?.id || `evo_media_${Date.now()}`;
-      const evoLastMsg = isSticker ? "💟 Sticker" : (isFileBody
-        ? (mediaType === "image" ? "📷 Imagen" : mediaType === "video" ? "📹 Video" : mediaType === "audio" ? "🎵 Audio" : "📄 Archivo")
-        : (formatBody(body, ticket.contact) || "📷 Archivo"));
-
-      await Promise.all([
-        CreateMessageService({
+      try {
+        await CreateMessageService({
           messageData: {
             id: messageId,
             ticketId: ticket.id,
@@ -291,12 +287,15 @@ const SendWhatsAppMedia = async ({
             quotedMsgId: quotedMsg?.id
           },
           companyId: ticket.companyId
-        }).catch(err => {
-          console.error("[Evolution] Error guardando media saliente en BD:", err);
-        }),
-        ticket.update({ lastMessage: evoLastMsg })
-      ]);
+        });
+      } catch (err) {
+        console.error("[Evolution] Error guardando media saliente en BD:", err);
+      }
 
+      const evoLastMsg = isSticker ? "💟 Sticker" : (isFileBody
+        ? (mediaType === "image" ? "📷 Imagen" : mediaType === "video" ? "📹 Video" : mediaType === "audio" ? "🎵 Audio" : "📄 Archivo")
+        : (formatBody(body, ticket.contact) || "📷 Archivo"));
+      await ticket.update({ lastMessage: evoLastMsg });
       return sentRes as any;
     }
 
@@ -497,15 +496,10 @@ const SendWhatsAppMedia = async ({
       ? "audio"
       : "document";
 
-    const messageId = sentMessage?.key?.id || `media_${Date.now()}`;
-    const baileysLastMsg = isSticker ? "💟 Sticker" : (isFileText
-      ? (detectedMediaType === "image" ? "📷 Imagen" : detectedMediaType === "video" ? "📹 Video" : detectedMediaType === "audio" ? "🎵 Audio" : "📄 Archivo")
-      : (bodyMessage || "📷 Archivo"));
-
-    await Promise.all([
-      CreateMessageService({
+    try {
+      await CreateMessageService({
         messageData: {
-          id: messageId,
+          id: sentMessage?.key?.id || `media_${Date.now()}`,
           ticketId: ticket.id,
           contactId: undefined,
           body: isSticker ? "sticker" : (isFileText ? "" : (bodyMessage || "")),
@@ -518,11 +512,15 @@ const SendWhatsAppMedia = async ({
           quotedMsgId: quotedMsg?.id
         },
         companyId: ticket.companyId
-      }).catch(saveErr => {
-        console.error("[SendWhatsAppMedia] Error al guardar media saliente en BD:", saveErr);
-      }),
-      ticket.update({ lastMessage: baileysLastMsg })
-    ]);
+      });
+    } catch (saveErr) {
+      console.error("[SendWhatsAppMedia] Error al guardar media saliente en BD:", saveErr);
+    }
+
+    const baileysLastMsg = isSticker ? "💟 Sticker" : (isFileText
+      ? (detectedMediaType === "image" ? "📷 Imagen" : detectedMediaType === "video" ? "📹 Video" : detectedMediaType === "audio" ? "🎵 Audio" : "📄 Archivo")
+      : (bodyMessage || "📷 Archivo"));
+    await ticket.update({ lastMessage: baileysLastMsg });
 
     return sentMessage;
   } catch (err) {

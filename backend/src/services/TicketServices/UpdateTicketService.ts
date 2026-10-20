@@ -99,19 +99,6 @@ const UpdateTicketService = async ({
     }
 
     if (status === "closed") {
-      // 1. Notificar inmediatamente por socket la eliminación del ticket en la lista de abiertos
-      io.to(`company-${companyId}-${oldStatus}`)
-        .to(`queue-${ticket.queueId}-${oldStatus}`)
-        .to(`user-${oldUserId}`)
-        .emit(`company-${companyId}-ticket`, {
-          action: "delete",
-          ticketId: ticket.id
-        });
-
-      // 2. Marcar inmediatamente como closed para que los mensajes de despedida/evaluación
-      // pertenezcan a la sala closed y no se difundan a las salas de tickets abiertos
-      ticket.status = "closed";
-
       const { complationMessage, ratingMessage } = ticket.whatsappId
         ? await ShowWhatsAppService(ticket.whatsappId, companyId)
         : { complationMessage: null, ratingMessage: null };
@@ -123,7 +110,7 @@ const UpdateTicketService = async ({
 
       // Envia a mensagem de avaliação apenas se o ticket não estiver em status 'pendente'
       if (
-        oldStatus !== "pending" &&  // Adiciona a verificação para evitar avaliação em status pendente
+        ticket.status !== "pending" &&  // Adiciona a verificação para evitar avaliação em status pendente
         !ticket.contact.isGroup &&
         !ticket.contact.disableBot &&
         settingEvaluation?.value === "enabled"

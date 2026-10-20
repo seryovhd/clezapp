@@ -198,20 +198,7 @@ const Ticket = () => {
           whatsappType: data.ticket.whatsapp?.type,
           isBusiness: data.ticket.whatsapp?.type === "whatsapp_business"
         });
-        setTicket((prevTicket) => ({
-          ...prevTicket,
-          ...data.ticket,
-          user: data.ticket.user !== undefined ? data.ticket.user : prevTicket.user,
-          contact: data.ticket.contact || prevTicket.contact,
-          whatsapp: { ...(prevTicket?.whatsapp || {}), ...(data.ticket?.whatsapp || {}) },
-          tags: data.ticket.tags !== undefined ? data.ticket.tags : prevTicket.tags
-        }));
-        if (data.ticket.contact) {
-          setContact((prevContact) => ({
-            ...prevContact,
-            ...data.ticket.contact
-          }));
-        }
+        setTicket(data.ticket);
         if (data.ticket.whatsapp?.type === "whatsapp_business" || data.ticket.whatsapp?.type === "facebook_messenger") {
           calculate24HourWindow(data.ticket.id);
         }
@@ -255,10 +242,10 @@ const Ticket = () => {
   };
 
   const renderTicketInfo = () => {
-    if (ticket && ticket.id) {
+    if (ticket.user !== undefined) {
       return (
         <TicketInfo
-          contact={contact || ticket.contact}
+          contact={contact}
           ticket={ticket}
           onClick={handleDrawerOpen}
         />

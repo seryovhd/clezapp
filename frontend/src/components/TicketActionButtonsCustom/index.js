@@ -78,26 +78,6 @@ const TicketActionButtonsCustom = ({ ticket, handleClose }) => {
 	});
 
 	const handleUpdateTicketStatus = async (e, status, userId) => {
-		// ⚡ Optimistic UI: actualización inmediata a 0 ms para la interfaz
-		window.dispatchEvent(
-			new CustomEvent("ticket-optimistic-update", {
-				detail: {
-					type: "status",
-					ticketId: ticket.id,
-					status: status,
-					userId: userId,
-					ticket: { ...ticket, status: status, userId: userId }
-				}
-			})
-		);
-
-		if (status !== "open") {
-			setCurrentTicket({ id: null, code: null });
-			history.push("/tickets");
-		} else {
-			setCurrentTicket({ ...ticket, code: "#open" });
-		}
-
 		setLoading(true);
 		try {
 			await api.put(`/tickets/${ticket.id}`, {
@@ -111,17 +91,14 @@ const TicketActionButtonsCustom = ({ ticket, handleClose }) => {
 			});
 
 			setLoading(false);
+			if (status === "open") {
+				setCurrentTicket({ ...ticket, code: "#open" });
+			} else {
+				setCurrentTicket({ id: null, code: null });
+				history.push("/tickets");
+			}
 		} catch (err) {
 			setLoading(false);
-			// Rollback si la red falló
-			window.dispatchEvent(
-				new CustomEvent("ticket-optimistic-update", {
-					detail: {
-						type: "rollback",
-						ticket: ticket
-					}
-				})
-			);
 			toastError(err);
 		}
 	};

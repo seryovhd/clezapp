@@ -14,7 +14,6 @@ export interface MessageData {
   mediaUrl?: string;
   ack?: number;
   queueId?: number;
-  wid?: string;
   isForwarded?: boolean;
   // PARCHE MENSAJE PRIVADO 
   isPrivate?: boolean;
@@ -35,13 +34,7 @@ const CreateMessageService = async ({
   messageData,
   companyId
 }: Request): Promise<Message> => {
-  const payload = {
-    ...messageData,
-    companyId,
-    ...(messageData.isPrivate && !messageData.wid ? { wid: `PVT${messageData.id}` } : {})
-  };
-
-  await Message.upsert(payload);
+  await Message.upsert({ ...messageData, companyId });
 
   const message = await Message.findByPk(messageData.id, {
     include: [
@@ -52,11 +45,10 @@ const CreateMessageService = async ({
         include: [
           "contact",
           "queue",
-          "user",
-          "tags",
           {
             model: Whatsapp,
-            as: "whatsapp"
+            as: "whatsapp",
+            attributes: ["name"]
           }
         ]
       },
@@ -68,29 +60,22 @@ const CreateMessageService = async ({
     ]
   });
 
+  if (message.ticket.queueId !== null && message.queueId === null) {
+    await message.update({ queueId: message.ticket.queueId });
+  }
+  // PARCHE MENSAJE PRIVADO
+  if (message.isPrivate) {
+    await message.update({ wid: `PVT${message.id}` });
+  }
+  // PARCHE MENSAJE PRIVADO - FIN
   if (!message) {
     throw new Error("ERR_CREATING_MESSAGE");
   }
-
-  if (message.ticket?.queueId !== null && message.queueId === null) {
-    await message.update({ queueId: message.ticket.queueId });
-    message.queueId = message.ticket.queueId;
-  }
-  // PARCHE MENSAJE PRIVADO
-  if (message.isPrivate && !(message as any).wid) {
-    const pvtWid = `PVT${message.id}`;
-    try {
-      await (message as any).update({ wid: pvtWid });
-    } catch (_) {}
-    (message as any).wid = pvtWid;
-  }
-  // PARCHE MENSAJE PRIVADO - FIN
 
   const io = getIO();
   io.to(message.ticketId.toString())
     .to(`company-${companyId}-${message.ticket.status}`)
     .to(`company-${companyId}-notification`)
-    .to(`company-${companyId}-mainchannel`)
     .to(`queue-${message.ticket.queueId}-${message.ticket.status}`)
     .to(`queue-${message.ticket.queueId}-notification`)
     .emit(`company-${companyId}-appMessage`, {
@@ -98,17 +83,6 @@ const CreateMessageService = async ({
       message,
       ticket: message.ticket,
       contact: message.ticket.contact
-    });
-
-  io.to(`company-${companyId}-${message.ticket.status}`)
-    .to(`company-${companyId}-notification`)
-    .to(`company-${companyId}-mainchannel`)
-    .to(`queue-${message.ticket.queueId}-${message.ticket.status}`)
-    .to(`queue-${message.ticket.queueId}-notification`)
-    .to(message.ticketId.toString())
-    .emit(`company-${companyId}-ticket`, {
-      action: "update",
-      ticket: message.ticket
     });
 
   return message;

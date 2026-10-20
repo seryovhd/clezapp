@@ -75,7 +75,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     flexDirection: "column",
     flexGrow: 1,
-    padding: "10px 20px 18px 20px",
+    padding: "10px 20px 10px 20px",
     overflowY: "scroll",
     ...theme.scrollbarStyles,
     "& a": {
@@ -102,16 +102,6 @@ const useStyles = makeStyles((theme) => ({
     display: "block",
     textAlign: "left",
   },
-  "@keyframes fadeInBubble": {
-    "0%": {
-      opacity: 0,
-      transform: "translateY(4px) scale(0.985)",
-    },
-    "100%": {
-      opacity: 1,
-      transform: "translateY(0) scale(1)",
-    },
-  },
   messageLeft: {
     marginRight: 20,
     marginTop: 2,
@@ -120,7 +110,6 @@ const useStyles = makeStyles((theme) => ({
     height: "auto",
     display: "block",
     position: "relative",
-    animation: "$fadeInBubble 0.18s cubic-bezier(0.1, 0.9, 0.2, 1)",
     "&:hover #messageActionsButton": {
       display: "flex",
       position: "absolute",
@@ -184,7 +173,6 @@ const useStyles = makeStyles((theme) => ({
     height: "auto",
     display: "block",
     position: "relative",
-    animation: "$fadeInBubble 0.18s cubic-bezier(0.1, 0.9, 0.2, 1)",
     "&:hover #messageActionsButton": {
       display: "flex",
       position: "absolute",
@@ -480,15 +468,7 @@ const sortMessages = (list) => {
 
 const reducer = (state, action) => {
   if (action.type === "HYDRATE_CACHED") {
-    const seen = new Set();
-    const unique = [];
-    for (const m of (action.payload || [])) {
-      if (m && m.id && !seen.has(m.id) && !m.isOptimistic) {
-        seen.add(m.id);
-        unique.push(m);
-      }
-    }
-    return sortMessages(unique);
+    return sortMessages(action.payload);
   }
 
   if (action.type === "LOAD_MESSAGES") {
@@ -501,14 +481,8 @@ const reducer = (state, action) => {
       const existingIds = new Set(messages.map((m) => m.id));
       const optimistic = state.filter(
         (m) =>
-          Boolean(m.isOptimistic) &&
           !existingIds.has(m.id) &&
-          !messages.some(
-            (realMsg) =>
-              realMsg.fromMe &&
-              Number(realMsg.ticketId) === Number(m.ticketId) &&
-              realMsg.body === m.body
-          )
+          (typeof m.id === "string" || m.id < 0 || m.status === "pending")
       );
       combined = [...messages, ...optimistic];
     } else {
@@ -526,33 +500,15 @@ const reducer = (state, action) => {
     if (!newMessage) return state;
     const messageIndex = state.findIndex((m) => m.id === newMessage.id);
 
-    // Buscar si coincide con un mensaje optimista temporal que esté esperando confirmación
-    const optimisticIndex = state.findIndex(
-      (m) =>
-        m.isOptimistic &&
-        Number(m.ticketId) === Number(newMessage.ticketId) &&
-        m.fromMe &&
-        m.body === newMessage.body
-    );
-
     let updated;
     if (messageIndex !== -1) {
       updated = [...state];
       updated[messageIndex] = newMessage;
-    } else if (optimisticIndex !== -1) {
-      // Reemplazo limpio del mensaje optimista temporal por el mensaje real confirmado
-      updated = [...state];
-      updated[optimisticIndex] = newMessage;
     } else {
       updated = [...state, newMessage];
     }
 
     return sortMessages(updated);
-  }
-
-  if (action.type === "REMOVE_MESSAGE") {
-    const messageId = action.payload;
-    return state.filter((m) => m.id !== messageId);
   }
 
   if (action.type === "UPDATE_MESSAGE") {
@@ -631,18 +587,15 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
     }
     if (lastMessageRef.current) {
       try {
-        lastMessageRef.current.scrollIntoView({ block: "end", behavior: "auto" });
+        lastMessageRef.current.scrollIntoView({ behavior: "auto", block: "end" });
       } catch (e) {}
     }
   };
 
   const scrollToBottom = () => {
-    if (messagesContainerRef.current) {
+    if (lastMessageRef.current) {
       try {
-        messagesContainerRef.current.scrollTo({
-          top: messagesContainerRef.current.scrollHeight,
-          behavior: "smooth"
-        });
+        lastMessageRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
       } catch (e) {
         scrollToBottomInstant();
       }
@@ -656,54 +609,11 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
     requestAnimationFrame(() => {
       scrollToBottomInstant();
     });
-    setTimeout(scrollToBottomInstant, 30);
-    setTimeout(scrollToBottomInstant, 80);
-    setTimeout(scrollToBottomInstant, 180);
-    setTimeout(scrollToBottomInstant, 350);
+    setTimeout(scrollToBottomInstant, 50);
+    setTimeout(scrollToBottomInstant, 150);
+    setTimeout(scrollToBottomInstant, 300);
+    setTimeout(scrollToBottomInstant, 600);
   };
-
-  // ⚡ Detección reactiva de nuevos mensajes para hacer scroll instantáneo
-  const lastMessage = messagesList.length > 0 ? messagesList[messagesList.length - 1] : null;
-  const lastMessageIdRef = useRef(null);
-
-  useEffect(() => {
-    if (isInitialLoad.current) return;
-    if (!lastMessage) return;
-
-    if (lastMessageIdRef.current !== lastMessage.id) {
-      lastMessageIdRef.current = lastMessage.id;
-      const container = messagesContainerRef.current;
-      const isFromMe = Boolean(lastMessage.fromMe);
-      const isNearBottom = container
-        ? container.scrollHeight - container.scrollTop - container.clientHeight < 300
-        : true;
-
-      if (isFromMe || isNearBottom) {
-        ensureScrollToBottom();
-      }
-    }
-  }, [lastMessage]);
-
-  // ⚡ ResizeObserver: Si el contenedor cambia de tamaño (por el carousel, input multilínea o teclado),
-  // y el usuario estaba al fondo, mantenerlo perfectamente al fondo
-  useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container || typeof ResizeObserver === "undefined") return;
-
-    const resizeObserver = new ResizeObserver(() => {
-      const isNearBottom =
-        container.scrollHeight - container.scrollTop - container.clientHeight < 300;
-      if (isNearBottom) {
-        container.scrollTop = container.scrollHeight;
-      }
-    });
-
-    resizeObserver.observe(container);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, []);
 
   useEffect(() => {
     if (isInitialLoad.current && messagesList.length > 0) {
@@ -808,32 +718,14 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
         if (cached) {
           const exists = cached.messages.some((m) => m.id === data.message.id);
           if (!exists) {
-            // Limpieza: filtrar cualquier residuo optimista que coincida
-            const cleanCached = cached.messages.filter(
-              (m) =>
-                !m.isOptimistic &&
-                !(
-                  m.fromMe &&
-                  Number(m.ticketId) === Number(data.message.ticketId) &&
-                  m.body === data.message.body
-                )
-            );
             setTicketMessagesCache(
               +currentTicketId.current,
-              sortMessages([...cleanCached, data.message]),
+              sortMessages([...cached.messages, data.message]),
               cached.hasMore
             );
           }
         }
-        const container = messagesContainerRef.current;
-        const isNearBottom = container
-          ? container.scrollHeight - container.scrollTop - container.clientHeight < 300
-          : true;
-        if (data.message.fromMe || isNearBottom) {
-          ensureScrollToBottom();
-        } else {
-          scrollToBottom();
-        }
+        scrollToBottom();
       }
 
       if (data.action === "update" && data.message.ticketId === currentTicketId.current) {
@@ -851,34 +743,6 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
       }
     };
 
-    const handleOptimisticMessage = (e) => {
-      const msg = e.detail?.message;
-      if (msg && Number(msg.ticketId) === Number(currentTicketId.current)) {
-        dispatch({ type: "ADD_MESSAGE", payload: msg });
-        // No guardar mensajes provisionales temporales en la caché persistente
-        // para garantizar que al cambiar de chat y regresar nunca aparezcan duplicados
-        ensureScrollToBottom();
-      }
-    };
-
-    const handleOptimisticMessageRemove = (e) => {
-      const { messageId, ticketId: evtTicketId } = e.detail || {};
-      if (Number(evtTicketId) === Number(currentTicketId.current)) {
-        dispatch({ type: "REMOVE_MESSAGE", payload: messageId });
-        const cached = recentMessagesCache.get(+currentTicketId.current);
-        if (cached) {
-          setTicketMessagesCache(
-            +currentTicketId.current,
-            cached.messages.filter((m) => m.id !== messageId),
-            cached.hasMore
-          );
-        }
-      }
-    };
-
-    window.addEventListener("chat-optimistic-message", handleOptimisticMessage);
-    window.addEventListener("chat-optimistic-message-remove", handleOptimisticMessageRemove);
-
     socket.on("ready", onReady);
     socket.on(`company-${companyId}-appMessage`, onAppMessage);
 
@@ -889,8 +753,6 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
     return () => {
       socket.off("ready", onReady);
       socket.off(`company-${companyId}-appMessage`, onAppMessage);
-      window.removeEventListener("chat-optimistic-message", handleOptimisticMessage);
-      window.removeEventListener("chat-optimistic-message-remove", handleOptimisticMessageRemove);
     };
   }, [ticketId, ticket, socketManager]);
 
@@ -992,7 +854,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
   const renderMessageAck = (message) => {
     if (message.isPrivate) return null;
     if (message.ack === 0) {
-      return <Done fontSize="small" className={classes.ackIcons} />;
+      return <AccessTime fontSize="small" className={classes.ackIcons} />;
     }
     if (message.ack === 1) {
       return <Done fontSize="small" className={classes.ackIcons} />;
@@ -1533,7 +1395,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
         onScroll={handleScroll}
       >
         {messagesList.length > 0 ? renderMessages() : []}
-        <div ref={lastMessageRef} style={{ float: "left", clear: "both", height: 10, width: "100%" }} />
+        <div ref={lastMessageRef} style={{ float: "left", clear: "both", height: 1 }} />
         {contactPresence === "composing" && (
           <div className={classes.messageLeft}>
             <div className={classes.wave}>

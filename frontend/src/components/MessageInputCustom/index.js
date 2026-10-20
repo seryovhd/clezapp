@@ -722,7 +722,6 @@ const ActionButtons = (props) => {
       <IconButton
         aria-label="sendMessage"
         component="span"
-        onMouseDown={(e) => e.preventDefault()}
         onClick={showSelectMessageCheckbox ? handleOpenModalForward : handleSendMessage}
         disabled={isDisabled}
         title={tooltipText}
@@ -1088,27 +1087,8 @@ const MessageInputCustom = (props) => {
   const [quickMessages, setQuickMessages] = useState([]);
   const { list: listQuickMessages } = useQuickMessages();
 
-  // ⚡ Enfocar el campo de texto del chat ni bien se abra el ticket
   useEffect(() => {
-    const focusInput = () => {
-      if (inputRef && inputRef.current && ticketStatus === "open") {
-        inputRef.current.focus();
-      }
-    };
-
-    focusInput();
-    const timer1 = setTimeout(focusInput, 80);
-    const timer2 = setTimeout(focusInput, 250);
-    return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-    };
-  }, [ticketId, ticketStatus]);
-
-  useEffect(() => {
-    if (inputRef && inputRef.current) {
-      inputRef.current.focus();
-    }
+    inputRef.current.focus();
   }, [replyingMessage]);
   //HUB INICIO
   const [channelType, setChannelType] = useState(null);
@@ -1135,6 +1115,7 @@ const MessageInputCustom = (props) => {
     fetchChannelType();
   }, [ticketId]);
 
+  // HUB FIN
   useEffect(() => {
     inputRef.current.focus();
     return () => {
@@ -1144,12 +1125,6 @@ const MessageInputCustom = (props) => {
       setReplyingMessage(null);
     };
   }, [ticketId, setReplyingMessage]);
-
-  useEffect(() => {
-    if (replyingMessage && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [replyingMessage]);
 
   const socketManager = useContext(SocketContext);
   const [quickMessagesMode, setQuickMessagesMode] = useState("both");
@@ -1357,48 +1332,6 @@ const MessageInputCustom = (props) => {
         ? `*${user?.name}:*\n${message.message}`
         : message.message;
 
-      const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-      const optimisticMessage = {
-        id: optimisticId,
-        ticketId: Number(ticketId),
-        body: messageToSend,
-        fromMe: true,
-        read: true,
-        ack: 1, // ⚡ 1 = check inmediato sin reloj
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        mediaType: "chat",
-        mediaUrl: null,
-        quotedMsg: replyingMessage,
-        isPrivate: sendPrivate,
-        isOptimistic: true,
-        sender: user?.name,
-        contact: null
-      };
-
-      // ⚡ Despachar mensaje a la pantalla de chat y barra lateral en 0 ms
-      window.dispatchEvent(
-        new CustomEvent("chat-optimistic-message", {
-          detail: {
-            message: optimisticMessage
-          }
-        })
-      );
-      window.dispatchEvent(
-        new CustomEvent("ticket-optimistic-update", {
-          detail: {
-            type: "lastMessage",
-            ticketId: Number(ticketId),
-            lastMessage: messageToSend
-          }
-        })
-      );
-
-      setInputMessage("");
-      if (inputRef && inputRef.current) {
-        inputRef.current.focus();
-      }
-
       try {
         const payload = {
           read: 1,
@@ -1415,14 +1348,7 @@ const MessageInputCustom = (props) => {
             companyId: user?.companyId, // por si hub lo requiere
           });
         }
-        if (inputRef && inputRef.current) {
-          inputRef.current.focus();
-        }
-        setTimeout(() => {
-          if (inputRef && inputRef.current) {
-            inputRef.current.focus();
-          }
-        }, 50);
+        setInputMessage("");
       } catch (err) {
         toastError(err);
       }
@@ -1524,66 +1450,14 @@ const MessageInputCustom = (props) => {
     setReplyingMessage(null);
     setShowEmoji(false);
 
-    // Asegurar que el input conserve el foco
-    if (inputRef && inputRef.current) {
-      inputRef.current.focus();
-    }
-    setTimeout(() => {
-      if (inputRef && inputRef.current) {
-        inputRef.current.focus();
-      }
-    }, 50);
-
-    const finalBody = signMessage
-      ? `*${user?.name}:*\n${currentText}`
-      : currentText;
-
-    const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-
-    const optimisticMessage = {
-      id: optimisticId,
-      ticketId: Number(ticketId),
-      body: finalBody,
-      fromMe: true,
-      read: true,
-      ack: 1, // ⚡ 1 = check inmediato sin reloj de espera
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      mediaType: "chat",
-      mediaUrl: null,
-      quotedMsg: currentReplying,
-      isPrivate: currentPrivate,
-      isOptimistic: true,
-      sender: user?.name,
-      contact: null
-    };
-
-    // ⚡ Despachar mensaje a la pantalla de chat en 0 ms
-    window.dispatchEvent(
-      new CustomEvent("chat-optimistic-message", {
-        detail: {
-          message: optimisticMessage
-        }
-      })
-    );
-
-    // ⚡ Despachar actualización a la tarjeta del ticket en la lista lateral en 0 ms
-    window.dispatchEvent(
-      new CustomEvent("ticket-optimistic-update", {
-        detail: {
-          type: "lastMessage",
-          ticketId: Number(ticketId),
-          lastMessage: finalBody
-        }
-      })
-    );
-
     //HUB INICIO
     const message = {
       read: 1,
       fromMe: true,
       mediaUrl: "",
-      body: finalBody,
+      body: signMessage
+        ? `*${user?.name}:*\n${currentText}`
+        : currentText,
       quotedMsg: currentReplying,
       companyId: user?.companyId,
       isPrivate: currentPrivate
@@ -1592,14 +1466,6 @@ const MessageInputCustom = (props) => {
     try {
       if (channelType === null) {
         toastError("⚠️ WHATSAPPS.TYPE no encontrado");
-        window.dispatchEvent(
-          new CustomEvent("chat-optimistic-message-remove", {
-            detail: {
-              messageId: optimisticId,
-              ticketId: Number(ticketId)
-            }
-          })
-        );
         setInputMessage(currentText);
         setReplyingMessage(currentReplying);
         return;
@@ -1610,15 +1476,7 @@ const MessageInputCustom = (props) => {
         await api.post(`/hub-message/${ticketId}`, message);
       }
     } catch (err) {
-      // Si la petición falla, remover el mensaje optimista y restaurar el texto para que el operador no lo pierda
-      window.dispatchEvent(
-        new CustomEvent("chat-optimistic-message-remove", {
-          detail: {
-            messageId: optimisticId,
-            ticketId: Number(ticketId)
-          }
-        })
-      );
+      // Si la petición falla, restaurar el texto para que el operador no lo pierda
       setInputMessage(currentText);
       setReplyingMessage(currentReplying);
       toastError(err);
@@ -1682,18 +1540,6 @@ const MessageInputCustom = (props) => {
   };
   const [sendPrivate, setSendPrivate] = useState(false);
   const renderReplyingMessage = (message) => {
-    const displayBody =
-      message.body ||
-      (message.mediaType === "image"
-        ? "📷 Foto"
-        : message.mediaType === "audio"
-        ? "🎵 Audio"
-        : message.mediaType === "video"
-        ? "🎥 Video"
-        : message.mediaType
-        ? "📄 Archivo"
-        : "");
-
     return (
       <div className={classes.replyginMsgWrapper}>
         <div className={classes.replyginMsgContainer}>
@@ -1708,7 +1554,7 @@ const MessageInputCustom = (props) => {
                 {message.contact?.name}
               </span>
             )}
-            {displayBody}
+            {message.body}
           </div>
         </div>
         <IconButton

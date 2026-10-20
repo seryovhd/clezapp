@@ -72,22 +72,6 @@ const TicketsListCustom = (props) => {
   const { user } = useContext(AuthContext);
   const socketManager = useContext(SocketContext);
   const socketReloadTimer = useRef(null);
-  const closedTicketIdsRef = useRef(new Set());
-  const [closingTicketIds, setClosingTicketIds] = useState(() => new Set());
-
-  const removeTicketSmoothly = (ticketIdToRemove) => {
-    const idNum = Number(ticketIdToRemove);
-    closedTicketIdsRef.current.add(idNum);
-    setClosingTicketIds((prev) => new Set(prev).add(idNum));
-    setTimeout(() => {
-      setTicketsList((current) => current.filter((t) => Number(t.id) !== idNum));
-      setClosingTicketIds((prev) => {
-        const next = new Set(prev);
-        next.delete(idNum);
-        return next;
-      });
-    }, 250);
-  };
 
   // CARGA DE TICKETS (Permite modo silencioso para evitar parpadeos / flash)
   const loadTickets = async (page = 1, shouldReset = true, isSilent = false) => {
@@ -170,83 +154,48 @@ const TicketsListCustom = (props) => {
     const socket = socketManager.getSocket(companyId);
 
     const handleSocketEvent = (data) => {
-      // 0. Eliminación reactiva con transición suave (ej. ticket cerrado o borrado)
-      if (data?.action === "delete" && data?.ticketId) {
-        removeTicketSmoothly(data.ticketId);
-        return;
-      }
-
       // 1. Actualización reactiva instantánea en memoria
-      const ticket = data?.ticket || data?.message?.ticket;
-      const targetTicketId = Number(ticket?.id || data?.message?.ticketId || data?.ticketId);
+      if (data?.ticket) {
+        setTicketsList((prev) => {
+          const ticket = data.ticket;
+          const isGroupTicket = ticket.isGroup === true || ticket.isGroup === "true";
+          if (isGroupTicket) return prev;
 
-      // Si el ticket está marcado como cerrado y este panel muestra abiertos o pendientes, ignorar
-      if (targetTicketId && closedTicketIdsRef.current.has(targetTicketId) && (status === "open" || status === "pending")) {
-        return;
-      }
+          const existsIndex = prev.findIndex((t) => t.id === ticket.id);
 
-      setTicketsList((prev) => {
-        const isGroupTicket = ticket?.isGroup === true || ticket?.isGroup === "true";
-        if (isGroupTicket) return prev;
+          // Si el ticket cambió a otro estado (por ejemplo, cerrado o resuelto), remover de este tab
+          if (status && ticket.status !== status) {
+            if (existsIndex !== -1) {
+              const updated = [...prev];
+              updated.splice(existsIndex, 1);
+              return updated;
+            }
+            return prev;
+          }
 
-        const existsIndex = prev.findIndex((t) => Number(t.id) === targetTicketId);
-
-        // Si el ticket cambió a otro estado (por ejemplo, cerrado o resuelto), remover de este tab
-        if (ticket?.status && status && ticket.status !== status) {
+          // Si ya existe en la lista, actualizar sus datos in-place
           if (existsIndex !== -1) {
             const updated = [...prev];
-            updated.splice(existsIndex, 1);
+            updated[existsIndex] = { ...updated[existsIndex], ...ticket };
+            // Si llegó un nuevo mensaje, subirlo a la cabecera suavemente
+            if (data.action === "create" || data.message) {
+              const [movedItem] = updated.splice(existsIndex, 1);
+              updated.unshift(movedItem);
+            }
             return updated;
           }
-          return prev;
-        }
 
-        // Si ya existe en la lista, actualizar sus datos in-place en 0 ms
-        if (existsIndex !== -1) {
-          const updated = [...prev];
-          const currentItem = updated[existsIndex];
-
-          const hasNewMessage = data.action === "create" || Boolean(data.message);
-          const isIncoming = data.message && !data.message.fromMe;
-
-          const newUnread = isIncoming 
-            ? (ticket?.unreadMessages ?? ((currentItem.unreadMessages || 0) + 1))
-            : (ticket?.unreadMessages !== undefined ? ticket.unreadMessages : currentItem.unreadMessages);
-
-          const lastBody = data.message?.body || ticket?.lastMessage || currentItem.lastMessage;
-          const updatedDate = data.message?.createdAt || ticket?.updatedAt || new Date().toISOString();
-
-          updated[existsIndex] = {
-            ...currentItem,
-            ...(ticket || {}),
-            lastMessage: lastBody,
-            updatedAt: updatedDate,
-            unreadMessages: newUnread
-          };
-
-          // Si llegó un nuevo mensaje, subirlo a la cabecera inmediatamente
-          if (hasNewMessage) {
-            const [movedItem] = updated.splice(existsIndex, 1);
-            updated.unshift(movedItem);
+          // Si es un ticket nuevo de este mismo status, insertarlo arriba
+          if (!status || ticket.status === status) {
+            return [ticket, ...prev];
           }
-          return updated;
-        }
 
-        // Si es un ticket nuevo de este mismo status, insertarlo arriba inmediatamente
-        if (ticket && (!status || ticket.status === status)) {
-          const lastBody = data.message?.body || ticket.lastMessage;
-          const updatedDate = data.message?.createdAt || ticket.updatedAt || new Date().toISOString();
-          return [{
-            ...ticket,
-            lastMessage: lastBody,
-            updatedAt: updatedDate
-          }, ...prev];
-        }
-
-        return prev;
-      });
+          return prev;
+        });
+      }
 
       // 2. Sincronización silenciosa en background con debounce inteligente (1500ms)
+      // Evita saturar peticiones HTTP en ráfagas de mensajes simultáneos
       if (socketReloadTimer.current) {
         clearTimeout(socketReloadTimer.current);
       }
@@ -275,92 +224,6 @@ const TicketsListCustom = (props) => {
       socket.off(`company-${companyId}-settings`, handleSettingsEvent);
     };
   }, [status, socketManager, selectedQueueIds, showAll, searchParam, tags, users, dateRange]);
-
-  // LISTENER DE ACTUALIZACIONES OPTIMISTAS LOCALES A 0 MS
-  useEffect(() => {
-    const handleOptimisticUpdate = (e) => {
-      const { type, ticketId, tags, status: newStatus, unreadMessages, lastMessage, ticket: optTicket, rollbackTicket } = e.detail || {};
-
-      setTicketsList((prev) => {
-        if (type === "rollback" && rollbackTicket) {
-          const exists = prev.some((t) => Number(t.id) === Number(rollbackTicket.id));
-          if (!exists && (!status || rollbackTicket.status === status)) {
-            return [rollbackTicket, ...prev];
-          }
-          return prev;
-        }
-
-        if (!ticketId) return prev;
-        const targetId = Number(ticketId);
-        const existsIndex = prev.findIndex((t) => Number(t.id) === targetId);
-
-        if (type === "status") {
-          if (newStatus === "closed") {
-            if (existsIndex !== -1 && (status === "open" || status === "pending")) {
-              removeTicketSmoothly(targetId);
-              return prev;
-            }
-            return prev;
-          }
-
-          if (newStatus === "open") {
-            closedTicketIdsRef.current.delete(targetId);
-            if (status === "pending" && existsIndex !== -1) {
-              const updated = [...prev];
-              updated.splice(existsIndex, 1);
-              return updated;
-            }
-            if (status === "open") {
-              if (existsIndex !== -1) {
-                const updated = [...prev];
-                updated[existsIndex] = { ...updated[existsIndex], status: "open" };
-                return updated;
-              }
-              if (optTicket) {
-                return [{ ...optTicket, status: "open", updatedAt: new Date().toISOString() }, ...prev];
-              }
-            }
-          }
-        }
-
-        if (existsIndex === -1) return prev;
-        const updated = [...prev];
-
-        if (type === "tags") {
-          updated[existsIndex] = {
-            ...updated[existsIndex],
-            tags: Array.isArray(tags) ? [...tags] : []
-          };
-          return updated;
-        }
-
-        if (type === "unread") {
-          updated[existsIndex] = {
-            ...updated[existsIndex],
-            unreadMessages: unreadMessages !== undefined ? unreadMessages : 0
-          };
-          return updated;
-        }
-
-        if (type === "lastMessage") {
-          const item = {
-            ...updated[existsIndex],
-            lastMessage: lastMessage || updated[existsIndex].lastMessage,
-            updatedAt: new Date().toISOString()
-          };
-          updated.splice(existsIndex, 1);
-          return [item, ...updated];
-        }
-
-        return prev;
-      });
-    };
-
-    window.addEventListener("ticket-optimistic-update", handleOptimisticUpdate);
-    return () => {
-      window.removeEventListener("ticket-optimistic-update", handleOptimisticUpdate);
-    };
-  }, [status]);
 
   // ACTUALIZAR CONTADOR EXCLUYENDO TICKETS DE GRUPO
   useEffect(() => {
@@ -404,13 +267,7 @@ const TicketsListCustom = (props) => {
               <p className={classes.noTicketsText}>{i18n.t("ticketsList.noTicketsMessage")}</p>
             </div>
           ) : (
-            nonGroupTickets.map((ticket) => (
-              <TicketListItem
-                ticket={ticket}
-                key={ticket.id}
-                isClosing={closingTicketIds.has(Number(ticket.id))}
-              />
-            ))
+            nonGroupTickets.map((ticket) => <TicketListItem ticket={ticket} key={ticket.id} />)
           )}
           {loading && nonGroupTickets.length === 0 && <TicketsListSkeleton />}
         </List>
