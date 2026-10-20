@@ -118,6 +118,7 @@ const SendWhatsAppMessage = async ({
       }
 
       const messageId = sentRes?.key?.id || sentRes?.id || `evo_${Date.now()}`;
+      await ticket.update({ lastMessage: formattedText });
       try {
         await CreateMessageService({
           messageData: {
@@ -138,7 +139,6 @@ const SendWhatsAppMessage = async ({
         logger.warn("[Evolution] Error guardando mensaje saliente en BD:", err);
       }
 
-      await ticket.update({ lastMessage: formattedText });
       logger.info(`[Evolution] Mensaje enviado al ticket ${ticket.id} - ${ticket.contact.number}`);
       return sentRes as any;
     }
@@ -242,6 +242,8 @@ const SendWhatsAppMessage = async ({
 
     const messageId = sentMessage?.key?.id || `wbot_${Date.now()}`;
 
+    await ticket.update({ lastMessage: formattedText });
+
     try {
       await CreateMessageService({
         messageData: {
@@ -262,8 +264,6 @@ const SendWhatsAppMessage = async ({
     } catch (saveErr) {
       logger.warn("[Baileys] Error guardando mensaje saliente en BD:", saveErr);
     }
-
-    await ticket.update({ lastMessage: formattedText });
 
     const botResponse = sentMessage.message?.conversation ||
       sentMessage.message?.extendedTextMessage?.text ||

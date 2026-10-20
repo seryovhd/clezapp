@@ -153,6 +153,10 @@ const TicketsListCustom = (props) => {
     const companyId = localStorage.getItem("companyId");
     const socket = socketManager.getSocket(companyId);
 
+    if (status) {
+      socket.emit("joinTickets", status);
+    }
+
     const handleSocketEvent = (data) => {
       // 0. Eliminación o salida de cola/ticket
       if (data?.action === "delete" && data?.ticketId) {
@@ -194,11 +198,37 @@ const TicketsListCustom = (props) => {
             return prev;
           }
 
+          // Determinar el último mensaje fresco y fecha
+          let freshLastMessage = ticket.lastMessage;
+          if (data.message?.body) {
+            freshLastMessage = data.message.body;
+          } else if (data.message?.mediaType) {
+            const mt = data.message.mediaType;
+            freshLastMessage = mt === "image" ? "📷 Imagen" : mt === "video" ? "📹 Video" : mt === "audio" ? "🎵 Audio" : mt === "sticker" ? "💟 Sticker" : "📄 Archivo";
+          }
+          const freshUpdatedAt = data.message?.createdAt || ticket.updatedAt || new Date().toISOString();
+
           // Si ya existe en la lista, actualizar sus datos in-place
           if (existsIndex !== -1) {
+            const currentItem = prev[existsIndex];
             const updated = [...prev];
-            updated[existsIndex] = { ...updated[existsIndex], ...ticket };
-            // Si llegó un nuevo mensaje, subirlo a la cabecera suavemente
+
+            let newUnread = ticket.unreadMessages !== undefined ? ticket.unreadMessages : (currentItem.unreadMessages || 0);
+            if (data.message && !data.message.fromMe && !data.message.read) {
+              newUnread = (currentItem.unreadMessages || 0) + 1;
+            }
+
+            const updatedTicket = {
+              ...currentItem,
+              ...ticket,
+              lastMessage: freshLastMessage !== undefined ? freshLastMessage : currentItem.lastMessage,
+              updatedAt: freshUpdatedAt,
+              unreadMessages: newUnread
+            };
+
+            updated[existsIndex] = updatedTicket;
+
+            // Si llegó un nuevo mensaje o acción create, mover al primer lugar de la lista
             if (data.action === "create" || data.message) {
               const [movedItem] = updated.splice(existsIndex, 1);
               updated.unshift(movedItem);
@@ -208,7 +238,12 @@ const TicketsListCustom = (props) => {
 
           // Si es un ticket nuevo de este mismo status, insertarlo arriba
           if (!status || ticket.status === status) {
-            return [ticket, ...prev];
+            const newTicket = {
+              ...ticket,
+              lastMessage: freshLastMessage !== undefined ? freshLastMessage : ticket.lastMessage,
+              updatedAt: freshUpdatedAt
+            };
+            return [newTicket, ...prev];
           }
 
           return prev;
@@ -244,6 +279,9 @@ const TicketsListCustom = (props) => {
     socket.on(`company-${companyId}-settings`, handleSettingsEvent);
 
     return () => {
+      if (status) {
+        socket.emit("leaveTickets", status);
+      }
       if (socketReloadTimer.current) {
         clearTimeout(socketReloadTimer.current);
       }

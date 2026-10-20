@@ -271,6 +271,11 @@ const SendWhatsAppMedia = async ({
         }
       }
 
+      const evoLastMsg = isSticker ? "💟 Sticker" : (isFileBody
+        ? (mediaType === "image" ? "📷 Imagen" : mediaType === "video" ? "📹 Video" : mediaType === "audio" ? "🎵 Audio" : "📄 Archivo")
+        : (formatBody(body, ticket.contact) || "📷 Archivo"));
+      await ticket.update({ lastMessage: evoLastMsg });
+
       const messageId = sentRes?.key?.id || sentRes?.id || `evo_media_${Date.now()}`;
       try {
         await CreateMessageService({
@@ -292,10 +297,6 @@ const SendWhatsAppMedia = async ({
         console.error("[Evolution] Error guardando media saliente en BD:", err);
       }
 
-      const evoLastMsg = isSticker ? "💟 Sticker" : (isFileBody
-        ? (mediaType === "image" ? "📷 Imagen" : mediaType === "video" ? "📹 Video" : mediaType === "audio" ? "🎵 Audio" : "📄 Archivo")
-        : (formatBody(body, ticket.contact) || "📷 Archivo"));
-      await ticket.update({ lastMessage: evoLastMsg });
       return sentRes as any;
     }
 
@@ -496,6 +497,11 @@ const SendWhatsAppMedia = async ({
       ? "audio"
       : "document";
 
+    const baileysLastMsg = isSticker ? "💟 Sticker" : (isFileText
+      ? (detectedMediaType === "image" ? "📷 Imagen" : detectedMediaType === "video" ? "📹 Video" : detectedMediaType === "audio" ? "🎵 Audio" : "📄 Archivo")
+      : (bodyMessage || "📷 Archivo"));
+    await ticket.update({ lastMessage: baileysLastMsg });
+
     try {
       await CreateMessageService({
         messageData: {
@@ -516,11 +522,6 @@ const SendWhatsAppMedia = async ({
     } catch (saveErr) {
       console.error("[SendWhatsAppMedia] Error al guardar media saliente en BD:", saveErr);
     }
-
-    const baileysLastMsg = isSticker ? "💟 Sticker" : (isFileText
-      ? (detectedMediaType === "image" ? "📷 Imagen" : detectedMediaType === "video" ? "📹 Video" : detectedMediaType === "audio" ? "🎵 Audio" : "📄 Archivo")
-      : (bodyMessage || "📷 Archivo"));
-    await ticket.update({ lastMessage: baileysLastMsg });
 
     return sentMessage;
   } catch (err) {
