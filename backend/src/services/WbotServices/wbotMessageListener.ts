@@ -1314,17 +1314,19 @@ export const verifyMessage = async (
     read: msg.key.fromMe,
     quotedMsgId: quotedMsg?.id,
     ack: getAckFromStatus(msg.status, msg.key?.fromMe),
+    queueId: ticket.queueId,
     remoteJid: msg.key.remoteJid,
     participant: msg.key.participant,
     dataJson: JSON.stringify(msg),
     isEdited: isEdited
   };
 
-  await ticket.update({
-    lastMessage: body
-  });
-
-  await CreateMessageService({ messageData, companyId: ticket.companyId });
+  await Promise.all([
+    ticket.update({
+      lastMessage: body
+    }),
+    CreateMessageService({ messageData, companyId: ticket.companyId })
+  ]);
 
   if (!msg.key.fromMe && ticket.status === "closed") {
     await ticket.update({ status: "pending" });
@@ -2818,21 +2820,22 @@ const handleMessage = async (
       );
     }
 
-    const lastMessage = await Message.findOne({
-      where: {
-        contactId: contact.id,
-        companyId
-      },
-      order: [["createdAt", "DESC"]]
-    });
+    if (unreadMessages === 0 && whatsapp.complationMessage) {
+      const lastMessage = await Message.findOne({
+        where: {
+          contactId: contact.id,
+          companyId
+        },
+        order: [["createdAt", "DESC"]]
+      });
 
-    if (
-      unreadMessages === 0 &&
-      whatsapp.complationMessage &&
-      formatBody(whatsapp.complationMessage, contact).trim().toLowerCase() ===
-      lastMessage?.body.trim().toLowerCase()
-    ) {
-      return;
+      if (
+        lastMessage &&
+        formatBody(whatsapp.complationMessage, contact).trim().toLowerCase() ===
+        lastMessage.body.trim().toLowerCase()
+      ) {
+        return;
+      }
     }
 
     const ticket = await FindOrCreateTicketService(
