@@ -1441,22 +1441,14 @@ const MessageInputCustom = (props) => {
       }
     }
 
-    setLoading(true);
+    const currentText = inputMessage.trim();
+    const currentReplying = replyingMessage;
+    const currentPrivate = sendPrivate;
 
-    /*    const message = {
-         read: 1,
-         fromMe: true,
-         mediaUrl: "",
-         body: signMessage
-           ? `*${user?.name}:*\n${inputMessage.trim()}`
-           : inputMessage.trim(),
-         quotedMsg: replyingMessage,
-       };
-       try {
-         await api.post(`/messages/${ticketId}`, message);
-       } catch (err) {
-         toastError(err);
-       } */
+    // ⚡ Optimistic UI: vaciar campo de texto inmediatamente (0ms) para respuesta ultra rápida
+    setInputMessage("");
+    setReplyingMessage(null);
+    setShowEmoji(false);
 
     //HUB INICIO
     const message = {
@@ -1464,17 +1456,18 @@ const MessageInputCustom = (props) => {
       fromMe: true,
       mediaUrl: "",
       body: signMessage
-        ? `*${user?.name}:*\n${inputMessage.trim()}`
-        : inputMessage.trim(),
-      quotedMsg: replyingMessage,
+        ? `*${user?.name}:*\n${currentText}`
+        : currentText,
+      quotedMsg: currentReplying,
       companyId: user?.companyId,
-      isPrivate: sendPrivate
+      isPrivate: currentPrivate
     };
 
     try {
       if (channelType === null) {
         toastError("⚠️ WHATSAPPS.TYPE no encontrado");
-        setLoading(false);
+        setInputMessage(currentText);
+        setReplyingMessage(currentReplying);
         return;
       }
       if (["whatsapp_business", "baileys", "evolution", "whatsapp", "facebook_messenger"].includes(channelType)) {
@@ -1482,14 +1475,13 @@ const MessageInputCustom = (props) => {
       } else {
         await api.post(`/hub-message/${ticketId}`, message);
       }
-      setInputMessage("");
-      setReplyingMessage(null);
-      setShowEmoji(false);
     } catch (err) {
+      // Si la petición falla, restaurar el texto para que el operador no lo pierda
+      setInputMessage(currentText);
+      setReplyingMessage(currentReplying);
       toastError(err);
     }
     // HUB FIN
-    setLoading(false);
   };
 
   const handleStartRecording = async () => {

@@ -27,36 +27,16 @@ const SendWhatsAppMessage = async ({
   isForwarded = false
 }: Request): Promise<WAMessage> => {
   try {
-    console.log("🔍 DIAGNÓSTICO COMPLETO DEL TICKET:");
-    console.log("Ticket ID:", ticket.id);
-    console.log("WhatsApp ID:", ticket.whatsappId);
-    console.log("message body:", body);
-    console.log("WhatsApp encontrado:", !!ticket.whatsapp);
-
     if (!ticket.whatsappId) {
       throw new AppError("ERR_TICKET_NO_WHATSAPP_ID");
     }
 
     if (!ticket.whatsapp) {
-      await ticket.$get("whatsapp");
-    }
-
-    if (!ticket.whatsapp) {
-      throw new AppError("ERR_WHATSAPP_NOT_FOUND");
-    }
-
-    console.log("Connection Type:", ticket.whatsapp.type);
-    console.log("WhatsApp Status:", ticket.whatsapp.status);
-    console.log("WhatsApp Name:", ticket.whatsapp.name);
-
-    const freshWhatsapp = await Whatsapp.findByPk(ticket.whatsappId);
-
-    if (freshWhatsapp) {
-      ticket.whatsapp = freshWhatsapp;
-      console.log("🔍 WHATSAPP ACTUALIZADO:");
-      console.log("PhoneNumberId:", freshWhatsapp.phoneNumberId);
-      console.log("BusinessAccountId:", freshWhatsapp.businessAccountId);
-      console.log("Token exists:", !!freshWhatsapp.businessAccessToken);
+      const w = await Whatsapp.findByPk(ticket.whatsappId);
+      if (!w) {
+        throw new AppError("ERR_WHATSAPP_NOT_FOUND");
+      }
+      ticket.whatsapp = w;
     }
 
     if (ticket.whatsapp.type === "whatsapp_business") {

@@ -259,27 +259,31 @@ const MessageInput = ({ ticketStatus }) => {
 
 	const handleSendMessage = async () => {
 		if (inputMessage.trim() === "") return;
-		setLoading(true);
+
+		const currentText = inputMessage.trim();
+		const currentReplying = replyingMessage;
+
+		// ⚡ Optimistic UI: vaciar texto de inmediato (0ms)
+		setInputMessage("");
+		setShowEmoji(false);
+		setReplyingMessage(null);
 
 		const message = {
 			read: 1,
 			fromMe: true,
 			mediaUrl: "",
 			body: signMessage
-				? `*${user?.name}:*\n${inputMessage.trim()}`
-				: inputMessage.trim(),
-			quotedMsg: replyingMessage,
+				? `*${user?.name}:*\n${currentText}`
+				: currentText,
+			quotedMsg: currentReplying,
 		};
 		try {
 			await api.post(`/messages/${ticketId}`, message);
 		} catch (err) {
+			setInputMessage(currentText);
+			setReplyingMessage(currentReplying);
 			toastError(err);
 		}
-
-		setInputMessage("");
-		setShowEmoji(false);
-		setLoading(false);
-		setReplyingMessage(null);
 	};
 
 	const handleStartRecording = async () => {
