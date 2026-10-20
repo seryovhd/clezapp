@@ -468,7 +468,15 @@ const sortMessages = (list) => {
 
 const reducer = (state, action) => {
   if (action.type === "HYDRATE_CACHED") {
-    return sortMessages(action.payload);
+    const seen = new Set();
+    const unique = [];
+    for (const m of (action.payload || [])) {
+      if (m && m.id && !seen.has(m.id) && !m.isOptimistic) {
+        seen.add(m.id);
+        unique.push(m);
+      }
+    }
+    return sortMessages(unique);
   }
 
   if (action.type === "LOAD_MESSAGES") {
@@ -481,8 +489,14 @@ const reducer = (state, action) => {
       const existingIds = new Set(messages.map((m) => m.id));
       const optimistic = state.filter(
         (m) =>
+          Boolean(m.isOptimistic) &&
           !existingIds.has(m.id) &&
-          (typeof m.id === "string" || m.id < 0 || m.status === "pending")
+          !messages.some(
+            (realMsg) =>
+              realMsg.fromMe &&
+              Number(realMsg.ticketId) === Number(m.ticketId) &&
+              realMsg.body === m.body
+          )
       );
       combined = [...messages, ...optimistic];
     } else {
@@ -734,9 +748,19 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
         if (cached) {
           const exists = cached.messages.some((m) => m.id === data.message.id);
           if (!exists) {
+            // Limpieza: filtrar cualquier residuo optimista que coincida
+            const cleanCached = cached.messages.filter(
+              (m) =>
+                !m.isOptimistic &&
+                !(
+                  m.fromMe &&
+                  Number(m.ticketId) === Number(data.message.ticketId) &&
+                  m.body === data.message.body
+                )
+            );
             setTicketMessagesCache(
               +currentTicketId.current,
-              sortMessages([...cached.messages, data.message]),
+              sortMessages([...cleanCached, data.message]),
               cached.hasMore
             );
           }
@@ -763,14 +787,8 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
       const msg = e.detail?.message;
       if (msg && Number(msg.ticketId) === Number(currentTicketId.current)) {
         dispatch({ type: "ADD_MESSAGE", payload: msg });
-        const cached = recentMessagesCache.get(+currentTicketId.current);
-        if (cached) {
-          setTicketMessagesCache(
-            +currentTicketId.current,
-            sortMessages([...cached.messages, msg]),
-            cached.hasMore
-          );
-        }
+        // No guardar mensajes provisionales temporales en la caché persistente
+        // para garantizar que al cambiar de chat y regresar nunca aparezcan duplicados
         scrollToBottom();
       }
     };

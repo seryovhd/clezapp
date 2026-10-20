@@ -61,12 +61,24 @@ const SendWhatsAppMessage = async ({
       const formattedText = formatBody(body, ticket.contact);
 
       let quotedPayload: any = undefined;
-      const quotedMsgIdToSave = quotedMsg?.id;
+      let quotedMsgIdToSave: string | undefined = undefined;
 
       if (quotedMsg) {
         try {
-          const quotedChatMsg = await Message.findOne({ where: { id: quotedMsg.id } });
+          let quotedChatMsg = await Message.findOne({ where: { id: quotedMsg.id } });
+          if (!quotedChatMsg && quotedMsg.body) {
+            quotedChatMsg = await Message.findOne({
+              where: {
+                ticketId: ticket.id,
+                body: quotedMsg.body,
+                companyId: ticket.companyId
+              },
+              order: [["createdAt", "DESC"]]
+            });
+          }
+
           if (quotedChatMsg) {
+            quotedMsgIdToSave = quotedChatMsg.id;
             let msgFound: any = null;
             if (quotedChatMsg.dataJson) {
               try {
@@ -151,15 +163,26 @@ const SendWhatsAppMessage = async ({
     console.log("🔢 BOT PARA NÚMERO", number);
 
     if (quotedMsg) {
-      quotedMsgIdToSave = quotedMsg.id;
       try {
-        const chatMessages = await Message.findOne({
+        let chatMessages = await Message.findOne({
           where: {
             id: quotedMsg.id
           }
         });
 
+        if (!chatMessages && quotedMsg.body) {
+          chatMessages = await Message.findOne({
+            where: {
+              ticketId: ticket.id,
+              body: quotedMsg.body,
+              companyId: ticket.companyId
+            },
+            order: [["createdAt", "DESC"]]
+          });
+        }
+
         if (chatMessages) {
+          quotedMsgIdToSave = chatMessages.id;
           let msgFound: any = null;
           if (chatMessages.dataJson) {
             try {

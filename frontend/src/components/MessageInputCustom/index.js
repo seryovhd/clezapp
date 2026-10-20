@@ -1135,7 +1135,6 @@ const MessageInputCustom = (props) => {
     fetchChannelType();
   }, [ticketId]);
 
-  // HUB FIN
   useEffect(() => {
     inputRef.current.focus();
     return () => {
@@ -1145,6 +1144,12 @@ const MessageInputCustom = (props) => {
       setReplyingMessage(null);
     };
   }, [ticketId, setReplyingMessage]);
+
+  useEffect(() => {
+    if (replyingMessage && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [replyingMessage]);
 
   const socketManager = useContext(SocketContext);
   const [quickMessagesMode, setQuickMessagesMode] = useState("both");
@@ -1677,6 +1682,18 @@ const MessageInputCustom = (props) => {
   };
   const [sendPrivate, setSendPrivate] = useState(false);
   const renderReplyingMessage = (message) => {
+    const displayBody =
+      message.body ||
+      (message.mediaType === "image"
+        ? "📷 Foto"
+        : message.mediaType === "audio"
+        ? "🎵 Audio"
+        : message.mediaType === "video"
+        ? "🎥 Video"
+        : message.mediaType
+        ? "📄 Archivo"
+        : "");
+
     return (
       <div className={classes.replyginMsgWrapper}>
         <div className={classes.replyginMsgContainer}>
@@ -1691,7 +1708,7 @@ const MessageInputCustom = (props) => {
                 {message.contact?.name}
               </span>
             )}
-            {message.body}
+            {displayBody}
           </div>
         </div>
         <IconButton
