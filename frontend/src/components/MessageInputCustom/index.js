@@ -722,6 +722,7 @@ const ActionButtons = (props) => {
       <IconButton
         aria-label="sendMessage"
         component="span"
+        onMouseDown={(e) => e.preventDefault()}
         onClick={showSelectMessageCheckbox ? handleOpenModalForward : handleSendMessage}
         disabled={isDisabled}
         title={tooltipText}
@@ -1349,6 +1350,14 @@ const MessageInputCustom = (props) => {
           });
         }
         setInputMessage("");
+        if (inputRef && inputRef.current) {
+          inputRef.current.focus();
+        }
+        setTimeout(() => {
+          if (inputRef && inputRef.current) {
+            inputRef.current.focus();
+          }
+        }, 50);
       } catch (err) {
         toastError(err);
       }
@@ -1449,6 +1458,16 @@ const MessageInputCustom = (props) => {
     setInputMessage("");
     setReplyingMessage(null);
     setShowEmoji(false);
+
+    // Asegurar que el input conserve el foco
+    if (inputRef && inputRef.current) {
+      inputRef.current.focus();
+    }
+    setTimeout(() => {
+      if (inputRef && inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 50);
 
     //HUB INICIO
     const message = {

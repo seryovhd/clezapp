@@ -585,17 +585,15 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
-    if (lastMessageRef.current) {
-      try {
-        lastMessageRef.current.scrollIntoView({ behavior: "auto", block: "end" });
-      } catch (e) {}
-    }
   };
 
   const scrollToBottom = () => {
-    if (lastMessageRef.current) {
+    if (messagesContainerRef.current) {
       try {
-        lastMessageRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+        messagesContainerRef.current.scrollTo({
+          top: messagesContainerRef.current.scrollHeight,
+          behavior: "smooth"
+        });
       } catch (e) {
         scrollToBottomInstant();
       }
