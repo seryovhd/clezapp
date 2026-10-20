@@ -1088,8 +1088,27 @@ const MessageInputCustom = (props) => {
   const [quickMessages, setQuickMessages] = useState([]);
   const { list: listQuickMessages } = useQuickMessages();
 
+  // ⚡ Enfocar el campo de texto del chat ni bien se abra el ticket
   useEffect(() => {
-    inputRef.current.focus();
+    const focusInput = () => {
+      if (inputRef && inputRef.current && ticketStatus === "open") {
+        inputRef.current.focus();
+      }
+    };
+
+    focusInput();
+    const timer1 = setTimeout(focusInput, 80);
+    const timer2 = setTimeout(focusInput, 250);
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
+  }, [ticketId, ticketStatus]);
+
+  useEffect(() => {
+    if (inputRef && inputRef.current) {
+      inputRef.current.focus();
+    }
   }, [replyingMessage]);
   //HUB INICIO
   const [channelType, setChannelType] = useState(null);

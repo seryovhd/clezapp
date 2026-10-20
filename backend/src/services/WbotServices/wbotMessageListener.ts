@@ -1272,6 +1272,7 @@ export const verifyMediaMessage = async (
       });
 
     io.to(`company-${ticket.companyId}-${ticket.status}`)
+      .to(`company-${ticket.companyId}-mainchannel`)
       .to(`queue-${ticket.queueId}-${ticket.status}`)
       .to(ticket.id.toString())
       .emit(`company-${ticket.companyId}-ticket`, {
@@ -1344,6 +1345,7 @@ export const verifyMessage = async (
       });
 
     io.to(`company-${ticket.companyId}-${ticket.status}`)
+      .to(`company-${ticket.companyId}-mainchannel`)
       .to(`queue-${ticket.queueId}-${ticket.status}`)
       .emit(`company-${ticket.companyId}-ticket`, {
         action: "update",

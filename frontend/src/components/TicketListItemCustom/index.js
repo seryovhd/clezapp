@@ -623,6 +623,17 @@ const TicketListItemCustom = ({ ticket }) => {
 
   const handleSelectTicket = () => {
     if (ticket.status === "pending") return;
+    if (ticket.unreadMessages > 0) {
+      window.dispatchEvent(
+        new CustomEvent("ticket-optimistic-update", {
+          detail: {
+            type: "unread",
+            ticketId: ticket.id,
+            unreadMessages: 0
+          }
+        })
+      );
+    }
     const code = uuidv4();
     const { id, uuid } = ticket;
     setCurrentTicket({ id, uuid, code });

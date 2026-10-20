@@ -154,10 +154,24 @@ const TicketsListCustom = (props) => {
     const socket = socketManager.getSocket(companyId);
 
     const handleSocketEvent = (data) => {
-      // 1. Actualización reactiva instantánea en memoria
-      if (data?.ticket) {
+      // 0. Eliminación reactiva instantánea por socket (ej. ticket cerrado o borrado)
+      if (data?.action === "delete" && data?.ticketId) {
         setTicketsList((prev) => {
-          const ticket = data.ticket;
+          const existsIndex = prev.findIndex((t) => t.id === data.ticketId);
+          if (existsIndex !== -1) {
+            const updated = [...prev];
+            updated.splice(existsIndex, 1);
+            return updated;
+          }
+          return prev;
+        });
+        return;
+      }
+
+      // 1. Actualización reactiva instantánea en memoria
+      const ticket = data?.ticket || data?.message?.ticket;
+      if (ticket) {
+        setTicketsList((prev) => {
           const isGroupTicket = ticket.isGroup === true || ticket.isGroup === "true";
           if (isGroupTicket) return prev;
 
@@ -176,18 +190,43 @@ const TicketsListCustom = (props) => {
           // Si ya existe en la lista, actualizar sus datos in-place
           if (existsIndex !== -1) {
             const updated = [...prev];
-            updated[existsIndex] = { ...updated[existsIndex], ...ticket };
-            // Si llegó un nuevo mensaje, subirlo a la cabecera suavemente
-            if (data.action === "create" || data.message) {
+            const currentItem = updated[existsIndex];
+
+            const hasNewMessage = data.action === "create" || Boolean(data.message);
+            const isIncoming = data.message && !data.message.fromMe;
+
+            const newUnread = isIncoming 
+              ? (ticket.unreadMessages ?? ((currentItem.unreadMessages || 0) + 1))
+              : (ticket.unreadMessages !== undefined ? ticket.unreadMessages : currentItem.unreadMessages);
+
+            const lastBody = data.message?.body || ticket.lastMessage || currentItem.lastMessage;
+            const updatedDate = data.message?.createdAt || ticket.updatedAt || new Date().toISOString();
+
+            updated[existsIndex] = {
+              ...currentItem,
+              ...ticket,
+              lastMessage: lastBody,
+              updatedAt: updatedDate,
+              unreadMessages: newUnread
+            };
+
+            // Si llegó un nuevo mensaje, subirlo a la cabecera inmediatamente
+            if (hasNewMessage) {
               const [movedItem] = updated.splice(existsIndex, 1);
               updated.unshift(movedItem);
             }
             return updated;
           }
 
-          // Si es un ticket nuevo de este mismo status, insertarlo arriba
+          // Si es un ticket nuevo de este mismo status, insertarlo arriba inmediatamente
           if (!status || ticket.status === status) {
-            return [ticket, ...prev];
+            const lastBody = data.message?.body || ticket.lastMessage;
+            const updatedDate = data.message?.createdAt || ticket.updatedAt || new Date().toISOString();
+            return [{
+              ...ticket,
+              lastMessage: lastBody,
+              updatedAt: updatedDate
+            }, ...prev];
           }
 
           return prev;
@@ -224,6 +263,60 @@ const TicketsListCustom = (props) => {
       socket.off(`company-${companyId}-settings`, handleSettingsEvent);
     };
   }, [status, socketManager, selectedQueueIds, showAll, searchParam, tags, users, dateRange]);
+
+  // LISTENER DE ACTUALIZACIONES OPTIMISTAS LOCALES A 0 MS
+  useEffect(() => {
+    const handleOptimisticUpdate = (e) => {
+      const { type, ticketId, tags, status: newStatus, unreadMessages, ticket: rollbackTicket } = e.detail || {};
+
+      setTicketsList((prev) => {
+        if (type === "rollback" && rollbackTicket) {
+          const exists = prev.some((t) => t.id === rollbackTicket.id);
+          if (!exists && (!status || rollbackTicket.status === status)) {
+            return [rollbackTicket, ...prev];
+          }
+          return prev;
+        }
+
+        if (!ticketId) return prev;
+        const existsIndex = prev.findIndex((t) => t.id === ticketId);
+        if (existsIndex === -1) return prev;
+
+        const updated = [...prev];
+
+        if (type === "status") {
+          // Si cambió a otro estado (ej. cerrado), remover de este tab de inmediato
+          if (status && newStatus && newStatus !== status) {
+            updated.splice(existsIndex, 1);
+            return updated;
+          }
+        }
+
+        if (type === "tags") {
+          updated[existsIndex] = {
+            ...updated[existsIndex],
+            tags: Array.isArray(tags) ? [...tags] : []
+          };
+          return updated;
+        }
+
+        if (type === "unread") {
+          updated[existsIndex] = {
+            ...updated[existsIndex],
+            unreadMessages: unreadMessages !== undefined ? unreadMessages : 0
+          };
+          return updated;
+        }
+
+        return prev;
+      });
+    };
+
+    window.addEventListener("ticket-optimistic-update", handleOptimisticUpdate);
+    return () => {
+      window.removeEventListener("ticket-optimistic-update", handleOptimisticUpdate);
+    };
+  }, [status]);
 
   // ACTUALIZAR CONTADOR EXCLUYENDO TICKETS DE GRUPO
   useEffect(() => {

@@ -76,6 +76,7 @@ const CreateMessageService = async ({
   io.to(message.ticketId.toString())
     .to(`company-${companyId}-${message.ticket.status}`)
     .to(`company-${companyId}-notification`)
+    .to(`company-${companyId}-mainchannel`)
     .to(`queue-${message.ticket.queueId}-${message.ticket.status}`)
     .to(`queue-${message.ticket.queueId}-notification`)
     .emit(`company-${companyId}-appMessage`, {
@@ -83,6 +84,17 @@ const CreateMessageService = async ({
       message,
       ticket: message.ticket,
       contact: message.ticket.contact
+    });
+
+  io.to(`company-${companyId}-${message.ticket.status}`)
+    .to(`company-${companyId}-notification`)
+    .to(`company-${companyId}-mainchannel`)
+    .to(`queue-${message.ticket.queueId}-${message.ticket.status}`)
+    .to(`queue-${message.ticket.queueId}-notification`)
+    .to(message.ticketId.toString())
+    .emit(`company-${companyId}-ticket`, {
+      action: "update",
+      ticket: message.ticket
     });
 
   return message;
