@@ -267,7 +267,7 @@ const TicketsListCustom = (props) => {
   // LISTENER DE ACTUALIZACIONES OPTIMISTAS LOCALES A 0 MS
   useEffect(() => {
     const handleOptimisticUpdate = (e) => {
-      const { type, ticketId, tags, status: newStatus, unreadMessages, ticket: rollbackTicket } = e.detail || {};
+      const { type, ticketId, tags, status: newStatus, unreadMessages, lastMessage, ticket: rollbackTicket } = e.detail || {};
 
       setTicketsList((prev) => {
         if (type === "rollback" && rollbackTicket) {
@@ -306,6 +306,16 @@ const TicketsListCustom = (props) => {
             unreadMessages: unreadMessages !== undefined ? unreadMessages : 0
           };
           return updated;
+        }
+
+        if (type === "lastMessage") {
+          const item = {
+            ...updated[existsIndex],
+            lastMessage: lastMessage || updated[existsIndex].lastMessage,
+            updatedAt: new Date().toISOString()
+          };
+          updated.splice(existsIndex, 1);
+          return [item, ...updated];
         }
 
         return prev;

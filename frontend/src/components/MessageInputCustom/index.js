@@ -1488,14 +1488,56 @@ const MessageInputCustom = (props) => {
       }
     }, 50);
 
+    const finalBody = signMessage
+      ? `*${user?.name}:*\n${currentText}`
+      : currentText;
+
+    const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+    const optimisticMessage = {
+      id: optimisticId,
+      ticketId: Number(ticketId),
+      body: finalBody,
+      fromMe: true,
+      read: true,
+      ack: 0, // 0 = icono de relojito (esperando confirmación del servidor)
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      mediaType: "chat",
+      mediaUrl: null,
+      quotedMsg: currentReplying,
+      isPrivate: currentPrivate,
+      isOptimistic: true,
+      sender: user?.name,
+      contact: null
+    };
+
+    // ⚡ Despachar mensaje a la pantalla de chat en 0 ms
+    window.dispatchEvent(
+      new CustomEvent("chat-optimistic-message", {
+        detail: {
+          message: optimisticMessage
+        }
+      })
+    );
+
+    // ⚡ Despachar actualización a la tarjeta del ticket en la lista lateral en 0 ms
+    window.dispatchEvent(
+      new CustomEvent("ticket-optimistic-update", {
+        detail: {
+          type: "lastMessage",
+          ticketId: Number(ticketId),
+          lastMessage: finalBody
+        }
+      })
+    );
+
     //HUB INICIO
     const message = {
       read: 1,
       fromMe: true,
       mediaUrl: "",
-      body: signMessage
-        ? `*${user?.name}:*\n${currentText}`
-        : currentText,
+      body: finalBody,
       quotedMsg: currentReplying,
       companyId: user?.companyId,
       isPrivate: currentPrivate
@@ -1504,6 +1546,14 @@ const MessageInputCustom = (props) => {
     try {
       if (channelType === null) {
         toastError("⚠️ WHATSAPPS.TYPE no encontrado");
+        window.dispatchEvent(
+          new CustomEvent("chat-optimistic-message-remove", {
+            detail: {
+              messageId: optimisticId,
+              ticketId: Number(ticketId)
+            }
+          })
+        );
         setInputMessage(currentText);
         setReplyingMessage(currentReplying);
         return;
@@ -1514,7 +1564,15 @@ const MessageInputCustom = (props) => {
         await api.post(`/hub-message/${ticketId}`, message);
       }
     } catch (err) {
-      // Si la petición falla, restaurar el texto para que el operador no lo pierda
+      // Si la petición falla, remover el mensaje optimista y restaurar el texto para que el operador no lo pierda
+      window.dispatchEvent(
+        new CustomEvent("chat-optimistic-message-remove", {
+          detail: {
+            messageId: optimisticId,
+            ticketId: Number(ticketId)
+          }
+        })
+      );
       setInputMessage(currentText);
       setReplyingMessage(currentReplying);
       toastError(err);

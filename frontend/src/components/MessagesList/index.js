@@ -500,15 +500,33 @@ const reducer = (state, action) => {
     if (!newMessage) return state;
     const messageIndex = state.findIndex((m) => m.id === newMessage.id);
 
+    // Buscar si coincide con un mensaje optimista temporal que esté esperando confirmación
+    const optimisticIndex = state.findIndex(
+      (m) =>
+        m.isOptimistic &&
+        Number(m.ticketId) === Number(newMessage.ticketId) &&
+        m.fromMe &&
+        m.body === newMessage.body
+    );
+
     let updated;
     if (messageIndex !== -1) {
       updated = [...state];
       updated[messageIndex] = newMessage;
+    } else if (optimisticIndex !== -1) {
+      // Reemplazo limpio del mensaje optimista temporal por el mensaje real confirmado
+      updated = [...state];
+      updated[optimisticIndex] = newMessage;
     } else {
       updated = [...state, newMessage];
     }
 
     return sortMessages(updated);
+  }
+
+  if (action.type === "REMOVE_MESSAGE") {
+    const messageId = action.payload;
+    return state.filter((m) => m.id !== messageId);
   }
 
   if (action.type === "UPDATE_MESSAGE") {
@@ -741,6 +759,40 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
       }
     };
 
+    const handleOptimisticMessage = (e) => {
+      const msg = e.detail?.message;
+      if (msg && Number(msg.ticketId) === Number(currentTicketId.current)) {
+        dispatch({ type: "ADD_MESSAGE", payload: msg });
+        const cached = recentMessagesCache.get(+currentTicketId.current);
+        if (cached) {
+          setTicketMessagesCache(
+            +currentTicketId.current,
+            sortMessages([...cached.messages, msg]),
+            cached.hasMore
+          );
+        }
+        scrollToBottom();
+      }
+    };
+
+    const handleOptimisticMessageRemove = (e) => {
+      const { messageId, ticketId: evtTicketId } = e.detail || {};
+      if (Number(evtTicketId) === Number(currentTicketId.current)) {
+        dispatch({ type: "REMOVE_MESSAGE", payload: messageId });
+        const cached = recentMessagesCache.get(+currentTicketId.current);
+        if (cached) {
+          setTicketMessagesCache(
+            +currentTicketId.current,
+            cached.messages.filter((m) => m.id !== messageId),
+            cached.hasMore
+          );
+        }
+      }
+    };
+
+    window.addEventListener("chat-optimistic-message", handleOptimisticMessage);
+    window.addEventListener("chat-optimistic-message-remove", handleOptimisticMessageRemove);
+
     socket.on("ready", onReady);
     socket.on(`company-${companyId}-appMessage`, onAppMessage);
 
@@ -751,6 +803,8 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
     return () => {
       socket.off("ready", onReady);
       socket.off(`company-${companyId}-appMessage`, onAppMessage);
+      window.removeEventListener("chat-optimistic-message", handleOptimisticMessage);
+      window.removeEventListener("chat-optimistic-message-remove", handleOptimisticMessageRemove);
     };
   }, [ticketId, ticket, socketManager]);
 
