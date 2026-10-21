@@ -39,6 +39,7 @@ import Button from "@material-ui/core/Button";
 import CheckCircleOutlineIcon from "@material-ui/icons/CheckCircleOutline";
 import ContactTag from "../ContactTag";
 import { AvatarWithPreview } from "../ProfilePicModal";
+import { recentMessagesCache, setTicketMessagesCache } from "../MessagesList";
 const iconContainerStyle = {
   display: "flex",
   alignItems: "center",
@@ -621,6 +622,19 @@ const TicketListItemCustom = ({ ticket }) => {
     setTransferTicketModalOpen(false);
   };
 
+  const handleMouseEnter = () => {
+    if (!ticket?.id || ticket.status === "pending") return;
+    if (!recentMessagesCache.has(+ticket.id)) {
+      api.get(`/messages/${ticket.id}`, { params: { pageNumber: 1 } })
+        .then(({ data }) => {
+          if (data?.messages) {
+            setTicketMessagesCache(+ticket.id, data.messages, data.hasMore);
+          }
+        })
+        .catch(() => {});
+    }
+  };
+
   const handleSelectTicket = () => {
     if (ticket.status === "pending") return;
     const code = uuidv4();
@@ -678,6 +692,7 @@ const TicketListItemCustom = ({ ticket }) => {
       <ListItem
         button
         onClick={handleSelectTicket}
+        onMouseEnter={handleMouseEnter}
         selected={ticketId && +ticketId === ticket.id}
         className={clsx(classes.ticket, {
           [classes.pendingTicket]: ticket.status === "pending",

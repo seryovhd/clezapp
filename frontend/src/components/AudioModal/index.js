@@ -64,7 +64,7 @@ const AudioModal = ({url}) => {
   
     return (
       <>
-        <audio ref={audioRef} controls>
+        <audio ref={audioRef} controls preload="none">
           {getAudioSource()}
         </audio>
         {showButtonRate && (

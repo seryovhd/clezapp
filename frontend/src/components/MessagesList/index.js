@@ -441,10 +441,10 @@ const useStyles = makeStyles((theme) => ({
 }));
 
 // Cache LRU en memoria para mensajes de tickets recientes (render instantáneo 0ms al alternar chats)
-const recentMessagesCache = new Map();
+export const recentMessagesCache = new Map();
 const MAX_CACHED_TICKETS = 30;
 
-const setTicketMessagesCache = (id, messages, hasMore = false) => {
+export const setTicketMessagesCache = (id, messages, hasMore = false) => {
   if (!id) return;
   const numId = +id;
   if (recentMessagesCache.has(numId)) {
@@ -454,6 +454,11 @@ const setTicketMessagesCache = (id, messages, hasMore = false) => {
     recentMessagesCache.delete(oldestKey);
   }
   recentMessagesCache.set(numId, { messages, hasMore });
+};
+
+export const getTicketMessagesCache = (id) => {
+  if (!id) return null;
+  return recentMessagesCache.get(+id) || null;
 };
 
 // Ordenamiento cronológico estricto por fecha de creación (createdAt ASC)

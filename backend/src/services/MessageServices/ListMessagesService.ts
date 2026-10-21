@@ -29,6 +29,20 @@ const ListMessagesService = async ({
 }: Request): Promise<Response> => {
   const ticket = await Ticket.findOne({
     where: { id: ticketId, companyId },
+    attributes: [
+      "id",
+      "uuid",
+      "status",
+      "unreadMessages",
+      "lastMessage",
+      "isGroup",
+      "updatedAt",
+      "whatsappId",
+      "companyId",
+      "contactId",
+      "queueId",
+      "userId"
+    ],
     include: [
       {
         model: Contact,
@@ -71,15 +85,27 @@ const ListMessagesService = async ({
     ...options,
     limit: limit + 1,
     include: [
-      "contact",
+      {
+        model: Contact,
+        as: "contact",
+        attributes: ["id", "name", "number", "profilePicUrl"]
+      },
       {
         model: Message,
         as: "quotedMsg",
-        include: ["contact"]
+        attributes: ["id", "body", "fromMe", "mediaType", "mediaUrl", "createdAt"],
+        include: [
+          {
+            model: Contact,
+            as: "contact",
+            attributes: ["id", "name", "number"]
+          }
+        ]
       },
       {
         model: Queue,
-        as: "queue"
+        as: "queue",
+        attributes: ["id", "name", "color"]
       }
     ],
     offset,

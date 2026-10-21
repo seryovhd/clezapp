@@ -14,7 +14,7 @@ import toastError from "../../errors/toastError";
 import api from "../../services/api";
 import ContactDrawer from "../ContactDrawer";
 import MessageInput from "../MessageInputCustom/";
-import MessagesList from "../MessagesList";
+import MessagesList, { getTicketMessagesCache } from "../MessagesList";
 import { TagsContainer } from "../TagsContainer";
 import TicketActionButtons from "../TicketActionButtonsCustom";
 import TicketHeader from "../TicketHeader";
@@ -78,28 +78,23 @@ const Ticket = () => {
   const isAssignedToOtherUser = ticket?.userId && ticket?.userId !== user?.id && user?.profile !== "admin" || ticket?.status === "pending";
 
  
-  const calculate24HourWindow = React.useCallback(async (ticketId) => {
+  const calculate24HourWindow = React.useCallback(async (targetTicketId) => {
     try {
+      let messages = null;
+      const cached = getTicketMessagesCache(targetTicketId);
+      if (cached && Array.isArray(cached.messages) && cached.messages.length > 0) {
+        messages = cached.messages;
+      } else {
+        const { data } = await api.get(`/messages/${targetTicketId}`, {
+          params: { pageNumber: 1 }
+        });
+        messages = data?.messages;
+      }
 
-      const { data } = await api.get(`/messages/${ticketId}`, {
-        params: { pageNumber: 1 }
-      });
-
-      const customerMessages = data.messages?.filter(msg => !msg.fromMe) || [];
+      const customerMessages = messages?.filter(msg => !msg.fromMe) || [];
       const lastCustomerMessage = customerMessages.length > 0 
         ? customerMessages[customerMessages.length - 1] // El último del array (más reciente)
         : null;
-      
-      console.log("🔍 [24H DEBUG] Mensajes del ticket:", {
-        totalMessages: data.messages?.length || 0,
-        customerMessagesCount: customerMessages.length,
-        ticketId: ticketId,
-        lastCustomerMessage: lastCustomerMessage ? {
-          id: lastCustomerMessage.id,
-          createdAt: lastCustomerMessage.createdAt,
-          body: lastCustomerMessage.body?.substring(0, 50)
-        } : null
-      });
       
       if (lastCustomerMessage && lastCustomerMessage.createdAt) {
         const lastMessageTime = new Date(lastCustomerMessage.createdAt);
@@ -110,17 +105,7 @@ const Ticket = () => {
         
         setHoursRemaining(Math.max(0, Math.floor(hoursLeft)));
         setIs24HoursExceeded(exceeded);
-        
-        console.log("🔍 [24H DEBUG] Tiempo calculado:", {
-          lastMessageTime: lastMessageTime.toISOString(),
-          now: now.toISOString(),
-          hoursElapsed: hoursElapsed.toFixed(2),
-          hoursRemaining: Math.max(0, Math.floor(hoursLeft)),
-          isExceeded: exceeded,
-          willBlockButton: exceeded
-        });
       } else {
-        console.log("🔍 [24H DEBUG] No hay mensajes del cliente, asumiendo ventana abierta");
         setHoursRemaining(24);
         setIs24HoursExceeded(false);
       }
@@ -242,7 +227,7 @@ const Ticket = () => {
   };
 
   const renderTicketInfo = () => {
-    if (ticket.user !== undefined) {
+    if (ticket.user !== undefined || ticket.id || contact?.id) {
       return (
         <TicketInfo
           contact={contact}
@@ -254,16 +239,17 @@ const Ticket = () => {
   };
 
   const renderMessagesList = () => {
+    const activeTicketId = ticket.id || ticketId;
     return (
       <>
         <MessagesList
           ticket={ticket}
-          ticketId={ticket.id}
+          ticketId={activeTicketId}
           isGroup={ticket.isGroup}
         ></MessagesList>
         <MessageInput 
-          ticketId={ticket.id} 
-          ticketStatus={ticket.status}
+          ticketId={activeTicketId} 
+          ticketStatus={ticket.status || "open"}
           is24HoursExceeded={is24HoursExceeded}
         />
       </>
@@ -317,7 +303,7 @@ if (isAssignedToOtherUser && !loading) {
           [classes.mainWrapperShift]: drawerOpen,
         })}
       >
-        <TicketHeader loading={loading}>
+        <TicketHeader loading={loading && !ticket?.id}>
           {renderTicketInfo()}
           <TicketActionButtons ticket={ticket} />
         </TicketHeader>
