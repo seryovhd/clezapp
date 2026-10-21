@@ -48,6 +48,7 @@ import Setting from "../../models/Setting";
 import { cacheLayer } from "../../libs/cache";
 import { provider } from "./providers";
 import { debounce } from "../../helpers/Debounce";
+import { isGroupMessageIgnored } from "../../helpers/CheckMsgIsGroupSetting";
 import { ChatCompletionRequestMessage, Configuration, OpenAIApi } from "openai";
 import ffmpeg from "fluent-ffmpeg";
 import {
@@ -2466,6 +2467,12 @@ const handleMessage = async (
     return;
   }
 
+  // Descartar mensajes de grupos inmediatamente si la opción está activa
+  const isGroupEarly = msg.key?.remoteJid?.endsWith("@g.us") || Boolean(msg.key?.participant);
+  if (isGroupEarly && (await isGroupMessageIgnored(companyId))) {
+    return;
+  }
+
   // Verificar mensajes eliminados ANTES de otras validaciones
   // Los mensajes eliminados tienen protocolMessage.type === 0 (número)
   // También pueden venir con messageStubType === REVOKE
@@ -2580,16 +2587,11 @@ const handleMessage = async (
     let groupContact: Contact | undefined;
 
     const normalizedJid = normalizeLidJid(msg);
-    const isGroup = normalizedJid?.endsWith("@g.us");
+    const isGroup = normalizedJid?.endsWith("@g.us") || msg.key.remoteJid?.endsWith("@g.us");
 
-    // Normalizar JID si es LID
-
-    const msgIsGroupBlock = await Setting.findOne({
-      where: {
-        companyId,
-        key: "CheckMsgIsGroup"
-      }
-    });
+    if (isGroup && (await isGroupMessageIgnored(companyId))) {
+      return;
+    }
 
     const bodyMessage = getBodyMessage(msg);
     const msgType = getTypeMessage(msg);
@@ -2616,8 +2618,6 @@ const handleMessage = async (
     } else {
       msgContact = await getContactMessage(msg, wbot);
     }
-
-    if (msgIsGroupBlock?.value === "enabled" && isGroup) return;
 
     if (isGroup) {
       const grupoMeta = await wbot.groupMetadata(msg.key.remoteJid);
@@ -3754,6 +3754,11 @@ const wbotMessageListener = async (
 
         for (const message of messages) {
           try {
+            const isGroup = message.key.remoteJid?.endsWith("@g.us") || Boolean(message.key.participant);
+            if (isGroup && (await isGroupMessageIgnored(companyId))) {
+              continue;
+            }
+
             const messageExists = await Message.count({
               where: { id: message.key.id!, companyId }
             });

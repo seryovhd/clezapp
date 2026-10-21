@@ -1,5 +1,6 @@
 import AppError from "../../errors/AppError";
 import Setting from "../../models/Setting";
+import { invalidateGroupMessageSettingCache } from "../../helpers/CheckMsgIsGroupSetting";
 
 interface Request {
   key: string;
@@ -33,6 +34,10 @@ const UpdateSettingService = async ({
   }
 
   await setting.update({ value });
+
+  if (key === "CheckMsgIsGroup") {
+    invalidateGroupMessageSettingCache(companyId);
+  }
 
   return setting;
 };

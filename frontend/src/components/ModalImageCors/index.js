@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { makeStyles } from "@material-ui/core/styles";
 import {
   Dialog,
   IconButton,
   Typography,
-  Tooltip
+  Tooltip,
+  CircularProgress
 } from "@material-ui/core";
 import {
   Close as CloseIcon,
@@ -12,7 +13,6 @@ import {
   AspectRatio as ExpandIcon
 } from "@material-ui/icons";
 import api from "../../services/api";
-import axios from "axios";
 
 const useStyles = makeStyles(theme => {
   const isDark = (theme.palette?.type || theme.mode) === 'dark';
@@ -26,7 +26,8 @@ const useStyles = makeStyles(theme => {
       borderRadius: 8,
       cursor: "pointer",
       display: "block",
-      transition: "opacity 0.2s ease",
+      backgroundColor: isDark ? "#202c33" : "#f0f2f5",
+      transition: "opacity 0.2s ease, transform 0.15s ease",
       "&:hover": {
         opacity: 0.95
       }
@@ -182,129 +183,11 @@ const ModalImageCors = ({
   isGif = false
 }) => {
   const classes = useStyles();
-  const [blobUrl, setBlobUrl] = useState("");
   const [isValidUrl, setIsValidUrl] = useState(true);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
 
   const isVideo = mediaType === "video";
-
-  useEffect(() => {
-    let isCurrent = true;
-
-    // Para videos, HTML5 soporta streaming por rango directamente desde la URL
-    if (isVideo) {
-      setIsLoading(false);
-      setIsValidUrl(Boolean(imageUrl));
-      return;
-    }
-
-    const fetchImage = async () => {
-      if (!imageUrl) {
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        setIsLoading(true);
-
-        let isExternalUrl = false;
-        try {
-          const url = new URL(imageUrl, window.location.origin);
-          isExternalUrl =
-            !url.hostname.includes(window.location.hostname) &&
-            !url.hostname.includes("localhost") &&
-            !url.hostname.includes("127.0.0.1");
-        } catch (e) {
-          isExternalUrl = false;
-        }
-
-        if (isExternalUrl) {
-          try {
-            const response = await axios.get(imageUrl, {
-              responseType: "blob",
-              timeout: 10000,
-              withCredentials: false,
-              headers: { Accept: "image/*" }
-            });
-
-            if (isCurrent && response?.data) {
-              const blob = window.URL.createObjectURL(
-                new Blob([response.data], {
-                  type: response.headers["content-type"] || "image/jpeg"
-                })
-              );
-              setBlobUrl(blob);
-              setIsValidUrl(true);
-              setIsLoading(false);
-              return;
-            }
-          } catch (corsErr) {
-            const testImg = new window.Image();
-            testImg.onload = () => {
-              if (isCurrent) {
-                setBlobUrl(imageUrl);
-                setIsValidUrl(true);
-                setIsLoading(false);
-              }
-            };
-            testImg.onerror = () => {
-              if (isCurrent) {
-                setIsValidUrl(false);
-                setIsLoading(false);
-              }
-            };
-            testImg.src = imageUrl;
-            return;
-          }
-        } else {
-          const response = await api.get(imageUrl, {
-            responseType: "blob"
-          });
-
-          if (isCurrent && response?.data) {
-            const blob = window.URL.createObjectURL(
-              new Blob([response.data], {
-                type: response.headers["content-type"] || "image/jpeg"
-              })
-            );
-            setBlobUrl(blob);
-            setIsValidUrl(true);
-            setIsLoading(false);
-            return;
-          }
-        }
-      } catch (err) {
-        const testImg = new window.Image();
-        testImg.onload = () => {
-          if (isCurrent) {
-            setBlobUrl(imageUrl);
-            setIsValidUrl(true);
-            setIsLoading(false);
-          }
-        };
-        testImg.onerror = () => {
-          if (isCurrent) {
-            setIsValidUrl(false);
-            setIsLoading(false);
-          }
-        };
-        testImg.src = imageUrl;
-        return;
-      }
-    };
-
-    fetchImage();
-
-    return () => {
-      isCurrent = false;
-      if (blobUrl && blobUrl.startsWith("blob:")) {
-        window.URL.revokeObjectURL(blobUrl);
-      }
-    };
-  }, [imageUrl, isVideo]);
-
-  const activeSrc = isVideo ? imageUrl : (blobUrl || imageUrl);
 
   const handleOpenModal = () => {
     setModalOpen(true);
@@ -321,15 +204,37 @@ const ModalImageCors = ({
     return "📷 Imagen";
   };
 
-  if (isLoading) {
-    return (
-      <div className={isSticker ? classes.placeholderSticker : classes.placeholder}>
-        {isSticker ? "Cargando sticker..." : "Cargando archivo..."}
-      </div>
-    );
-  }
+  const handleDownload = async (e) => {
+    if (e) e.preventDefault();
+    if (!imageUrl) return;
 
-  if (!isValidUrl) {
+    try {
+      setIsDownloading(true);
+      const response = await api.get(imageUrl, {
+        responseType: "blob"
+      });
+
+      if (response?.data) {
+        const contentType = response.headers["content-type"] || (isVideo ? "video/mp4" : "image/jpeg");
+        const blob = new Blob([response.data], { type: contentType });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const filename = imageUrl.split("/").pop()?.split("?")[0] || (isVideo ? "video.mp4" : "archivo.jpg");
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => window.URL.revokeObjectURL(url), 2000);
+      }
+    } catch (err) {
+      window.open(imageUrl, "_blank");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  if (!imageUrl || !isValidUrl) {
     return (
       <div className={isSticker ? classes.placeholderSticker : classes.placeholder}>
         {isSticker ? "Error al mostrar sticker" : "Error al mostrar archivo"}
@@ -339,14 +244,16 @@ const ModalImageCors = ({
 
   return (
     <>
-      {/* Vista previa en la burbuja del Chat */}
+      {/* Vista previa en la burbuja del Chat (renderizado ligero, no bloquea memoria ni Axios) */}
       {isSticker ? (
         <img
-          src={activeSrc}
+          src={imageUrl}
           alt="Sticker"
           className={classes.stickerThumbnail}
           onClick={handleOpenModal}
           loading="lazy"
+          decoding="async"
+          onError={() => setIsValidUrl(false)}
         />
       ) : isVideo ? (
         <div className={classes.videoContainer}>
@@ -358,37 +265,42 @@ const ModalImageCors = ({
           {isGif ? (
             <>
               <video
-                src={activeSrc}
+                src={imageUrl}
                 autoPlay
                 loop
                 muted
                 playsInline
+                preload="metadata"
                 className={classes.videoThumbnail}
                 onClick={handleOpenModal}
                 style={{ cursor: "pointer" }}
+                onError={() => setIsValidUrl(false)}
               />
               <span className={classes.gifBadge}>GIF</span>
             </>
           ) : (
             <video
-              src={activeSrc}
+              src={imageUrl}
               controls
               preload="metadata"
               className={classes.videoThumbnail}
+              onError={() => setIsValidUrl(false)}
             />
           )}
         </div>
       ) : (
         <img
-          src={activeSrc}
+          src={imageUrl}
           alt="Imagen adjunta"
           className={classes.imageThumbnail}
           onClick={handleOpenModal}
           loading="lazy"
+          decoding="async"
+          onError={() => setIsValidUrl(false)}
         />
       )}
 
-      {/* Visor Modal Unificado */}
+      {/* Visor Modal Unificado con visualización en alta definición y descarga bajo demanda */}
       <Dialog
         open={modalOpen}
         onClose={handleCloseModal}
@@ -405,18 +317,21 @@ const ModalImageCors = ({
             {getMediaLabel()}
           </Typography>
           <div className={classes.dialogActions}>
-            <Tooltip title="Descargar archivo">
-              <IconButton
-                component="a"
-                href={activeSrc || imageUrl}
-                download
-                target="_blank"
-                rel="noopener noreferrer"
-                className={classes.headerIconButton}
-                size="small"
-              >
-                <DownloadIcon fontSize="small" />
-              </IconButton>
+            <Tooltip title={isDownloading ? "Descargando..." : "Descargar archivo"}>
+              <span>
+                <IconButton
+                  onClick={handleDownload}
+                  disabled={isDownloading}
+                  className={classes.headerIconButton}
+                  size="small"
+                >
+                  {isDownloading ? (
+                    <CircularProgress size={16} style={{ color: "#fff" }} />
+                  ) : (
+                    <DownloadIcon fontSize="small" />
+                  )}
+                </IconButton>
+              </span>
             </Tooltip>
             <Tooltip title="Cerrar (Esc)">
               <IconButton
@@ -432,7 +347,7 @@ const ModalImageCors = ({
 
         {isVideo ? (
           <video
-            src={activeSrc}
+            src={imageUrl}
             controls
             autoPlay
             loop={isGif}
@@ -440,7 +355,7 @@ const ModalImageCors = ({
           />
         ) : (
           <img
-            src={activeSrc}
+            src={imageUrl}
             alt={getMediaLabel()}
             className={classes.modalMediaContent}
             style={isSticker ? { backgroundColor: "transparent" } : undefined}

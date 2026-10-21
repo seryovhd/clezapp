@@ -12,6 +12,7 @@ import Setting from "../models/Setting";
 import CreateMessageService from "../services/MessageServices/CreateMessageService";
 import { Op } from "sequelize";
 import { resolveLidToPhone } from "../helpers/ResolveLidHelper";
+import { isGroupMessageIgnored } from "../helpers/CheckMsgIsGroupSetting";
 
 export const handleWebhook = async (req: Request, res: Response): Promise<Response> => {
   try {
@@ -127,6 +128,12 @@ export const handleWebhook = async (req: Request, res: Response): Promise<Respon
 
       for (const item of rawMessages) {
         if (!item || !item.key) continue;
+
+        // Descartar mensajes de grupos inmediatamente si la configuración lo indica
+        const isGroup = item.key.remoteJid?.endsWith("@g.us") || Boolean(item.key.participant);
+        if (isGroup && (await isGroupMessageIgnored(companyId))) {
+          continue;
+        }
 
         // Normalizar JID si viene con LID
         const itemAny = item as any;

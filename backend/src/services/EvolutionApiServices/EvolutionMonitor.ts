@@ -7,6 +7,7 @@ import Message from "../../models/Message";
 import { handleMessage } from "../WbotServices/wbotMessageListener";
 import { WAMessage } from "@whiskeysockets/baileys";
 import { resolveLidToPhone } from "../../helpers/ResolveLidHelper";
+import { isGroupMessageIgnored } from "../../helpers/CheckMsgIsGroupSetting";
 
 class EvolutionMonitorService {
   private timer: NodeJS.Timeout | null = null;
@@ -195,6 +196,12 @@ class EvolutionMonitorService {
 
       for (const item of sortedRecords) {
         if (!item || !item.key || !item.key.id) continue;
+
+        // Descartar mensajes de grupos inmediatamente si la configuración lo indica
+        const isGroup = item.key.remoteJid?.endsWith("@g.us") || Boolean(item.key.participant);
+        if (isGroup && (await isGroupMessageIgnored(companyId))) {
+          continue;
+        }
 
         const messageId = item.key.id;
 
