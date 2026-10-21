@@ -10,7 +10,7 @@ import {
 import {
   Close as CloseIcon,
   GetApp as DownloadIcon,
-  AspectRatio as ExpandIcon
+  PlayCircleOutline as PlayCircleOutlineIcon
 } from "@material-ui/icons";
 import api from "../../services/api";
 
@@ -52,31 +52,29 @@ const useStyles = makeStyles(theme => {
       overflow: "hidden",
       backgroundColor: "#000",
       display: "inline-block",
+      cursor: "pointer",
     },
     videoThumbnail: {
       maxWidth: 320,
       maxHeight: 240,
       width: "100%",
       height: "auto",
-      objectFit: "contain",
+      objectFit: "cover",
       display: "block",
     },
-    videoOverlayButton: {
+    videoPlayOverlay: {
       position: "absolute",
-      top: 6,
-      right: 6,
-      backgroundColor: "rgba(0, 0, 0, 0.55)",
-      color: "#fff",
-      padding: 4,
-      borderRadius: 6,
-      cursor: "pointer",
-      zIndex: 2,
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      transition: "background-color 0.2s ease",
+      backgroundColor: "rgba(0, 0, 0, 0.28)",
+      transition: "background-color 0.2s ease, transform 0.2s ease",
       "&:hover": {
-        backgroundColor: "rgba(0, 0, 0, 0.8)",
+        backgroundColor: "rgba(0, 0, 0, 0.45)",
       }
     },
     gifBadge: {
@@ -90,7 +88,8 @@ const useStyles = makeStyles(theme => {
       padding: "2px 6px",
       borderRadius: 4,
       pointerEvents: "none",
-      letterSpacing: "0.5px"
+      letterSpacing: "0.5px",
+      zIndex: 2,
     },
     placeholder: {
       width: 250,
@@ -176,6 +175,14 @@ const useStyles = makeStyles(theme => {
   };
 });
 
+const getThumbnailUrl = (url) => {
+  if (!url || typeof url !== "string") return url;
+  if (url.includes("/public/")) {
+    return url.includes("?") ? `${url}&thumb=1` : `${url}?thumb=1`;
+  }
+  return url;
+};
+
 const ModalImageCors = ({
   imageUrl,
   mediaType = "image",
@@ -184,6 +191,7 @@ const ModalImageCors = ({
 }) => {
   const classes = useStyles();
   const [isValidUrl, setIsValidUrl] = useState(true);
+  const [fallbackToOriginal, setFallbackToOriginal] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -202,6 +210,14 @@ const ModalImageCors = ({
     if (isGif) return "🎞️ GIF";
     if (isVideo) return "📹 Video";
     return "📷 Imagen";
+  };
+
+  const handleThumbnailError = () => {
+    if (!fallbackToOriginal) {
+      setFallbackToOriginal(true);
+    } else {
+      setIsValidUrl(false);
+    }
   };
 
   const handleDownload = async (e) => {
@@ -242,65 +258,49 @@ const ModalImageCors = ({
     );
   }
 
+  const activeThumbSrc = fallbackToOriginal ? imageUrl : getThumbnailUrl(imageUrl);
+
   return (
     <>
-      {/* Vista previa en la burbuja del Chat (renderizado ligero, no bloquea memoria ni Axios) */}
+      {/* Vista previa en la burbuja del Chat (Miniatura de baja calidad ~12KB, ultraliviana) */}
       {isSticker ? (
         <img
-          src={imageUrl}
+          src={activeThumbSrc}
           alt="Sticker"
           className={classes.stickerThumbnail}
           onClick={handleOpenModal}
           loading="lazy"
           decoding="async"
-          onError={() => setIsValidUrl(false)}
+          onError={handleThumbnailError}
         />
       ) : isVideo ? (
-        <div className={classes.videoContainer}>
-          <Tooltip title="Ver en visor ampliado">
-            <div className={classes.videoOverlayButton} onClick={handleOpenModal}>
-              <ExpandIcon style={{ fontSize: 18 }} />
-            </div>
-          </Tooltip>
-          {isGif ? (
-            <>
-              <video
-                src={imageUrl}
-                autoPlay
-                loop
-                muted
-                playsInline
-                preload="metadata"
-                className={classes.videoThumbnail}
-                onClick={handleOpenModal}
-                style={{ cursor: "pointer" }}
-                onError={() => setIsValidUrl(false)}
-              />
-              <span className={classes.gifBadge}>GIF</span>
-            </>
-          ) : (
-            <video
-              src={imageUrl}
-              controls
-              preload="metadata"
-              className={classes.videoThumbnail}
-              onError={() => setIsValidUrl(false)}
-            />
-          )}
+        <div className={classes.videoContainer} onClick={handleOpenModal}>
+          <img
+            src={activeThumbSrc}
+            alt={isGif ? "GIF" : "Video"}
+            className={classes.videoThumbnail}
+            loading="lazy"
+            decoding="async"
+            onError={handleThumbnailError}
+          />
+          <div className={classes.videoPlayOverlay}>
+            <PlayCircleOutlineIcon style={{ fontSize: 48, color: "rgba(255, 255, 255, 0.95)" }} />
+          </div>
+          {isGif && <span className={classes.gifBadge}>GIF</span>}
         </div>
       ) : (
         <img
-          src={imageUrl}
+          src={activeThumbSrc}
           alt="Imagen adjunta"
           className={classes.imageThumbnail}
           onClick={handleOpenModal}
           loading="lazy"
           decoding="async"
-          onError={() => setIsValidUrl(false)}
+          onError={handleThumbnailError}
         />
       )}
 
-      {/* Visor Modal Unificado con visualización en alta definición y descarga bajo demanda */}
+      {/* Visor Modal Unificado con visualización en Alta Calidad (Original) y Descarga */}
       <Dialog
         open={modalOpen}
         onClose={handleCloseModal}
@@ -317,7 +317,7 @@ const ModalImageCors = ({
             {getMediaLabel()}
           </Typography>
           <div className={classes.dialogActions}>
-            <Tooltip title={isDownloading ? "Descargando..." : "Descargar archivo"}>
+            <Tooltip title={isDownloading ? "Descargando..." : "Descargar archivo original"}>
               <span>
                 <IconButton
                   onClick={handleDownload}

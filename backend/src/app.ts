@@ -16,6 +16,7 @@ import AppError from "./errors/AppError";
 import { messageQueue, sendScheduledMessages } from "./queues";
 import routes from "./routes";
 import { logger } from "./utils/logger";
+import { handleMediaThumbnail } from "./helpers/ThumbnailHelper";
 
 Sentry.init({ dsn: process.env.SENTRY_DSN });
 
@@ -77,7 +78,12 @@ app.use(
 
 app.use(cookieParser());
 app.use(express.json());
-app.use(Sentry.Handlers.requestHandler());
+app.use("/public", (req, res, next) => {
+  if (req.query.thumb === "1" || req.query.thumb === "true") {
+    return handleMediaThumbnail(req, res, next);
+  }
+  next();
+});
 app.use("/public", express.static(uploadConfig.directory));
 app.use(routes);
 
