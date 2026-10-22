@@ -38,12 +38,12 @@ class EvolutionMonitorService {
   public start() {
     if (this.timer) return;
     logger.info("🚀 [Evolution Monitor] Servicio de monitoreo y sincronización iniciado");
-    // Ejecutar cada 3 segundos
+    // Ejecutar cada 30 segundos como Watchdog de salud (los mensajes llegan en 0ms vía Webhooks)
     this.timer = setInterval(() => {
       this.checkAllInstances().catch(err => {
         logger.error("[Evolution Monitor] Error en ciclo de verificación:", err?.message || err);
       });
-    }, 3000);
+    }, 30000);
   }
 
   public stop() {

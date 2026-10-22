@@ -11,6 +11,8 @@ interface Request {
   ticketId: string;
   companyId: number;
   pageNumber?: string;
+  beforeId?: string;
+  beforeCreatedAt?: string;
   queues?: number[];
 }
 
@@ -25,6 +27,8 @@ const ListMessagesService = async ({
   pageNumber = "1",
   ticketId,
   companyId,
+  beforeId,
+  beforeCreatedAt,
   queues = []
 }: Request): Promise<Response> => {
   const ticket = await Ticket.findOne({
@@ -61,19 +65,29 @@ const ListMessagesService = async ({
     throw new AppError("ERR_NO_TICKET_FOUND", 404);
   }
 
-  // await setMessagesAsRead(ticket);
-  const limit = 20;
-  const offset = limit * (+pageNumber - 1);
+  // ✅ Tamaño de lote óptimo ampliado a 35 mensajes
+  const limit = 35;
+  let offset = 0;
 
-  const options: FindOptions = {
-    where: {
-      ticketId,
-      companyId
-    }
+  const whereConditions: any = {
+    ticketId,
+    companyId
   };
 
+  // ✅ Paginación por Cursor (Timestamp / ID)
+  if (beforeCreatedAt) {
+    whereConditions.createdAt = { [Op.lt]: new Date(beforeCreatedAt) };
+  } else if (beforeId) {
+    const refMsg = await Message.findByPk(beforeId, { attributes: ["createdAt"] });
+    if (refMsg?.createdAt) {
+      whereConditions.createdAt = { [Op.lt]: refMsg.createdAt };
+    }
+  } else if (pageNumber && +pageNumber > 1) {
+    offset = limit * (+pageNumber - 1);
+  }
+
   if (queues.length > 0) {
-    options.where["queueId"] = {
+    whereConditions.queueId = {
       [Op.or]: {
         [Op.in]: queues,
         [Op.eq]: null
@@ -82,7 +96,7 @@ const ListMessagesService = async ({
   }
 
   const messages = await Message.findAll({
-    ...options,
+    where: whereConditions,
     limit: limit + 1,
     include: [
       {
@@ -93,7 +107,7 @@ const ListMessagesService = async ({
       {
         model: Message,
         as: "quotedMsg",
-        attributes: ["id", "body", "fromMe", "mediaType", "mediaUrl", "createdAt"],
+        attributes: ["id", "body", "fromMe", "mediaType", "mediaUrl", "createdAt", "companyId"],
         include: [
           {
             model: Contact,

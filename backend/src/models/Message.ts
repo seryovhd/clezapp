@@ -59,7 +59,8 @@ class Message extends Model<Message> {
         return mediaUrlValue;
       }
       // ✅ PARA ARCHIVOS LOCALES, CONSTRUIR URL
-      return `${process.env.BACKEND_URL}/public/company${this.companyId}/${mediaUrlValue}`;
+      const compId = this.companyId || (this.ticket && this.ticket.companyId) || 1;
+      return `${process.env.BACKEND_URL}/public/company${compId}/${mediaUrlValue}`;
     }
     return null;
   }

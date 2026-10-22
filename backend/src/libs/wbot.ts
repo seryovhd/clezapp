@@ -102,13 +102,23 @@ export const removeWbot = async (
       // Remover de la lista inmediatamente para cortar procesamiento de mensajes entrantes o bucles de error
       sessions.splice(sessionIndex, 1);
 
-      if (isLogout && session) {
+      if (session) {
         try {
-          if (typeof session.logout === "function") {
-            await session.logout();
+          if (session.ev && typeof (session.ev as any).removeAllListeners === "function") {
+            (session.ev as any).removeAllListeners();
           }
         } catch (e) {
-          logger.warn(`Aviso al hacer logout de sesión ${whatsappId}: ${e}`);
+          logger.warn(`Aviso al limpiar listeners de sesión ${whatsappId}: ${e}`);
+        }
+
+        if (isLogout) {
+          try {
+            if (typeof session.logout === "function") {
+              await session.logout();
+            }
+          } catch (e) {
+            logger.warn(`Aviso al hacer logout de sesión ${whatsappId}: ${e}`);
+          }
         }
 
         try {
@@ -220,8 +230,8 @@ export const initWASocket = async (whatsapp: Whatsapp): Promise<Session> => {
           defaultQueryTimeoutMs: undefined,
           msgRetryCounterCache,
           markOnlineOnConnect: false,
-          connectTimeoutMs: 25_000,
-          keepAliveIntervalMs: 25_000,
+          connectTimeoutMs: 30_000,
+          keepAliveIntervalMs: 20_000,
           syncFullHistory: false,
           maxMsgRetryCount: 3,
           retryRequestDelayMs: 500,
@@ -309,9 +319,14 @@ export const initWASocket = async (whatsapp: Whatsapp): Promise<Session> => {
                 });
               }
 
+              const retries = retriesQrCodeMap.get(id) || 0;
+              retriesQrCodeMap.set(id, retries + 1);
+              const reconnectDelay = Math.min(2000 * Math.pow(1.5, Math.min(retries, 4)), 10000);
+
               if (disconect !== DisconnectReason.loggedOut) {
                 removeWbot(id, false);
-                setTimeout(() => StartWhatsAppSession(whatsapp, whatsapp.companyId), 2000);
+                logger.info(`Reintentando conexión para ${name} en ${reconnectDelay}ms (intento #${retries + 1})...`);
+                setTimeout(() => StartWhatsAppSession(whatsapp, whatsapp.companyId), reconnectDelay);
               } else {
                 await whatsapp.update({ status: "PENDING", session: "", number: "" });
                 await DeleteBaileysService(whatsapp.id);
@@ -321,11 +336,12 @@ export const initWASocket = async (whatsapp: Whatsapp): Promise<Session> => {
                   session: whatsapp
                 });
                 removeWbot(id, false);
-                setTimeout(() => StartWhatsAppSession(whatsapp, whatsapp.companyId), 2000);
+                setTimeout(() => StartWhatsAppSession(whatsapp, whatsapp.companyId), reconnectDelay);
               }
             }
 
             if (connection === "open") {
+              retriesQrCodeMap.delete(id);
               await whatsapp.update({
                 status: "CONNECTED",
                 qrcode: "",

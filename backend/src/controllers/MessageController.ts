@@ -25,7 +25,9 @@ import { NotificationService } from "../services/NotificationService";
 import crypto from "crypto";
 
 type IndexQuery = {
-  pageNumber: string;
+  pageNumber?: string;
+  beforeId?: string;
+  beforeCreatedAt?: string;
 };
 
 type MessageData = {
@@ -42,7 +44,7 @@ type MessageData = {
 
 export const index = async (req: Request, res: Response): Promise<Response> => {
   const { ticketId } = req.params;
-  const { pageNumber } = req.query as IndexQuery;
+  const { pageNumber, beforeId, beforeCreatedAt } = req.query as IndexQuery;
   const { companyId, profile } = req.user;
   const queues: number[] = [];
 
@@ -57,6 +59,8 @@ export const index = async (req: Request, res: Response): Promise<Response> => {
 
   const { count, messages, ticket, hasMore } = await ListMessagesService({
     pageNumber,
+    beforeId,
+    beforeCreatedAt,
     ticketId,
     companyId,
     queues

@@ -659,8 +659,19 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
     const fetchMessages = async () => {
       if (ticketId === undefined) return;
       try {
+        const params = { pageNumber };
+        if (pageNumber > 1 && messagesList.length > 0) {
+          const oldest = messagesList[0];
+          if (oldest?.id) {
+            params.beforeId = oldest.id;
+          }
+          if (oldest?.createdAt) {
+            params.beforeCreatedAt = oldest.createdAt;
+          }
+        }
+
         const { data } = await api.get("/messages/" + ticketId, {
-          params: { pageNumber },
+          params,
         });
 
         if (isMounted && currentTicketId.current === ticketId) {
@@ -1398,6 +1409,12 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
         className={classes.messagesList}
         onScroll={handleScroll}
       >
+        {loading && pageNumber > 1 && (
+          <div style={{ textAlign: "center", padding: "10px 0", color: "#888", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: "0.85rem" }}>
+            <CircularProgress size={16} style={{ color: "#008069" }} />
+            <span>Cargando mensajes anteriores...</span>
+          </div>
+        )}
         {messagesList.length > 0 ? renderMessages() : []}
         <div ref={lastMessageRef} style={{ float: "left", clear: "both", height: 1 }} />
         {contactPresence === "composing" && (
