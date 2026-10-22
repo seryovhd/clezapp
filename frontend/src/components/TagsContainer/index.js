@@ -1,14 +1,30 @@
 import { Chip, Paper, TextField } from "@material-ui/core";
 import Autocomplete from "@material-ui/lab/Autocomplete";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { isArray, isString } from "lodash";
 import toastError from "../../errors/toastError";
 import api from "../../services/api";
+
+const CustomPaperComponent = ({ children, ...other }) => (
+  <Paper style={{ width: 400, marginLeft: 12 }} {...other}>
+    {children}
+  </Paper>
+);
 
 export function TagsContainer({ ticket }) {
   const [tags, setTags] = useState([]);
   const [selecteds, setSelecteds] = useState([]);
   const isMounted = useRef(true);
+  const inputRef = useRef(null);
+  const isInputFocused = useRef(false);
+
+  const keepFocus = useCallback(() => {
+    requestAnimationFrame(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    });
+  }, []);
 
   useEffect(() => {
     isMounted.current = true;
@@ -23,11 +39,19 @@ export function TagsContainer({ ticket }) {
 
   useEffect(() => {
     if (Array.isArray(ticket?.tags)) {
-      setSelecteds(ticket.tags);
+      setSelecteds((prev) => {
+        const prevIds = (prev || []).map((t) => t.id).sort().join(",");
+        const newIds = ticket.tags.map((t) => t.id).sort().join(",");
+        if (prevIds === newIds) return prev;
+        return ticket.tags;
+      });
+      if (isInputFocused.current) {
+        keepFocus();
+      }
     } else {
       setSelecteds([]);
     }
-  }, [ticket?.tags]);
+  }, [ticket?.tags, keepFocus]);
 
   const createTag = async (data) => {
     try {
@@ -79,7 +103,17 @@ export function TagsContainer({ ticket }) {
       setSelecteds(optionsChanged);
     }
 
+    // Mantener foco activo ininterrumpido en el campo de texto
+    isInputFocused.current = true;
+    keepFocus();
+    setTimeout(keepFocus, 30);
+    setTimeout(keepFocus, 100);
+
     await syncTags({ ticketId: ticket.id, tags: optionsChanged });
+
+    if (isInputFocused.current) {
+      keepFocus();
+    }
   };
 
   return (
@@ -90,11 +124,13 @@ export function TagsContainer({ ticket }) {
         options={tags}
         value={selecteds}
         freeSolo
+        blurOnSelect={false}
         onChange={(e, v, r) => onChange(v, r)}
         getOptionLabel={(option) => option.name}
         renderTags={(value, getTagProps) =>
           value.map((option, index) => (
             <Chip
+              key={option.id || index}
               variant="outlined"
               style={{
                 background: option.color || "#eee",
@@ -112,11 +148,24 @@ export function TagsContainer({ ticket }) {
           ))
         }
         renderInput={(params) => (
-          <TextField {...params} variant="outlined" placeholder="Tags" />
+          <TextField
+            {...params}
+            inputRef={inputRef}
+            variant="outlined"
+            placeholder="Tags"
+            onFocus={() => {
+              isInputFocused.current = true;
+            }}
+            onBlur={() => {
+              setTimeout(() => {
+                if (document.activeElement !== inputRef.current) {
+                  isInputFocused.current = false;
+                }
+              }, 200);
+            }}
+          />
         )}
-        PaperComponent={({ children }) => (
-          <Paper style={{ width: 400, marginLeft: 12 }}>{children}</Paper>
-        )}
+        PaperComponent={CustomPaperComponent}
       />
     </Paper>
   );
