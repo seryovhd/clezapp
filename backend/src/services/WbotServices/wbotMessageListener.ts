@@ -1225,7 +1225,24 @@ export const verifyMediaMessage = async (
   const body = getBodyMessage(msg);
 
   const hasCap = hasCaption(body, media.filename);
-  const bodyMessage = isSticker ? "sticker" : (body ? (hasCap ? formatBody(body, ticket.contact) : "-") : "-");
+  const rawMediaType = isSticker ? "sticker" : (media.mimetype ? media.mimetype.split("/")[0] : detectMediaTypeFromMessage(msg));
+  const hasTextCaption = Boolean(hasCap && body && body.trim() && body !== "-" && body !== "Audio" && body !== "sticker");
+  const formattedCaption = hasTextCaption ? formatBody(body, ticket.contact) : "";
+  const bodyMessage = isSticker ? "sticker" : (formattedCaption || "-");
+
+  const mediaLabel = isSticker
+    ? "💟 Sticker"
+    : rawMediaType === "image"
+    ? (formattedCaption ? `📷 ${formattedCaption}` : "📷 Imagen")
+    : rawMediaType === "video"
+    ? (formattedCaption ? `📹 ${formattedCaption}` : "📹 Video")
+    : rawMediaType === "audio"
+    ? "🎵 Audio"
+    : (formattedCaption ? `📄 ${formattedCaption}` : "📄 Archivo");
+
+  const normalizedMediaType = isSticker
+    ? "sticker"
+    : (rawMediaType === "audio" ? "audio" : rawMediaType === "video" ? "video" : rawMediaType === "image" ? "image" : "document");
 
   const messageData = {
     id: msg.key.id,
@@ -1235,7 +1252,7 @@ export const verifyMediaMessage = async (
     fromMe: msg.key.fromMe,
     read: msg.key.fromMe,
     mediaUrl: media.filename,
-    mediaType: isSticker ? "sticker" : media.mimetype.split("/")[0],
+    mediaType: normalizedMediaType,
     detectedMediaType: detectMediaTypeFromMessage(msg),
     quotedMsgId: quotedMsg?.id,
     ack: getAckFromStatus(msg.status, msg.key?.fromMe),
@@ -1246,7 +1263,7 @@ export const verifyMediaMessage = async (
   };
 
   await ticket.update({
-    lastMessage: body || "Archivo de medios"
+    lastMessage: mediaLabel
   });
 
   const newMessage = await CreateMessageService({

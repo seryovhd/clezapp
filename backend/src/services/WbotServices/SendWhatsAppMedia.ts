@@ -273,7 +273,9 @@ const SendWhatsAppMedia = async ({
 
       const evoLastMsg = isSticker ? "💟 Sticker" : (isFileBody
         ? (mediaType === "image" ? "📷 Imagen" : mediaType === "video" ? "📹 Video" : mediaType === "audio" ? "🎵 Audio" : "📄 Archivo")
-        : (formatBody(body, ticket.contact) || "📷 Archivo"));
+        : (body && formatBody(body, ticket.contact)
+            ? (mediaType === "image" ? `📷 ${formatBody(body, ticket.contact)}` : mediaType === "video" ? `📹 ${formatBody(body, ticket.contact)}` : formatBody(body, ticket.contact))
+            : (mediaType === "image" ? "📷 Imagen" : mediaType === "video" ? "📹 Video" : mediaType === "audio" ? "🎵 Audio" : "📄 Archivo")));
       await ticket.update({ lastMessage: evoLastMsg });
 
       const messageId = sentRes?.key?.id || sentRes?.id || `evo_media_${Date.now()}`;
@@ -499,7 +501,9 @@ const SendWhatsAppMedia = async ({
 
     const baileysLastMsg = isSticker ? "💟 Sticker" : (isFileText
       ? (detectedMediaType === "image" ? "📷 Imagen" : detectedMediaType === "video" ? "📹 Video" : detectedMediaType === "audio" ? "🎵 Audio" : "📄 Archivo")
-      : (bodyMessage || "📷 Archivo"));
+      : (bodyMessage && bodyMessage.trim()
+          ? (detectedMediaType === "image" ? `📷 ${bodyMessage.trim()}` : detectedMediaType === "video" ? `📹 ${bodyMessage.trim()}` : bodyMessage.trim())
+          : (detectedMediaType === "image" ? "📷 Imagen" : detectedMediaType === "video" ? "📹 Video" : detectedMediaType === "audio" ? "🎵 Audio" : "📄 Archivo")));
     await ticket.update({ lastMessage: baileysLastMsg });
 
     try {

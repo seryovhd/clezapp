@@ -199,12 +199,26 @@ const TicketsListCustom = (props) => {
           }
 
           // Determinar el último mensaje fresco y fecha
+          const isMedia = Boolean(data.message?.mediaType || data.message?.mediaUrl);
+          const rawBody = (data.message?.body || "").trim();
+          const isGenericBody = !rawBody || rawBody === "-" || rawBody === "sticker";
+
           let freshLastMessage = ticket.lastMessage;
-          if (data.message?.body) {
-            freshLastMessage = data.message.body;
-          } else if (data.message?.mediaType) {
-            const mt = data.message.mediaType;
-            freshLastMessage = mt === "image" ? "📷 Imagen" : mt === "video" ? "📹 Video" : mt === "audio" ? "🎵 Audio" : mt === "sticker" ? "💟 Sticker" : "📄 Archivo";
+
+          if (isMedia) {
+            const mt = (data.message.mediaType || "").toLowerCase();
+            const isSticker = mt === "sticker" || (data.message?.mediaUrl && data.message.mediaUrl.toLowerCase().includes(".webp"));
+            if (isSticker) {
+              freshLastMessage = "💟 Sticker";
+            } else if (rawBody && !isGenericBody) {
+              freshLastMessage = mt === "image" ? `📷 ${rawBody}` : mt === "video" ? `📹 ${rawBody}` : mt === "audio" ? `🎵 ${rawBody}` : `📄 ${rawBody}`;
+            } else {
+              freshLastMessage = mt === "image" ? "📷 Imagen" : mt === "video" ? "📹 Video" : mt === "audio" ? "🎵 Audio" : "📄 Archivo";
+            }
+          } else if (rawBody && !isGenericBody) {
+            freshLastMessage = rawBody;
+          } else if (ticket.lastMessage && ticket.lastMessage !== "-" && ticket.lastMessage !== "Archivo de medios") {
+            freshLastMessage = ticket.lastMessage;
           }
           const freshUpdatedAt = data.message?.createdAt || ticket.updatedAt || new Date().toISOString();
 

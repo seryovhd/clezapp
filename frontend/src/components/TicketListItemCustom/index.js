@@ -479,6 +479,12 @@ const TicketListItemCustom = ({ ticket }) => {
     return `${text.substring(0, maxLength)}...`;
   };
 
+  const formatLastMessage = (lastMsg) => {
+    if (!lastMsg || lastMsg === "-") return "📷 Archivo";
+    if (lastMsg === "Archivo de medios") return "📷 Imagen";
+    return lastMsg;
+  };
+
   useEffect(() => {
     if (ticket.userId && ticket.user) {
       setTicketUser(ticket.user?.name);
@@ -750,7 +756,7 @@ const TicketListItemCustom = ({ ticket }) => {
                 ) : typeof ticket.lastMessage === "string" && ticket.lastMessage.includes("data:image/png;base64") ? (
                   <MarkdownWrapper>Localización</MarkdownWrapper>
                 ) : (
-                  <MarkdownWrapper>{ticket.lastMessage}</MarkdownWrapper>
+                  <MarkdownWrapper>{formatLastMessage(ticket.lastMessage)}</MarkdownWrapper>
                 )}
               </Typography>
 
