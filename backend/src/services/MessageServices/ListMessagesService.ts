@@ -31,8 +31,13 @@ const ListMessagesService = async ({
   beforeCreatedAt,
   queues = []
 }: Request): Promise<Response> => {
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ticketId);
+  const whereTicket: any = isUuid
+    ? { uuid: ticketId, companyId }
+    : { id: ticketId, companyId };
+
   const ticket = await Ticket.findOne({
-    where: { id: ticketId, companyId },
+    where: whereTicket,
     attributes: [
       "id",
       "uuid",
@@ -70,7 +75,7 @@ const ListMessagesService = async ({
   let offset = 0;
 
   const whereConditions: any = {
-    ticketId,
+    ticketId: ticket.id,
     companyId
   };
 

@@ -987,6 +987,7 @@ export default React.memo(TicketListItemCustom, (prevProps, nextProps) => {
     p.uuid === n.uuid &&
     p.user?.name === n.user?.name &&
     p.contact?.name === n.contact?.name &&
+    p.contact?.disableBot === n.contact?.disableBot &&
     p.contact?.profilePicUrl === n.contact?.profilePicUrl &&
     p.whatsapp?.name === n.whatsapp?.name &&
     p.queue?.name === n.queue?.name &&

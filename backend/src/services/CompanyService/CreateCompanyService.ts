@@ -319,6 +319,30 @@ const CreateCompanyService = async (
   await Setting.findOrCreate({
     where: {
       companyId: company.id,
+      key: "showTicketWaitTime"
+    },
+    defaults: {
+      companyId: company.id,
+      key: "showTicketWaitTime",
+      value: "disabled"
+    },
+  });
+
+  await Setting.findOrCreate({
+    where: {
+      companyId: company.id,
+      key: "quickMessagesMode"
+    },
+    defaults: {
+      companyId: company.id,
+      key: "quickMessagesMode",
+      value: "both"
+    },
+  });
+
+  await Setting.findOrCreate({
+    where: {
+      companyId: company.id,
       key: "hideConnectionTag"
     },
     defaults: {
