@@ -385,7 +385,7 @@ const SignUp = () => {
 
   const handleSignUp = async values => {
     Object.assign(values, {
-      recurrence: "MENSAL",
+      recurrence: "MENSUAL",
       dueDate: dueDate,
       status: "t",
       campaignsEnabled: true,

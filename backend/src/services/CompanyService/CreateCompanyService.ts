@@ -3,6 +3,8 @@ import AppError from "../../errors/AppError";
 import Company from "../../models/Company";
 import Setting from "../../models/Setting";
 import User from "../../models/User";
+import Invoices from "../../models/Invoices";
+import Plan from "../../models/Plan";
 
 interface CompanyData {
   name: string;
@@ -57,15 +59,36 @@ const CreateCompanyService = async (
     throw new AppError(err.message);
   }
 
+  const formattedDueDate =
+    dueDate && String(dueDate).trim() !== "" ? String(dueDate).trim() : null;
+
+  const targetPlanId =
+    planId !== undefined && planId !== null && String(planId).trim() !== ""
+      ? Number(planId)
+      : null;
+
   const company = await Company.create({
     name,
     phone,
     email,
     status,
-    planId,
-    dueDate,
+    planId: targetPlanId,
+    dueDate: formattedDueDate,
     recurrence
   });
+
+  if (targetPlanId && formattedDueDate) {
+    const plan = await Plan.findByPk(targetPlanId);
+    if (plan) {
+      await Invoices.create({
+        detail: plan.name,
+        status: "open",
+        value: plan.value,
+        dueDate: formattedDueDate,
+        companyId: company.id
+      });
+    }
+  }
 
   const user = await User.create({
     name: company.name,

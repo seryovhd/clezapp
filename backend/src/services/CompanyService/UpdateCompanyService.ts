@@ -40,33 +40,41 @@ const UpdateCompanyService = async (
       status: "open",
       companyId: company.id,
     },
- });
+  });
 
- if (openInvoices.length > 1) {
-  for (const invoice of openInvoices.slice(1)) {
-    await invoice.update({ status: "cancelled" });
+  if (openInvoices.length > 1) {
+    for (const invoice of openInvoices.slice(1)) {
+      await invoice.update({ status: "cancelled" });
+    }
   }
-}
 
-const plan = await Plan.findByPk(planId);
+  const targetPlanId =
+    planId !== undefined && planId !== null && String(planId).trim() !== ""
+      ? Number(planId)
+      : company.planId;
 
-if (!plan) {
-  throw new Error("Plano Não Encontrado.");
-}
+  const plan = targetPlanId ? await Plan.findByPk(targetPlanId) : null;
 
+  const formattedDueDate =
+    dueDate && String(dueDate).trim() !== "" ? String(dueDate).trim() : null;
 
-  // 5. Atualizar a única invoice com status "open" existente, baseada no companyId.
+  // Actualizar factura abierta si existe, o crearla si no existía factura para este cliente
   const openInvoice = openInvoices[0];
-  
+
   if (openInvoice) {
     await openInvoice.update({
-      value: plan.value,
-      detail: plan.name,
-      dueDate: dueDate,
+      value: plan ? plan.value : openInvoice.value,
+      detail: plan ? plan.name : openInvoice.detail,
+      dueDate: formattedDueDate || openInvoice.dueDate,
     });
-  
-  } else {
-    throw new Error("Nenhuma fatura em aberto para este cliente!");
+  } else if (plan && formattedDueDate) {
+    await Invoices.create({
+      detail: plan.name,
+      status: "open",
+      value: plan.value,
+      dueDate: formattedDueDate,
+      companyId: company.id,
+    });
   }
 
   await company.update({
@@ -74,8 +82,8 @@ if (!plan) {
     phone,
     email,
     status,
-    planId,
-    dueDate,
+    planId: targetPlanId || null,
+    dueDate: formattedDueDate,
     recurrence
   });
 

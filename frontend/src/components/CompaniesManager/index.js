@@ -84,7 +84,7 @@ export function CompanyForm(props) {
     status: true,
     //campaignsEnabled: false,
     dueDate: "",
-    recurrence: "",
+    recurrence: "MENSUAL",
     ...initialValue,
   });
 
@@ -101,20 +101,21 @@ export function CompanyForm(props) {
 
   useEffect(() => {
     setRecord((prev) => {
-      if (moment(initialValue).isValid()) {
-        initialValue.dueDate = moment(initialValue.dueDate).format(
-          "YYYY-MM-DD"
-        );
+      let formattedDueDate =
+        initialValue && initialValue.dueDate ? initialValue.dueDate : "";
+      if (formattedDueDate && moment(formattedDueDate).isValid()) {
+        formattedDueDate = moment(formattedDueDate).format("YYYY-MM-DD");
       }
       return {
         ...prev,
         ...initialValue,
+        dueDate: formattedDueDate,
       };
     });
   }, [initialValue]);
 
   const handleSubmit = async (data) => {
-    if (data.dueDate === "" || moment(data.dueDate).isValid() === false) {
+    if (!data.dueDate || data.dueDate === "" || moment(data.dueDate).isValid() === false) {
       data.dueDate = null;
     }
     onSubmit(data);
@@ -142,40 +143,48 @@ export function CompanyForm(props) {
     setModalUser(false);
   };
 
-  const incrementDueDate = () => {
-    const data = { ...record };
-    if (data.dueDate !== "" && data.dueDate !== null) {
-      switch (data.recurrence) {
-        case "MENSAL":
-          data.dueDate = moment(data.dueDate)
-            .add(1, "month")
-            .format("YYYY-MM-DD");
-          break;
-        case "BIMESTRAL":
-          data.dueDate = moment(data.dueDate)
-            .add(2, "month")
-            .format("YYYY-MM-DD");
-          break;
-        case "TRIMESTRAL":
-          data.dueDate = moment(data.dueDate)
-            .add(3, "month")
-            .format("YYYY-MM-DD");
-          break;
-        case "SEMESTRAL":
-          data.dueDate = moment(data.dueDate)
-            .add(6, "month")
-            .format("YYYY-MM-DD");
-          break;
-        case "ANUAL":
-          data.dueDate = moment(data.dueDate)
-            .add(12, "month")
-            .format("YYYY-MM-DD");
-          break;
-        default:
-          break;
-      }
+  const incrementDueDate = (formikValues, setFieldValue) => {
+    const currentDueDate =
+      (formikValues && formikValues.dueDate) ||
+      record.dueDate ||
+      moment().format("YYYY-MM-DD");
+    const recurrence =
+      (formikValues && formikValues.recurrence) ||
+      record.recurrence ||
+      "MENSUAL";
+    let newDate = moment(currentDueDate);
+    if (!newDate.isValid()) {
+      newDate = moment();
     }
-    setRecord(data);
+    switch (recurrence) {
+      case "MENSAL":
+      case "MENSUAL":
+        newDate = newDate.add(1, "month");
+        break;
+      case "BIMESTRAL":
+        newDate = newDate.add(2, "month");
+        break;
+      case "TRIMESTRAL":
+        newDate = newDate.add(3, "month");
+        break;
+      case "SEMESTRAL":
+        newDate = newDate.add(6, "month");
+        break;
+      case "ANUAL":
+        newDate = newDate.add(12, "month");
+        break;
+      default:
+        newDate = newDate.add(1, "month");
+        break;
+    }
+    const formatted = newDate.format("YYYY-MM-DD");
+    if (setFieldValue) {
+      setFieldValue("dueDate", formatted);
+    }
+    setRecord((prev) => ({
+      ...prev,
+      dueDate: formatted,
+    }));
   };
 
   return (
@@ -197,7 +206,7 @@ export function CompanyForm(props) {
           }, 500)
         }
       >
-        {(values, setValues) => (
+        {({ values, setFieldValue }) => (
           <Form className={classes.fullWidth}>
             <Grid spacing={2} justifyContent="flex-end" container>
               <Grid xs={12} sm={6} md={4} item>
@@ -312,7 +321,7 @@ export function CompanyForm(props) {
                     name="recurrence"
                     margin="dense"
                   >
-                    <MenuItem value="MENSAL">Mensual</MenuItem>
+                    <MenuItem value="MENSUAL">Mensual</MenuItem>
                     {/*<MenuItem value="BIMESTRAL">Bimestral</MenuItem>*/}
                     {/*<MenuItem value="TRIMESTRAL">Trimestral</MenuItem>*/}
                     {/*<MenuItem value="SEMESTRAL">Semestral</MenuItem>*/}
@@ -333,7 +342,7 @@ export function CompanyForm(props) {
                       Limpiar
                     </ButtonWithSpinner>
                   </Grid>
-                  {record.id !== undefined ? (
+                  {record.id !== undefined && record.id !== "" ? (
                     <>
                       <Grid xs={6} md={1} item>
                         <ButtonWithSpinner
@@ -352,7 +361,7 @@ export function CompanyForm(props) {
                           style={{ marginTop: 7 }}
                           className={classes.fullWidth}
                           loading={loading}
-                          onClick={() => incrementDueDate()}
+                          onClick={() => incrementDueDate(values, setFieldValue)}
                           variant="contained"
                           color="primary"
                         >
@@ -460,7 +469,7 @@ export function CompaniesManagerGrid(props) {
            {/*  <TableCell align="left">Campañas</TableCell> */}
             <TableCell align="left">Status</TableCell>
             <TableCell align="left">Creada</TableCell>
-            <TableCell align="left">Vencimento</TableCell>
+            <TableCell align="left">Vencimiento</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -482,7 +491,9 @@ export function CompaniesManagerGrid(props) {
               <TableCell align="left">
                 {dateToClient(row.dueDate)}
                 <br />
-                <span>{row.recurrence}</span>
+                <span>
+                  {row.recurrence === "MENSAL" ? "MENSUAL" : (row.recurrence || "-")}
+                </span>
               </TableCell>
             </TableRow>
           ))}
@@ -508,7 +519,7 @@ export default function CompaniesManager() {
     status: true,
     //campaignsEnabled: false,
     dueDate: "",
-    recurrence: "",
+    recurrence: "MENSUAL",
   });
 
   useEffect(() => {
@@ -530,7 +541,7 @@ export default function CompaniesManager() {
   const handleSubmit = async (data) => {
     setLoading(true);
     try {
-      if (data.id !== undefined) {
+      if (data.id !== undefined && data.id !== "" && data.id !== null) {
         await update(data);
       } else {
         await save(data);
@@ -564,43 +575,37 @@ export default function CompaniesManager() {
   };
 
   const handleCancel = () => {
-    setRecord((prev) => ({
-      ...prev,
-	    id: "",
+    setRecord({
+      id: "",
       name: "",
       email: "",
       phone: "",
       planId: "",
       status: true,
-      //campaignsEnabled: false,
       dueDate: "",
-      recurrence: "",
-    }));
+      recurrence: "MENSUAL",
+    });
   };
 
   const handleSelect = (data) => {
-//    let campaignsEnabled = false;
+    let formattedDueDate = data.dueDate || "";
+    if (formattedDueDate && moment(formattedDueDate).isValid()) {
+      formattedDueDate = moment(formattedDueDate).format("YYYY-MM-DD");
+    }
 
-//    const setting = data.settings.find(
-//      (s) => s.key.indexOf("campaignsEnabled") > -1
-//    );
-//    if (setting) {
-//      campaignsEnabled =
-//       setting.value === "true" || setting.value === "enabled";
-//    }
-
-    setRecord((prev) => ({
-      ...prev,
+    setRecord({
       id: data.id,
       name: data.name || "",
       phone: data.phone || "",
       email: data.email || "",
       planId: data.planId || "",
       status: data.status === false ? false : true,
-      //campaignsEnabled,
-      dueDate: data.dueDate || "",
-      recurrence: data.recurrence || "",
-    }));
+      dueDate: formattedDueDate,
+      recurrence:
+        data.recurrence === "MENSAL"
+          ? "MENSUAL"
+          : data.recurrence || "MENSUAL",
+    });
   };
 
   return (
