@@ -4,14 +4,27 @@ import { useHistory, useParams } from "react-router-dom";
 import clsx from "clsx";
 import { toast } from "react-toastify";
 
-import { Paper, makeStyles, Typography, Box, useTheme } from "@material-ui/core";
+import {
+  Paper,
+  makeStyles,
+  Typography,
+  Box,
+  useTheme,
+  Collapse,
+  Tooltip,
+  Avatar,
+} from "@material-ui/core";
 import WarningIcon from "@material-ui/icons/Warning";
+import ExpandLessIcon from "@material-ui/icons/ExpandLess";
+import ExpandMoreIcon from "@material-ui/icons/ExpandMore";
 
 import { AuthContext } from "../../context/Auth/AuthContext";
 import { ReplyMessageProvider } from "../../context/ReplyingMessage/ReplyingMessageContext";
 import { SocketContext } from "../../context/Socket/SocketContext";
 import toastError from "../../errors/toastError";
 import api from "../../services/api";
+import { getInitials } from "../../helpers/getInitials";
+import { generateColor } from "../../helpers/colorGenerator";
 import ContactDrawer from "../ContactDrawer";
 import MessageInput from "../MessageInputCustom/";
 import MessagesList, { getTicketMessagesCache } from "../MessagesList";
@@ -56,6 +69,109 @@ const useStyles = makeStyles((theme) => ({
     }),
     marginRight: 0,
   },
+
+  headerAreaWrapper: {
+    position: "relative",
+    flexShrink: 0,
+    zIndex: 20,
+  },
+
+  compactHeaderBar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 46,
+    maxHeight: 50,
+    padding: "2px 14px",
+    backgroundColor: theme.palette.tabHeaderBackground || (theme.palette.type === "dark" ? "#202c33" : "#f0f2f5"),
+    borderBottom: theme.palette.divider ? `1px solid ${theme.palette.divider}` : "1px solid rgba(0, 0, 0, 0.12)",
+    gap: 8,
+  },
+
+  compactContactInfo: {
+    display: "flex",
+    alignItems: "center",
+    cursor: "pointer",
+    minWidth: 0,
+    flex: 1,
+    overflow: "hidden",
+    userSelect: "none",
+    borderRadius: 6,
+    padding: "2px 6px",
+    transition: "background-color 0.15s ease",
+    "&:hover": {
+      backgroundColor: theme.palette.type === "dark" ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.04)",
+    },
+  },
+
+  compactTitle: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: "0.88rem",
+    fontWeight: 600,
+    color: theme.palette.type === "dark" ? "#e9edef" : "#111b21",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+
+  compactTicketId: {
+    color: theme.palette.type === "dark" ? "#8696a0" : "#667781",
+    fontWeight: 500,
+    fontSize: "0.82rem",
+  },
+
+  compactAssignee: {
+    fontSize: "0.78rem",
+    color: theme.palette.type === "dark" ? "#aebac1" : "#54656f",
+    fontWeight: "normal",
+    marginLeft: 4,
+    whiteSpace: "nowrap",
+  },
+
+  compactActions: {
+    display: "flex",
+    alignItems: "center",
+    flexShrink: 0,
+  },
+
+  slidingTabWrapper: {
+    display: "flex",
+    justifyContent: "center",
+    position: "relative",
+    height: 0,
+    zIndex: 25,
+  },
+
+  slidingTab: {
+    position: "absolute",
+    top: 0,
+    transform: "translateY(-50%)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 54,
+    height: 18,
+    backgroundColor: theme.palette.type === "dark" ? "#202c33" : "#ffffff",
+    border: theme.palette.type === "dark" ? "1px solid #3b4a54" : "1px solid #cbd5e1",
+    borderRadius: 9,
+    cursor: "pointer",
+    boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
+    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+    color: theme.palette.type === "dark" ? "#8696a0" : "#54656f",
+    "&:hover": {
+      backgroundColor: theme.palette.type === "dark" ? "#2a3942" : "#f1f5f9",
+      color: theme.palette.type === "dark" ? "#00a884" : "#008069",
+      transform: "translateY(-50%) scale(1.1)",
+      boxShadow: "0 3px 8px rgba(0,0,0,0.18)",
+    },
+  },
+
+  slidingTabIcon: {
+    fontSize: 18,
+    lineHeight: 1,
+  },
 }));
 
 const Ticket = () => {
@@ -73,6 +189,18 @@ const Ticket = () => {
   const [ticket, setTicket] = useState({});
   const [hoursRemaining, setHoursRemaining] = useState(null);
   const [is24HoursExceeded, setIs24HoursExceeded] = useState(false);
+  const [isHeaderExpanded, setIsHeaderExpanded] = useState(() => {
+    const saved = localStorage.getItem("ticketHeaderExpanded");
+    return saved !== null ? saved === "true" : true;
+  });
+
+  const handleToggleHeader = () => {
+    setIsHeaderExpanded((prev) => {
+      const next = !prev;
+      localStorage.setItem("ticketHeaderExpanded", String(next));
+      return next;
+    });
+  };
 
   const socketManager = useContext(SocketContext);
   const isAssignedToOtherUser = ticket?.userId && ticket?.userId !== user?.id && user?.profile !== "admin" || ticket?.status === "pending";
@@ -294,6 +422,9 @@ if (isAssignedToOtherUser && !loading) {
 
 
 
+  const currentContact = contact?.id ? contact : (ticket?.contact || {});
+  const displayName = currentContact?.name || currentContact?.number || "Contacto";
+
   return (
     <div className={classes.root} id="drawer-container">
       <Paper
@@ -303,13 +434,76 @@ if (isAssignedToOtherUser && !loading) {
           [classes.mainWrapperShift]: drawerOpen,
         })}
       >
-        <TicketHeader loading={loading && !ticket?.id}>
-          {renderTicketInfo()}
-          <TicketActionButtons ticket={ticket} />
-        </TicketHeader>
-        <Paper style={{boxShadow: "none", flexShrink: 0}}>
-          <TagsContainer ticket={ticket} />
-        </Paper>
+        <div className={classes.headerAreaWrapper}>
+          <Collapse in={!isHeaderExpanded} timeout={250}>
+            <div className={classes.compactHeaderBar}>
+              <div
+                className={classes.compactContactInfo}
+                onClick={handleDrawerOpen}
+                title="Ver información del contacto"
+              >
+                <Avatar
+                  src={currentContact?.profilePicUrl}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    backgroundColor: generateColor(currentContact?.number),
+                    color: "#fff",
+                    fontWeight: "bold",
+                    fontSize: "0.75rem",
+                    marginRight: 8,
+                    flexShrink: 0,
+                  }}
+                >
+                  {getInitials(currentContact?.name)}
+                </Avatar>
+                <Typography variant="body2" className={classes.compactTitle} noWrap>
+                  <span>{displayName}</span>
+                  <span className={classes.compactTicketId}>#{ticket?.id}</span>
+                  {ticket?.user?.name && (
+                    <span className={classes.compactAssignee}>
+                      ({ticket.user.name})
+                    </span>
+                  )}
+                </Typography>
+              </div>
+
+              <div className={classes.compactActions}>
+                <TicketActionButtons ticket={ticket} />
+              </div>
+            </div>
+          </Collapse>
+
+          <Collapse in={isHeaderExpanded} timeout={250}>
+            <TicketHeader loading={loading && !ticket?.id}>
+              {renderTicketInfo()}
+              <TicketActionButtons ticket={ticket} />
+            </TicketHeader>
+            <Paper style={{ boxShadow: "none", flexShrink: 0 }}>
+              <TagsContainer ticket={ticket} />
+            </Paper>
+          </Collapse>
+
+          <div className={classes.slidingTabWrapper}>
+            <Tooltip
+              title={isHeaderExpanded ? "Ocultar cabecera y etiquetas" : "Mostrar cabecera y etiquetas"}
+              placement="bottom"
+            >
+              <div
+                className={classes.slidingTab}
+                onClick={handleToggleHeader}
+                role="button"
+                tabIndex={0}
+              >
+                {isHeaderExpanded ? (
+                  <ExpandLessIcon className={classes.slidingTabIcon} />
+                ) : (
+                  <ExpandMoreIcon className={classes.slidingTabIcon} />
+                )}
+              </div>
+            </Tooltip>
+          </div>
+        </div>
         {(() => {
           const isBusiness = ticket?.whatsapp?.type === "whatsapp_business" || ticket?.whatsapp?.type === "facebook_messenger";
           const shouldShow = isBusiness && !loading;
