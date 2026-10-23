@@ -316,6 +316,42 @@ const CreateCompanyService = async (
     },
   });
 
+  await Setting.findOrCreate({
+    where: {
+      companyId: company.id,
+      key: "hideConnectionTag"
+    },
+    defaults: {
+      companyId: company.id,
+      key: "hideConnectionTag",
+      value: "disabled"
+    },
+  });
+
+  await Setting.findOrCreate({
+    where: {
+      companyId: company.id,
+      key: "hideAgentTag"
+    },
+    defaults: {
+      companyId: company.id,
+      key: "hideAgentTag",
+      value: "disabled"
+    },
+  });
+
+  await Setting.findOrCreate({
+    where: {
+      companyId: company.id,
+      key: "hideTicketTags"
+    },
+    defaults: {
+      companyId: company.id,
+      key: "hideTicketTags",
+      value: "disabled"
+    },
+  });
+
   if (companyData.campaignsEnabled !== undefined) {
     const [setting, created] = await Setting.findOrCreate({
       where: {

@@ -178,8 +178,20 @@ const TicketsManagerTabs = () => {
         const waitTimeSetting = data.find(s => s.key === 'showTicketWaitTime');
         if (waitTimeSetting) {
           localStorage.setItem("showTicketWaitTime", waitTimeSetting.value);
-          window.dispatchEvent(new Event("settings-update"));
         }
+        const hideConn = data.find(s => s.key === 'hideConnectionTag');
+        if (hideConn) {
+          localStorage.setItem("hideConnectionTag", hideConn.value);
+        }
+        const hideAgent = data.find(s => s.key === 'hideAgentTag');
+        if (hideAgent) {
+          localStorage.setItem("hideAgentTag", hideAgent.value);
+        }
+        const hideTags = data.find(s => s.key === 'hideTicketTags');
+        if (hideTags) {
+          localStorage.setItem("hideTicketTags", hideTags.value);
+        }
+        window.dispatchEvent(new Event("settings-update"));
       } catch (err) {
         toastError(err);
       }

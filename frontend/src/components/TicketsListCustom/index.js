@@ -285,9 +285,11 @@ const TicketsListCustom = (props) => {
     socket.on(`company-${companyId}-appMessage`, handleSocketEvent);
 
     const handleSettingsEvent = (data) => {
-      if (data?.action === "update" && data?.setting?.key === "showTicketWaitTime") {
-        localStorage.setItem("showTicketWaitTime", data.setting.value);
-        window.dispatchEvent(new Event("settings-update"));
+      if (data?.action === "update" && data?.setting?.key) {
+        if (["showTicketWaitTime", "hideConnectionTag", "hideAgentTag", "hideTicketTags"].includes(data.setting.key)) {
+          localStorage.setItem(data.setting.key, data.setting.value);
+          window.dispatchEvent(new Event("settings-update"));
+        }
       }
     };
     socket.on(`company-${companyId}-settings`, handleSettingsEvent);

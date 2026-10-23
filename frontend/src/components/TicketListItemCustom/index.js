@@ -436,12 +436,23 @@ const TicketListItemCustom = ({ ticket }) => {
   const [showWaitTime, setShowWaitTime] = useState(
     () => localStorage.getItem("showTicketWaitTime") || "disabled"
   );
+  const [hideConnectionTag, setHideConnectionTag] = useState(
+    () => localStorage.getItem("hideConnectionTag") || "disabled"
+  );
+  const [hideAgentTag, setHideAgentTag] = useState(
+    () => localStorage.getItem("hideAgentTag") || "disabled"
+  );
+  const [hideTicketTags, setHideTicketTags] = useState(
+    () => localStorage.getItem("hideTicketTags") || "disabled"
+  );
   const [, setTimeTicker] = useState(0);
 
   useEffect(() => {
     const handleSettingsUpdate = () => {
-      const val = localStorage.getItem("showTicketWaitTime") || "disabled";
-      setShowWaitTime(val);
+      setShowWaitTime(localStorage.getItem("showTicketWaitTime") || "disabled");
+      setHideConnectionTag(localStorage.getItem("hideConnectionTag") || "disabled");
+      setHideAgentTag(localStorage.getItem("hideAgentTag") || "disabled");
+      setHideTicketTags(localStorage.getItem("hideTicketTags") || "disabled");
     };
 
     window.addEventListener("settings-update", handleSettingsUpdate);
@@ -761,7 +772,7 @@ const TicketListItemCustom = ({ ticket }) => {
               </Typography>
 
               <div className={classes.tagsContainer}>
-                {channelInfo && (
+                {channelInfo && hideConnectionTag !== "enabled" && (
                   <span
                     className={classes.tagChip}
                     style={{
@@ -772,7 +783,7 @@ const TicketListItemCustom = ({ ticket }) => {
                     {channelInfo.label}
                   </span>
                 )}
-                {ticketUser && (
+                {ticketUser && hideAgentTag !== "enabled" && (
                   <span
                     className={classes.tagChip}
                     style={{
@@ -784,6 +795,18 @@ const TicketListItemCustom = ({ ticket }) => {
                   </span>
                 )}
                 {renderWaitTimeBadge()}
+                {ticket.contact?.disableBot && (
+                  <span
+                    className={classes.tagChip}
+                    style={{
+                      backgroundColor: "#e53935",
+                      color: "#fff",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    NO-BOT
+                  </span>
+                )}
                 {profile === "admin" && !ticket.isGroup && ticket.status === "pending" && (
                   <Tooltip title="Ver mensajes">
                     <button
@@ -804,7 +827,7 @@ const TicketListItemCustom = ({ ticket }) => {
                 )}
               </div>
 
-              {Array.isArray(tagsToRender) && tagsToRender.length > 0 && (
+              {hideTicketTags !== "enabled" && Array.isArray(tagsToRender) && tagsToRender.length > 0 && (
                 <div
                   className={classes.assignedTagsContainer}
                   onWheel={(e) => {

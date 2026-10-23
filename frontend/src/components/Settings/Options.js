@@ -129,6 +129,12 @@ export default function Options(props) {
     const [loadingShowTicketWaitTime, setLoadingShowTicketWaitTime] = useState(false);
     const [quickMessagesMode, setQuickMessagesMode] = useState("both");
     const [loadingQuickMessagesMode, setLoadingQuickMessagesMode] = useState(false);
+    const [hideConnectionTag, setHideConnectionTag] = useState("disabled");
+    const [loadingHideConnectionTag, setLoadingHideConnectionTag] = useState(false);
+    const [hideAgentTag, setHideAgentTag] = useState("disabled");
+    const [loadingHideAgentTag, setLoadingHideAgentTag] = useState(false);
+    const [hideTicketTags, setHideTicketTags] = useState("disabled");
+    const [loadingHideTicketTags, setLoadingHideTicketTags] = useState(false);
 
     const [ipixcType, setIpIxcType] = useState("");
     const [loadingIpIxcType, setLoadingIpIxcType] = useState(false);
@@ -227,6 +233,18 @@ export default function Options(props) {
             const quickMessagesModeSetting = settings.find((s) => s.key === "quickMessagesMode");
             if (quickMessagesModeSetting) {
                 setQuickMessagesMode(quickMessagesModeSetting.value);
+            }
+            const hideConnectionTagSetting = settings.find((s) => s.key === "hideConnectionTag");
+            if (hideConnectionTagSetting) {
+                setHideConnectionTag(hideConnectionTagSetting.value);
+            }
+            const hideAgentTagSetting = settings.find((s) => s.key === "hideAgentTag");
+            if (hideAgentTagSetting) {
+                setHideAgentTag(hideAgentTagSetting.value);
+            }
+            const hideTicketTagsSetting = settings.find((s) => s.key === "hideTicketTags");
+            if (hideTicketTagsSetting) {
+                setHideTicketTags(hideTicketTagsSetting.value);
             }
             {
                 /*Whaticket SaaS SAUDAÇÃO*/
@@ -434,6 +452,45 @@ export default function Options(props) {
         window.dispatchEvent(new Event("settings-update"));
         toast.success("Operación actualizada con éxito.");
         setLoadingShowTicketWaitTime(false);
+    }
+
+    async function handleHideConnectionTag(value) {
+        setHideConnectionTag(value);
+        setLoadingHideConnectionTag(true);
+        await update({
+            key: "hideConnectionTag",
+            value,
+        });
+        localStorage.setItem("hideConnectionTag", value);
+        window.dispatchEvent(new Event("settings-update"));
+        toast.success("Operación actualizada con éxito.");
+        setLoadingHideConnectionTag(false);
+    }
+
+    async function handleHideAgentTag(value) {
+        setHideAgentTag(value);
+        setLoadingHideAgentTag(true);
+        await update({
+            key: "hideAgentTag",
+            value,
+        });
+        localStorage.setItem("hideAgentTag", value);
+        window.dispatchEvent(new Event("settings-update"));
+        toast.success("Operación actualizada con éxito.");
+        setLoadingHideAgentTag(false);
+    }
+
+    async function handleHideTicketTags(value) {
+        setHideTicketTags(value);
+        setLoadingHideTicketTags(true);
+        await update({
+            key: "hideTicketTags",
+            value,
+        });
+        localStorage.setItem("hideTicketTags", value);
+        window.dispatchEvent(new Event("settings-update"));
+        toast.success("Operación actualizada con éxito.");
+        setLoadingHideTicketTags(false);
     }
     async function handleSendGreetingMessageOneQueues(value) {
         setSendGreetingMessageOneQueues(value);
@@ -845,11 +902,11 @@ export default function Options(props) {
                     </FormControl>
                 </Grid>
                 {/* PARCHE 1.3.1 - RECORDAR AGENTE FIN */}
-                {/* MOSTRAR TIEMPO DE ESPERA / ÚLTIMA INTERACCIÓN */}
+                {/* ETIQUETA ÚLTIMA INTERACCIÓN EN TICKETS */}
                 <Grid xs={12} sm={12} md={12} item>
                     <FormControl className={classes.selectContainer}>
                         <InputLabel id="showTicketWaitTime-label">
-                            ¿Mostrar tiempo de última interacción en tickets?
+                            Etiqueta última interacción en tickets
                         </InputLabel>
                         <Select
                             labelId="showTicketWaitTime-label"
@@ -858,8 +915,8 @@ export default function Options(props) {
                                 handleShowTicketWaitTime(e.target.value);
                             }}
                         >
-                            <MenuItem value="disabled">No</MenuItem>
-                            <MenuItem value="enabled">Sí</MenuItem>
+                            <MenuItem value="enabled">Visible</MenuItem>
+                            <MenuItem value="disabled">Ocultar</MenuItem>
                         </Select>
                         <FormHelperText>{loadingShowTicketWaitTime && "Actualizando..."}</FormHelperText>
                     </FormControl>
@@ -882,6 +939,63 @@ export default function Options(props) {
                             <MenuItem value={"carousel"}>Carrusel Tradicional (Solo botones superiores)</MenuItem>
                         </Select>
                         <FormHelperText>{loadingQuickMessagesMode && "Actualizando..."}</FormHelperText>
+                    </FormControl>
+                </Grid>
+                {/* OCULTAR ETIQUETA TIPO DE CONEXIÓN */}
+                <Grid xs={12} sm={12} md={4} item>
+                    <FormControl className={classes.selectContainer}>
+                        <InputLabel id="hideConnectionTag-label">
+                            Etiqueta Tipo de Conexión
+                        </InputLabel>
+                        <Select
+                            labelId="hideConnectionTag-label"
+                            value={hideConnectionTag}
+                            onChange={async (e) => {
+                                handleHideConnectionTag(e.target.value);
+                            }}
+                        >
+                            <MenuItem value="disabled">Visible</MenuItem>
+                            <MenuItem value="enabled">Ocultar</MenuItem>
+                        </Select>
+                        <FormHelperText>{loadingHideConnectionTag && "Actualizando..."}</FormHelperText>
+                    </FormControl>
+                </Grid>
+                {/* OCULTAR ETIQUETA NOMBRE DE AGENTE */}
+                <Grid xs={12} sm={12} md={4} item>
+                    <FormControl className={classes.selectContainer}>
+                        <InputLabel id="hideAgentTag-label">
+                            Etiqueta Nombre de Agente
+                        </InputLabel>
+                        <Select
+                            labelId="hideAgentTag-label"
+                            value={hideAgentTag}
+                            onChange={async (e) => {
+                                handleHideAgentTag(e.target.value);
+                            }}
+                        >
+                            <MenuItem value="disabled">Visible</MenuItem>
+                            <MenuItem value="enabled">Ocultar</MenuItem>
+                        </Select>
+                        <FormHelperText>{loadingHideAgentTag && "Actualizando..."}</FormHelperText>
+                    </FormControl>
+                </Grid>
+                {/* OCULTAR ETIQUETAS / TAGS (TABLA TAGS) */}
+                <Grid xs={12} sm={12} md={4} item>
+                    <FormControl className={classes.selectContainer}>
+                        <InputLabel id="hideTicketTags-label">
+                            Etiquetas / Tags de Clasificación
+                        </InputLabel>
+                        <Select
+                            labelId="hideTicketTags-label"
+                            value={hideTicketTags}
+                            onChange={async (e) => {
+                                handleHideTicketTags(e.target.value);
+                            }}
+                        >
+                            <MenuItem value="disabled">Visible</MenuItem>
+                            <MenuItem value="enabled">Ocultar</MenuItem>
+                        </Select>
+                        <FormHelperText>{loadingHideTicketTags && "Actualizando..."}</FormHelperText>
                     </FormControl>
                 </Grid>
             </Grid>

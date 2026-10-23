@@ -175,6 +175,27 @@ module.exports = {
                             companyId: 1,
                             createdAt: new Date(),
                             updatedAt: new Date()
+                        },
+                        {
+                            key: "hideConnectionTag",
+                            value: "disabled",
+                            companyId: 1,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        },
+                        {
+                            key: "hideAgentTag",
+                            value: "disabled",
+                            companyId: 1,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        },
+                        {
+                            key: "hideTicketTags",
+                            value: "disabled",
+                            companyId: 1,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
                         }
                     ],
                     { transaction: t }

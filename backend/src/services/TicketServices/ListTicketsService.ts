@@ -123,7 +123,7 @@ const ListTicketsService = async ({
     {
       model: Contact,
       as: "contact",
-      attributes: ["id", "name", "number", "email", "profilePicUrl", "messengerId", "instagramId","canal"]
+      attributes: ["id", "name", "number", "email", "profilePicUrl", "messengerId", "instagramId", "canal", "disableBot"]
     },
     {
       model: Queue,
