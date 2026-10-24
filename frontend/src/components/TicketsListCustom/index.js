@@ -284,6 +284,26 @@ const TicketsListCustom = (props) => {
     socket.on(`company-${companyId}-ticket`, handleSocketEvent);
     socket.on(`company-${companyId}-appMessage`, handleSocketEvent);
 
+    const handleContactEvent = (data) => {
+      if (data?.action === "update" && data?.contact) {
+        setTicketsList((prev) =>
+          prev.map((t) => {
+            if (t.contactId === data.contact.id || t.contact?.id === data.contact.id) {
+              return {
+                ...t,
+                contact: {
+                  ...t.contact,
+                  ...data.contact,
+                },
+              };
+            }
+            return t;
+          })
+        );
+      }
+    };
+    socket.on(`company-${companyId}-contact`, handleContactEvent);
+
     const handleSettingsEvent = (data) => {
       if (data?.action === "update" && data?.setting?.key) {
         if (["showTicketWaitTime", "hideConnectionTag", "hideAgentTag", "hideTicketTags"].includes(data.setting.key)) {
@@ -303,6 +323,7 @@ const TicketsListCustom = (props) => {
       }
       socket.off(`company-${companyId}-ticket`, handleSocketEvent);
       socket.off(`company-${companyId}-appMessage`, handleSocketEvent);
+      socket.off(`company-${companyId}-contact`, handleContactEvent);
       socket.off(`company-${companyId}-settings`, handleSettingsEvent);
     };
   }, [status, socketManager, selectedQueueIds, showAll, searchParam, tags, users, dateRange]);

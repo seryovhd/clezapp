@@ -94,7 +94,7 @@ const UpdateContactService = async ({
       } catch (eDestroy) {}
 
       await existingContact.reload({
-        attributes: ["id", "name", "number", "email", "profilePicUrl", "active", "messengerId", "instagramId", "canal"],
+        attributes: ["id", "name", "number", "email", "profilePicUrl", "active", "messengerId", "instagramId", "canal", "disableBot"],
         include: ["extraInfo"]
       });
       return existingContact;
@@ -110,7 +110,7 @@ const UpdateContactService = async ({
   });
 
   await contact.reload({
-    attributes: ["id", "name", "number", "email", "profilePicUrl","active","messengerId", "instagramId","canal"],
+    attributes: ["id", "name", "number", "email", "profilePicUrl", "active", "messengerId", "instagramId", "canal", "disableBot"],
     include: ["extraInfo"]
   });
 

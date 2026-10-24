@@ -39,7 +39,8 @@ const CreateContactService = async ({
       number,
       email,
       extraInfo,
-      companyId
+      companyId,
+      disableBot
     },
     {
       include: ["extraInfo"]
