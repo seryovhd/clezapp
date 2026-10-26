@@ -247,10 +247,13 @@ const Ticket = () => {
   useEffect(() => {
     setLoading(true);
     let isMounted = true;
+    const abortController = new AbortController();
 
     const fetchTicket = async () => {
       try {
-        const { data } = await api.get("/tickets/u/" + ticketId);
+        const { data } = await api.get("/tickets/u/" + ticketId, {
+          signal: abortController.signal
+        });
         if (!isMounted) return;
 
         const { queueId, whatsappId, userId } = data;
@@ -281,7 +284,9 @@ const Ticket = () => {
       } catch (err) {
         if (isMounted) {
           setLoading(false);
-          toastError(err);
+          if (!api.isCancel?.(err) && err?.name !== "CanceledError" && err?.name !== "AbortError") {
+            toastError(err);
+          }
         }
       }
     };
@@ -290,6 +295,7 @@ const Ticket = () => {
 
     return () => {
       isMounted = false;
+      abortController.abort();
     };
   }, [ticketId, user, history, calculate24HourWindow]);
 
@@ -304,20 +310,20 @@ const Ticket = () => {
     });
 
     socket.on(`company-${companyId}-ticket`, (data) => {
-      if (data.action === "update" && data.ticket.id === ticket.id) {
-        console.log("🔍 [SOCKET DEBUG] Ticket actualizado:", {
-          ticketId: data.ticket.id,
-          whatsapp: data.ticket.whatsapp,
-          whatsappType: data.ticket.whatsapp?.type,
-          isBusiness: data.ticket.whatsapp?.type === "whatsapp_business"
-        });
+      const isTarget =
+        data?.ticket &&
+        (data.ticket.id === ticket?.id ||
+          (ticket?.uuid && String(data.ticket.uuid) === String(ticket.uuid)) ||
+          String(data.ticket.uuid) === String(ticketId));
+
+      if (data.action === "update" && isTarget) {
         setTicket(data.ticket);
         if (data.ticket.whatsapp?.type === "whatsapp_business" || data.ticket.whatsapp?.type === "facebook_messenger") {
           calculate24HourWindow(data.ticket.id);
         }
       }
 
-      if (data.action === "delete" && data.ticketId === ticket.id) {
+      if (data.action === "delete" && (data.ticketId === ticket?.id || String(data.ticketId) === String(ticket?.id))) {
         history.push("/tickets");
       }
     });
@@ -325,7 +331,7 @@ const Ticket = () => {
     socket.on(`company-${companyId}-contact`, (data) => {
       if (data.action === "update") {
         setContact((prevState) => {
-          if (prevState.id === data.contact?.id) {
+          if (prevState?.id === data.contact?.id) {
             return { ...prevState, ...data.contact };
           }
           return prevState;
@@ -334,9 +340,15 @@ const Ticket = () => {
     });
 
     socket.on(`company-${companyId}-appMessage`, (data) => {
-      if (data.action === "create" && data.message.ticketId === ticket.id) {
+      const isTargetMsg =
+        data?.message &&
+        (data.message.ticketId === ticket?.id ||
+          String(data.message.ticketId) === String(ticket?.id) ||
+          String(data.message.ticketId) === String(ticketId));
+
+      if (data.action === "create" && isTargetMsg) {
         if (!data.message.fromMe && (ticket?.whatsapp?.type === "whatsapp_business" || ticket?.whatsapp?.type === "facebook_messenger")) {
-          calculate24HourWindow(ticket.id);
+          calculate24HourWindow(ticket?.id || data.message.ticketId);
         }
       }
     });
@@ -355,7 +367,7 @@ const Ticket = () => {
   };
 
   const renderTicketInfo = () => {
-    if (ticket.user !== undefined || ticket.id || contact?.id) {
+    if (ticket?.user !== undefined || ticket?.id || contact?.id) {
       return (
         <TicketInfo
           contact={contact}
@@ -367,17 +379,16 @@ const Ticket = () => {
   };
 
   const renderMessagesList = () => {
-    const activeTicketId = ticket.id || ticketId;
     return (
       <>
         <MessagesList
-          ticket={ticket}
-          ticketId={activeTicketId}
-          isGroup={ticket.isGroup}
+          ticket={ticket || {}}
+          ticketId={ticketId}
+          isGroup={ticket?.isGroup}
         ></MessagesList>
         <MessageInput 
-          ticketId={activeTicketId} 
-          ticketStatus={ticket.status || "open"}
+          ticketId={ticket?.id} 
+          ticketStatus={ticket?.status || "open"}
           is24HoursExceeded={is24HoursExceeded}
         />
       </>
@@ -462,7 +473,7 @@ if (isAssignedToOtherUser && !loading) {
                   <span className={classes.compactTicketId}>#{ticket?.id}</span>
                   {ticket?.user?.name && (
                     <span className={classes.compactAssignee}>
-                      ({ticket.user.name})
+                      ({ticket?.user?.name})
                     </span>
                   )}
                 </Typography>

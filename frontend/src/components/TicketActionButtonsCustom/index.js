@@ -147,6 +147,9 @@ const TicketActionButtonsCustom = ({ ticket, handleClose }) => {
 		setContactId(null);
 	};
 	const theme = useTheme();
+	if (!ticket || !ticket.id) {
+		return null;
+	}
 	return (
 		<div className={classes.actionButtons}>
 			{ticket.status === "closed" && (

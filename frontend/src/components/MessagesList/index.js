@@ -32,6 +32,7 @@ import {
   IconButton,
   makeStyles,
   Badge,
+  Fade,
 } from "@material-ui/core";
 import {
   AccessTime,
@@ -87,13 +88,17 @@ const useStyles = makeStyles((theme) => ({
       },
     },
   },
+  circleLoadingContainer: {
+    position: "absolute",
+    top: 12,
+    left: "50%",
+    transform: "translateX(-50%)",
+    zIndex: 20,
+    pointerEvents: "none",
+  },
   circleLoading: {
     color: green[500],
-    position: "absolute",
-    opacity: "70%",
-    top: 0,
-    left: "50%",
-    marginTop: 12,
+    opacity: 0.85,
   },
   relationContainer: {
     marginTop: -10,
@@ -442,23 +447,37 @@ const useStyles = makeStyles((theme) => ({
 
 // Cache LRU en memoria para mensajes de tickets recientes (render instantáneo 0ms al alternar chats)
 export const recentMessagesCache = new Map();
-const MAX_CACHED_TICKETS = 30;
+const MAX_CACHED_TICKETS = 40;
 
-export const setTicketMessagesCache = (id, messages, hasMore = false) => {
-  if (!id) return;
-  const numId = +id;
-  if (recentMessagesCache.has(numId)) {
-    recentMessagesCache.delete(numId);
-  } else if (recentMessagesCache.size >= MAX_CACHED_TICKETS) {
-    const oldestKey = recentMessagesCache.keys().next().value;
-    recentMessagesCache.delete(oldestKey);
+export const setTicketMessagesCache = (id, messages, hasMore = false, secondaryId = null) => {
+  if (!id && !secondaryId) return;
+  const key1 = id != null ? String(id) : null;
+  const key2 = secondaryId != null ? String(secondaryId) : null;
+
+  if (key1) {
+    if (recentMessagesCache.has(key1)) {
+      recentMessagesCache.delete(key1);
+    } else if (recentMessagesCache.size >= MAX_CACHED_TICKETS) {
+      const oldestKey = recentMessagesCache.keys().next().value;
+      recentMessagesCache.delete(oldestKey);
+    }
+    recentMessagesCache.set(key1, { messages, hasMore });
   }
-  recentMessagesCache.set(numId, { messages, hasMore });
+
+  if (key2 && key2 !== key1) {
+    if (recentMessagesCache.has(key2)) {
+      recentMessagesCache.delete(key2);
+    } else if (recentMessagesCache.size >= MAX_CACHED_TICKETS) {
+      const oldestKey = recentMessagesCache.keys().next().value;
+      recentMessagesCache.delete(oldestKey);
+    }
+    recentMessagesCache.set(key2, { messages, hasMore });
+  }
 };
 
 export const getTicketMessagesCache = (id) => {
   if (!id) return null;
-  return recentMessagesCache.get(+id) || null;
+  return recentMessagesCache.get(String(id)) || null;
 };
 
 // Ordenamiento cronológico estricto por fecha de creación (createdAt ASC)
@@ -636,7 +655,11 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
     currentTicketId.current = ticketId;
 
     if (ticketId) {
-      const cached = recentMessagesCache.get(+ticketId);
+      const cached =
+        getTicketMessagesCache(ticketId) ||
+        (ticket?.id && getTicketMessagesCache(ticket.id)) ||
+        (ticket?.uuid && getTicketMessagesCache(ticket.uuid));
+
       if (cached && cached.messages && cached.messages.length > 0) {
         dispatch({ type: "HYDRATE_CACHED", payload: cached.messages });
         setHasMore(cached.hasMore);
@@ -650,11 +673,18 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
   }, [ticketId]);
 
   useEffect(() => {
-    const hasCache = ticketId && recentMessagesCache.has(+ticketId);
+    const hasCache = Boolean(
+      ticketId && (
+        recentMessagesCache.has(String(ticketId)) ||
+        (ticket?.id && recentMessagesCache.has(String(ticket.id))) ||
+        (ticket?.uuid && recentMessagesCache.has(String(ticket.uuid)))
+      )
+    );
     if (!hasCache || pageNumber > 1) {
       setLoading(true);
     }
     let isMounted = true;
+    const abortController = new AbortController();
 
     const fetchMessages = async () => {
       if (ticketId === undefined) return;
@@ -672,9 +702,15 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
 
         const { data } = await api.get("/messages/" + ticketId, {
           params,
+          signal: abortController.signal,
         });
 
-        if (isMounted && currentTicketId.current === ticketId) {
+        const isSameTarget =
+          currentTicketId.current === ticketId ||
+          (ticket?.id && String(ticket.id) === String(ticketId)) ||
+          (ticket?.uuid && String(ticket.uuid) === String(ticketId));
+
+        if (isMounted && isSameTarget) {
           const container = messagesContainerRef.current;
           const previousScrollHeight = container ? container.scrollHeight : 0;
           const previousScrollTop = container ? container.scrollTop : 0;
@@ -688,7 +724,12 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
           setLoading(false);
 
           if (pageNumber === 1) {
-            setTicketMessagesCache(+ticketId, sortMessages(data.messages), data.hasMore);
+            setTicketMessagesCache(
+              ticketId,
+              sortMessages(data.messages),
+              data.hasMore,
+              ticket?.id || ticket?.uuid
+            );
             ensureScrollToBottom();
           } else {
             // Mantener la posición exacta de lectura al cargar páginas anteriores hacia arriba
@@ -704,7 +745,9 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
         if (isMounted) {
           setLoading(false);
           isInitialLoad.current = false;
-          toastError(err);
+          if (!api.isCancel?.(err) && err?.name !== "CanceledError" && err?.name !== "AbortError") {
+            toastError(err);
+          }
         }
       }
     };
@@ -713,6 +756,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
 
     return () => {
       isMounted = false;
+      abortController.abort();
     };
   }, [pageNumber, ticketId]);
 
@@ -727,23 +771,33 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
     };
 
     const onAppMessage = (data) => {
-      if (data.action === "create" && data.message.ticketId === currentTicketId.current) {
+      const isTargetTicket =
+        data?.message && (
+          data.message.ticketId === ticket?.id ||
+          String(data.message.ticketId) === String(ticket?.id) ||
+          String(data.message.ticketId) === String(currentTicketId.current) ||
+          (ticket?.uuid && String(data.message.ticketId) === String(ticket.uuid))
+        );
+
+      if (data.action === "create" && isTargetTicket) {
         dispatch({ type: "ADD_MESSAGE", payload: data.message });
-        const cached = recentMessagesCache.get(+currentTicketId.current);
+        const cacheKey = ticket?.id ? String(ticket.id) : String(currentTicketId.current);
+        const cached = recentMessagesCache.get(cacheKey) || (ticket?.uuid && recentMessagesCache.get(String(ticket.uuid)));
         if (cached) {
           const exists = cached.messages.some((m) => m.id === data.message.id);
           if (!exists) {
             setTicketMessagesCache(
-              +currentTicketId.current,
+              cacheKey,
               sortMessages([...cached.messages, data.message]),
-              cached.hasMore
+              cached.hasMore,
+              ticket?.uuid
             );
           }
         }
         scrollToBottom();
       }
 
-      if (data.action === "update" && data.message.ticketId === currentTicketId.current) {
+      if (data.action === "update" && isTargetTicket) {
         if (data.message.isEdited) {
           dispatch({
             type: "UPDATE_MESSAGE",
@@ -1438,11 +1492,11 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
           </div>
         )}
       </div>
-      {loading && (
-        <div>
-          <CircularProgress className={classes.circleLoading} />
+      <Fade in={loading && pageNumber === 1} timeout={{ enter: 250, exit: 250 }}>
+        <div className={classes.circleLoadingContainer}>
+          <CircularProgress className={classes.circleLoading} size={32} />
         </div>
-      )}
+      </Fade>
     </div>
   );
 };

@@ -641,11 +641,15 @@ const TicketListItemCustom = ({ ticket }) => {
 
   const handleMouseEnter = () => {
     if (!ticket?.id || ticket.status === "pending") return;
-    if (!recentMessagesCache.has(+ticket.id)) {
+    const hasCache =
+      recentMessagesCache.has(String(ticket.id)) ||
+      (ticket.uuid && recentMessagesCache.has(String(ticket.uuid)));
+
+    if (!hasCache) {
       api.get(`/messages/${ticket.id}`, { params: { pageNumber: 1 } })
         .then(({ data }) => {
           if (data?.messages) {
-            setTicketMessagesCache(+ticket.id, data.messages, data.hasMore);
+            setTicketMessagesCache(ticket.id, data.messages, data.hasMore, ticket.uuid);
           }
         })
         .catch(() => {});
@@ -692,6 +696,13 @@ const TicketListItemCustom = ({ ticket }) => {
     }
   };
 
+  const isSelected = Boolean(
+    ticketId && (
+      String(ticketId) === String(ticket.id) ||
+      (ticket.uuid && String(ticketId) === String(ticket.uuid))
+    )
+  );
+
   return (
     <>
       <TransferTicketModal
@@ -710,10 +721,10 @@ const TicketListItemCustom = ({ ticket }) => {
         button
         onClick={handleSelectTicket}
         onMouseEnter={handleMouseEnter}
-        selected={ticketId && +ticketId === ticket.id}
+        selected={isSelected}
         className={clsx(classes.ticket, {
           [classes.pendingTicket]: ticket.status === "pending",
-          [classes.selectedTicket]: ticketId && +ticketId === ticket.id,
+          [classes.selectedTicket]: isSelected,
         })}
       >
         <span
