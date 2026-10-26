@@ -379,15 +379,18 @@ const Ticket = () => {
   };
 
   const renderMessagesList = () => {
+    const isCurrentTicket =
+      ticket?.uuid === ticketId || String(ticket?.id) === String(ticketId);
+
     return (
       <>
         <MessagesList
-          ticket={ticket || {}}
+          ticket={isCurrentTicket ? ticket : {}}
           ticketId={ticketId}
-          isGroup={ticket?.isGroup}
+          isGroup={isCurrentTicket ? ticket?.isGroup : false}
         ></MessagesList>
         <MessageInput 
-          ticketId={ticket?.id} 
+          ticketId={isCurrentTicket ? ticket?.id : undefined} 
           ticketStatus={ticket?.status || "open"}
           is24HoursExceeded={is24HoursExceeded}
         />

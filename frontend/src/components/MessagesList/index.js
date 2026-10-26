@@ -454,6 +454,15 @@ export const setTicketMessagesCache = (id, messages, hasMore = false, secondaryI
   const key1 = id != null ? String(id) : null;
   const key2 = secondaryId != null ? String(secondaryId) : null;
 
+  // Filtrar estrictamente para que ningún mensaje ajeno entre en la caché de este ticket
+  const validMessages = Array.isArray(messages)
+    ? messages.filter((m) => {
+        if (!m || !m.ticketId) return true;
+        const msgTicketId = String(m.ticketId);
+        return msgTicketId === key1 || (key2 && msgTicketId === key2);
+      })
+    : [];
+
   if (key1) {
     if (recentMessagesCache.has(key1)) {
       recentMessagesCache.delete(key1);
@@ -461,7 +470,7 @@ export const setTicketMessagesCache = (id, messages, hasMore = false, secondaryI
       const oldestKey = recentMessagesCache.keys().next().value;
       recentMessagesCache.delete(oldestKey);
     }
-    recentMessagesCache.set(key1, { messages, hasMore });
+    recentMessagesCache.set(key1, { messages: validMessages, hasMore });
   }
 
   if (key2 && key2 !== key1) {
@@ -471,7 +480,7 @@ export const setTicketMessagesCache = (id, messages, hasMore = false, secondaryI
       const oldestKey = recentMessagesCache.keys().next().value;
       recentMessagesCache.delete(oldestKey);
     }
-    recentMessagesCache.set(key2, { messages, hasMore });
+    recentMessagesCache.set(key2, { messages: validMessages, hasMore });
   }
 };
 
@@ -501,14 +510,30 @@ const reducer = (state, action) => {
     let combined;
 
     if (action.isPageOne) {
-      // Página 1: Reemplaza con los mensajes más recientes del backend,
-      // preservando únicamente mensajes optimistas pendientes de confirmación
+      // Página 1: Reemplaza con los mensajes del backend para este ticket,
+      // preservando únicamente mensajes optimistas pendientes de confirmación del ticket actual
       const existingIds = new Set(messages.map((m) => m.id));
-      const optimistic = state.filter(
-        (m) =>
-          !existingIds.has(m.id) &&
-          (typeof m.id === "string" || m.id < 0 || m.status === "pending")
-      );
+      const targetTicketId = action.ticketId != null ? String(action.ticketId) : null;
+
+      const optimistic = state.filter((m) => {
+        if (!m || existingIds.has(m.id)) return false;
+
+        // Solo mensajes legítimamente pendientes de confirmación
+        const isPending =
+          m.status === "pending" ||
+          m.id < 0 ||
+          (typeof m.id === "string" && m.id.startsWith("temp-"));
+
+        if (!isPending) return false;
+
+        // Si contiene ticketId, debe coincidir con el ticket activo
+        if (targetTicketId && m.ticketId != null) {
+          return String(m.ticketId) === targetTicketId;
+        }
+
+        return true;
+      });
+
       combined = [...messages, ...optimistic];
     } else {
       // Paginación hacia arriba (mensajes más antiguos)
@@ -719,6 +744,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
             type: "LOAD_MESSAGES",
             payload: data.messages,
             isPageOne: pageNumber === 1,
+            ticketId: ticketId,
           });
           setHasMore(data.hasMore);
           setLoading(false);
@@ -771,13 +797,13 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
     };
 
     const onAppMessage = (data) => {
+      if (!data?.message) return;
+
+      const activeId = currentTicketId.current;
       const isTargetTicket =
-        data?.message && (
-          data.message.ticketId === ticket?.id ||
-          String(data.message.ticketId) === String(ticket?.id) ||
-          String(data.message.ticketId) === String(currentTicketId.current) ||
-          (ticket?.uuid && String(data.message.ticketId) === String(ticket.uuid))
-        );
+        (activeId != null && String(data.message.ticketId) === String(activeId)) ||
+        (ticket?.id != null && String(data.message.ticketId) === String(ticket.id)) ||
+        (ticket?.uuid != null && String(data.message.ticketId) === String(ticket.uuid));
 
       if (data.action === "create" && isTargetTicket) {
         dispatch({ type: "ADD_MESSAGE", payload: data.message });
