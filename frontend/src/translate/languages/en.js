@@ -76,7 +76,22 @@ const messages = {
 		connections: {
 		  title: "Connections",
 		  toasts: {
+			connecting: "Connecting to WhatsApp, please wait...",
+			requestingQr: "Generating new QR code...",
+			disconnected: "WhatsApp connection disconnected successfully!",
 			deleted: "WhatsApp connection deleted successfully!",
+		  },
+		  businessApi: {
+			connect: "Connect WhatsApp Business",
+			disconnect: "Disconnect Business API",
+			connected: "Connected (Business API)",
+			connecting: "Connecting Business API...",
+			disconnected: "WhatsApp Business API disconnected successfully!",
+			status: {
+			  connected: "Connected",
+			  disconnected: "Disconnected",
+			  expired: "Token Expired"
+			}
 		  },
 		  confirmationModal: {
 			deleteTitle: "Delete",

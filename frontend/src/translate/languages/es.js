@@ -83,6 +83,9 @@ const messages = {
         title: "Conexiones",
         subtitle: "En uso: ",
         toasts: {
+          connecting: "Conectando con WhatsApp, por favor espere...",
+          requestingQr: "Generando nuevo código QR...",
+          disconnected: "¡Conexión con WhatsApp desconectada con éxito!",
           deleted: "¡Conexión con WhatsApp eliminada con éxito!",
         },
         businessApi: {
@@ -90,6 +93,7 @@ const messages = {
           disconnect: "Desconectar Business API",
           connected: "Conectado (Business API)",
           connecting: "Conectando Business API...",
+          disconnected: "¡WhatsApp Business API desconectado con éxito!",
           status: {
             connected: "Conectado",
             disconnected: "Desconectado",
