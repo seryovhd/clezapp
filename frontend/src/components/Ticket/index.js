@@ -382,6 +382,11 @@ const Ticket = () => {
     const isCurrentTicket =
       ticket?.uuid === ticketId || String(ticket?.id) === String(ticketId);
 
+    const resolvedTicketId =
+      isCurrentTicket && ticket?.id
+        ? ticket.id
+        : (!isNaN(Number(ticketId)) && Number(ticketId) > 0 ? Number(ticketId) : ticket?.id || undefined);
+
     return (
       <>
         <MessagesList
@@ -390,7 +395,7 @@ const Ticket = () => {
           isGroup={isCurrentTicket ? ticket?.isGroup : false}
         ></MessagesList>
         <MessageInput 
-          ticketId={isCurrentTicket ? ticket?.id : undefined} 
+          ticketId={resolvedTicketId} 
           ticketStatus={ticket?.status || "open"}
           is24HoursExceeded={is24HoursExceeded}
         />

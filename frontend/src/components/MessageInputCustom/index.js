@@ -1334,6 +1334,11 @@ const MessageInputCustom = (props) => {
         ? `*${user?.name}:*\n${message.message}`
         : message.message;
 
+      if (!ticketId || ticketId === "undefined") {
+        toastError("La conversación aún se está cargando. Por favor, espera un momento.");
+        return;
+      }
+
       try {
         const payload = {
           read: 1,
@@ -1360,6 +1365,12 @@ const MessageInputCustom = (props) => {
   const handleUploadMedia = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     if (!medias || medias.length === 0) return;
+
+    if (!ticketId || ticketId === "undefined") {
+      toastError("La conversación aún se está cargando. Por favor, espera un momento.");
+      return;
+    }
+
     setLoading(true);
 
     const formData = new FormData();
@@ -1432,6 +1443,11 @@ const MessageInputCustom = (props) => {
     }
 
     if (inputMessage.trim() === "") return;
+
+    if (!ticketId || ticketId === "undefined") {
+      toastError("La conversación aún se está cargando. Por favor, espera un momento.");
+      return;
+    }
 
     // Si el mensaje es un comando que coincide exactamente con una respuesta rápida
     if (inputMessage.trim().startsWith("/")) {
@@ -1507,6 +1523,11 @@ const MessageInputCustom = (props) => {
   };
 
   const handleUploadAudio = async () => {
+    if (!ticketId || ticketId === "undefined") {
+      toastError("La conversación aún se está cargando. Por favor, espera un momento.");
+      return;
+    }
+
     setLoading(true);
     try {
       const [, blob] = await Mp3Recorder.stop().getMp3();
@@ -1541,7 +1562,7 @@ const MessageInputCustom = (props) => {
   };
 
   const disableOption = () => {
-    const disabled = loading || recording || ticketStatus !== "open" || is24HoursExceeded;
+    const disabled = loading || recording || ticketStatus !== "open" || is24HoursExceeded || !ticketId || ticketId === "undefined";
     if (is24HoursExceeded) {
       console.log("🔍 [MESSAGE INPUT] Opciones deshabilitadas por límite de 24 horas");
     }

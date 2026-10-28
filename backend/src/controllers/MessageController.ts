@@ -44,6 +44,11 @@ type MessageData = {
 
 export const index = async (req: Request, res: Response): Promise<Response> => {
   const { ticketId } = req.params;
+
+  if (!ticketId || ticketId === "undefined" || ticketId === "null") {
+    throw new AppError("Ticket no válido o aún no cargado", 400);
+  }
+
   const { pageNumber, beforeId, beforeCreatedAt } = req.query as IndexQuery;
   const { companyId, profile } = req.user;
   const queues: number[] = [];
@@ -73,6 +78,11 @@ export const index = async (req: Request, res: Response): Promise<Response> => {
 
 export const store = async (req: Request, res: Response): Promise<Response> => {
   const { ticketId } = req.params;
+
+  if (!ticketId || ticketId === "undefined" || ticketId === "null") {
+    throw new AppError("Ticket no válido o aún no cargado", 400);
+  }
+
   const { body, quotedMsg, isPrivate, mediaUrl, mediaType }: MessageData = req.body;
   const medias = req.files as Express.Multer.File[];
   const { companyId, id: userId } = req.user;

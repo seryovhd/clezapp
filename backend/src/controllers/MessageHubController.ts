@@ -27,11 +27,15 @@ export const send = async (req: Request, res: Response): Promise<Response> => {
   const { ticketId } = req.params;
   const medias = req.files as Express.Multer.File[];
 
+  if (!ticketId || ticketId === "undefined" || ticketId === "null" || isNaN(Number(ticketId))) {
+    return res.status(400).json({ error: "Ticket no válido o aún no cargado" });
+  }
+
   console.log("🖼️ ARCHIVOS RECIBIDOS:", medias);
   console.log("🌀 ENVIANDO MENSAJE AL HUB EN EL CONTROLADOR");
 
   const ticket = await Ticket.findOne({
-    where: { id: ticketId, companyId },
+    where: { id: Number(ticketId), companyId },
     include: [
       {
         model: Contact,

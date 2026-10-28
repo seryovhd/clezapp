@@ -245,6 +245,12 @@ const MessageInput = ({ ticketStatus }) => {
 			formData.append("body", inputMessage ? inputMessage.trim() : "");
 		});
 
+		if (!ticketId || ticketId === "undefined") {
+			toastError("La conversación aún se está cargando. Por favor, espera un momento.");
+			setLoading(false);
+			return;
+		}
+
 		try {
 			await api.post(`/messages/${ticketId}`, formData);
 		} catch (err) {
@@ -259,6 +265,11 @@ const MessageInput = ({ ticketStatus }) => {
 
 	const handleSendMessage = async () => {
 		if (inputMessage.trim() === "") return;
+
+		if (!ticketId || ticketId === "undefined") {
+			toastError("La conversación aún se está cargando. Por favor, espera un momento.");
+			return;
+		}
 
 		const currentText = inputMessage.trim();
 		const currentReplying = replyingMessage;

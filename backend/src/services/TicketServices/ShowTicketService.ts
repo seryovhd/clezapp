@@ -11,7 +11,22 @@ const ShowTicketService = async (
   id: string | number,
   companyId: number
 ): Promise<Ticket> => {
-  const ticket = await Ticket.findByPk(id, {
+  if (!id || id === "undefined" || id === "null") {
+    throw new AppError("Ticket no encontrado", 404);
+  }
+
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id));
+
+  if (!isUuid && isNaN(Number(id))) {
+    throw new AppError("Ticket no encontrado", 404);
+  }
+
+  const whereTicket: any = isUuid
+    ? { uuid: String(id), companyId }
+    : { id: Number(id), companyId };
+
+  const ticket = await Ticket.findOne({
+    where: whereTicket,
     include: [
       {
         model: Contact,
