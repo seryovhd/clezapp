@@ -45,7 +45,8 @@ import { useHistory } from "react-router-dom";
 const reducer = (state, action) => {
   switch (action.type) {
     case "LOAD_TAGS": {
-      const newTags = action.payload.filter(
+      const tagsList = Array.isArray(action.payload) ? action.payload : [];
+      const newTags = tagsList.filter(
         (tag) => !state.some((s) => s.id === tag.id)
       );
       return [...state, ...newTags];
@@ -101,7 +102,7 @@ const Tags = () => {
 
   const fetchTags = useCallback(async () => {
     try {
-      const { data } = await api.get("/tags/", {
+      const { data } = await api.get("/tags", {
         params: { searchParam, pageNumber },
       });
       dispatch({ type: "LOAD_TAGS", payload: data.tags });

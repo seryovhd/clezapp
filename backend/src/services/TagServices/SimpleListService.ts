@@ -12,13 +12,22 @@ const ListService = async ({
   companyId,
   searchParam
 }: Request): Promise<Tag[]> => {
-  let whereCondition = {};
+  let whereCondition: any = {};
 
   if (searchParam) {
+    const sanitizedSearch = searchParam.toLowerCase().trim();
     whereCondition = {
       [Op.or]: [
-        { name: { [Op.like]: `%${searchParam}%` } },
-        { color: { [Op.like]: `%${searchParam}%` } }
+        Sequelize.where(
+          Sequelize.fn("LOWER", Sequelize.col("name")),
+          "LIKE",
+          `%${sanitizedSearch}%`
+        ),
+        Sequelize.where(
+          Sequelize.fn("LOWER", Sequelize.col("color")),
+          "LIKE",
+          `%${sanitizedSearch}%`
+        )
       ]
     };
   }

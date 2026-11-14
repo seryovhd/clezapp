@@ -20,39 +20,51 @@ const ListService = async ({
   companyId,
   userId
 }: Request): Promise<Response> => {
-  const sanitizedSearchParam = searchParam.toLocaleLowerCase().trim();
+  const sanitizedSearchParam = searchParam ? searchParam.replace(/^\//, '').toLowerCase().trim() : "";
+  const escapedSearch = sanitizedSearchParam.replace(/'/g, "''");
 
-  let whereCondition: Filterable["where"] = {
-    // [Op.or]: [
-    //   {
-    shortcode: Sequelize.where(
-      Sequelize.fn("LOWER", Sequelize.col("shortcode")),
-      "LIKE",
-      `%${sanitizedSearchParam}%`
-    )
-    //   },
-    //   {
-    //     message: Sequelize.where(
-    //       Sequelize.fn("LOWER", Sequelize.col("message")),
-    //       "LIKE",
-    //       `%${sanitizedSearchParam}%`
-    //     )
-    //   }
-    // ]
-  };
-  whereCondition = {
-  ...whereCondition,
-  companyId,
-  userId: userId
+  let whereCondition: Filterable["where"] = {};
+
+  if (sanitizedSearchParam) {
+    whereCondition = {
+      shortcode: Sequelize.where(
+        Sequelize.fn("LOWER", Sequelize.col("shortcode")),
+        "LIKE",
+        `%${sanitizedSearchParam}%`
+      )
+    };
   }
+
+  whereCondition = {
+    ...whereCondition,
+    companyId,
+    [Op.or]: [
+      { userId },
+      { geral: true }
+    ]
+  };
   const limit = 20;
   const offset = limit * (+pageNumber - 1);
+
+  const orderCondition: any = sanitizedSearchParam
+    ? [
+      [
+        Sequelize.literal(`CASE 
+            WHEN LOWER("QuickMessage"."shortcode") = '${escapedSearch}' THEN 1
+            WHEN LOWER("QuickMessage"."shortcode") LIKE '${escapedSearch}%' THEN 2
+            ELSE 3
+          END`),
+        "ASC"
+      ],
+      ["shortcode", "ASC"]
+    ]
+    : [["shortcode", "ASC"]];
 
   const { count, rows: records } = await QuickMessage.findAndCountAll({
     where: whereCondition,
     limit,
     offset,
-    order: [["shortcode", "ASC"]]
+    order: orderCondition
   });
 
   const hasMore = count > offset + records.length;

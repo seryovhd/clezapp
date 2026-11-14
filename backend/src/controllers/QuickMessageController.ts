@@ -33,6 +33,7 @@ type StoreData = {
 type FindParams = {
   companyId: string;
   userId: string;
+  searchParam?: string;
 };
 
 export const index = async (req: Request, res: Response): Promise<Response> => {

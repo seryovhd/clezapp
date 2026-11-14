@@ -1,4 +1,4 @@
-import { Op, literal, fn, col } from "sequelize";
+import { Op, Sequelize, fn, col } from "sequelize";
 import Tag from "../../models/Tag";
 import Ticket from "../../models/Ticket";
 import TicketTag from "../../models/TicketTag";
@@ -20,15 +20,24 @@ const ListService = async ({
   searchParam,
   pageNumber = "1"
 }: Request): Promise<Response> => {
-  let whereCondition = {};
+  let whereCondition: any = {};
   const limit = 5000;
   const offset = limit * (+pageNumber - 1);
 
   if (searchParam) {
+    const sanitizedSearch = searchParam.toLowerCase().trim();
     whereCondition = {
       [Op.or]: [
-        { name: { [Op.like]: `%${searchParam}%` } },
-        { color: { [Op.like]: `%${searchParam}%` } }
+        Sequelize.where(
+          Sequelize.fn("LOWER", Sequelize.col("Tag.name")),
+          "LIKE",
+          `%${sanitizedSearch}%`
+        ),
+        Sequelize.where(
+          Sequelize.fn("LOWER", Sequelize.col("Tag.color")),
+          "LIKE",
+          `%${sanitizedSearch}%`
+        )
       ]
     };
   }
@@ -54,11 +63,12 @@ const ListService = async ({
     group: ['Tag.id']
   });
 
-  const hasMore = count > offset + tags.length;
+  const actualCount = Array.isArray(count) ? count.length : Number(count || 0);
+  const hasMore = actualCount > offset + tags.length;
 
   return {
     tags,
-    count,
+    count: actualCount,
     hasMore
   };
 };
