@@ -396,6 +396,7 @@ const Ticket = () => {
         ></MessagesList>
         <MessageInput 
           ticketId={resolvedTicketId} 
+          ticketUuid={ticket?.uuid || (isNaN(Number(ticketId)) ? ticketId : undefined)}
           ticketStatus={ticket?.status || "open"}
           is24HoursExceeded={is24HoursExceeded}
         />

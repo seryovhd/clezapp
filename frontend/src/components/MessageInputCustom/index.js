@@ -49,6 +49,7 @@ import toastError from "../../errors/toastError";
 import Compressor from 'compressorjs';
 import LinearWithValueLabel from "./ProgressBarCustom";
 import useQuickMessages from "../../hooks/useQuickMessages";
+import { getTicketDraft, setTicketDraft, clearTicketDraft } from "../../helpers/ticketDrafts";
 const Mp3Recorder = new MicRecorder({ bitRate: 128 });
 
 const useStyles = makeStyles((theme) => ({
@@ -1061,7 +1062,7 @@ const QuickMessagesFloating = ({
 };
 
 const MessageInputCustom = (props) => {
-  const { ticketStatus, ticketId, is24HoursExceeded = false } = props;
+  const { ticketStatus, ticketId, ticketUuid, is24HoursExceeded = false } = props;
   
   // Debug: Log cuando cambia is24HoursExceeded
   React.useEffect(() => {
@@ -1070,7 +1071,7 @@ const MessageInputCustom = (props) => {
   const classes = useStyles();
   const [percentLoading, setPercentLoading] = useState(0);
   const [medias, setMedias] = useState([]);
-  const [inputMessage, setInputMessage] = useState("");
+  const [inputMessage, setInputMessage] = useState(() => getTicketDraft(ticketId, ticketUuid) || "");
   const [showEmoji, setShowEmoji] = useState(false);
   const [loading, setLoading] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -1078,6 +1079,16 @@ const MessageInputCustom = (props) => {
   const { setReplyingMessage, replyingMessage } =
     useContext(ReplyMessageContext);
   const { user } = useContext(AuthContext);
+
+  const updateInputMessage = (valueOrUpdater) => {
+    setInputMessage((prev) => {
+      const next = typeof valueOrUpdater === "function" ? valueOrUpdater(prev) : valueOrUpdater;
+      if (ticketId && ticketId !== "undefined") {
+        setTicketDraft(ticketId, next, ticketUuid);
+      }
+      return next;
+    });
+  };
 
   const [signMessage, setSignMessage] = useLocalStorage("signOption", true);
 
@@ -1119,14 +1130,21 @@ const MessageInputCustom = (props) => {
 
   // HUB FIN
   useEffect(() => {
-    inputRef.current.focus();
-    return () => {
+    if (ticketId && ticketId !== "undefined") {
+      const savedDraft = getTicketDraft(ticketId, ticketUuid);
+      setInputMessage(savedDraft || "");
+    } else {
       setInputMessage("");
+    }
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+    return () => {
       setShowEmoji(false);
       setMedias([]);
       setReplyingMessage(null);
     };
-  }, [ticketId, setReplyingMessage]);
+  }, [ticketId, ticketUuid, setReplyingMessage]);
 
   const socketManager = useContext(SocketContext);
   const [quickMessagesMode, setQuickMessagesMode] = useState("both");
@@ -1191,7 +1209,7 @@ const MessageInputCustom = (props) => {
     if (message.mediaPath) {
       handleQuickMessageClick(message);
     } else {
-      setInputMessage(message.message || "");
+      updateInputMessage(message.message || "");
       setTimeout(() => {
         if (inputRef.current) {
           inputRef.current.focus();
@@ -1225,7 +1243,7 @@ const MessageInputCustom = (props) => {
     }
     if (e.key === "Escape") {
       e.preventDefault();
-      setInputMessage("");
+      updateInputMessage("");
       return true;
     }
     return false;
@@ -1250,7 +1268,7 @@ const MessageInputCustom = (props) => {
   }
 
   const handleAddEmoji = (emoji) => {
-    setInputMessage((prev) => prev + emoji.native);
+    updateInputMessage((prev) => prev + emoji.native);
     setShowEmoji(false);
   };
 
@@ -1425,6 +1443,7 @@ const MessageInputCustom = (props) => {
       setLoading(false);
       setMedias([]);
       setInputMessage("");
+      clearTicketDraft(ticketId, ticketUuid);
       setPercentLoading(0);
       setReplyingMessage(null);
     } catch (err) {
@@ -1465,6 +1484,7 @@ const MessageInputCustom = (props) => {
 
     // ⚡ Optimistic UI: vaciar campo de texto inmediatamente (0ms) para respuesta ultra rápida
     setInputMessage("");
+    clearTicketDraft(ticketId, ticketUuid);
     setReplyingMessage(null);
     setShowEmoji(false);
 
@@ -1503,6 +1523,7 @@ const MessageInputCustom = (props) => {
     } catch (err) {
       // Si la petición falla, restaurar el texto para que el operador no lo pierda
       setInputMessage(currentText);
+      setTicketDraft(ticketId, currentText, ticketUuid);
       setReplyingMessage(currentReplying);
       toastError(err);
     }
@@ -1696,7 +1717,7 @@ const MessageInputCustom = (props) => {
             disableOption={disableOption}
             handleChangeMedias={handleChangeMedias}
             setMedias={setMedias}
-            setInputMessage={setInputMessage}
+            setInputMessage={updateInputMessage}
           />
 
           <FormControlLabel
@@ -1735,7 +1756,7 @@ const MessageInputCustom = (props) => {
             inputRef={inputRef}
             ticketStatus={ticketStatus}
             inputMessage={inputMessage}
-            setInputMessage={setInputMessage}
+            setInputMessage={updateInputMessage}
             handleSendMessage={handleSendMessage}
             handleInputPaste={handleInputPaste}
             disableOption={disableOption}

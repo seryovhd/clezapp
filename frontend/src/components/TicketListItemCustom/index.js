@@ -40,6 +40,7 @@ import CheckCircleOutlineIcon from "@material-ui/icons/CheckCircleOutline";
 import ContactTag from "../ContactTag";
 import { AvatarWithPreview } from "../ProfilePicModal";
 import { recentMessagesCache, setTicketMessagesCache } from "../MessagesList";
+import { getTicketDraft, subscribeToDraftChanges } from "../../helpers/ticketDrafts";
 const iconContainerStyle = {
   display: "flex",
   alignItems: "center",
@@ -447,6 +448,27 @@ const TicketListItemCustom = ({ ticket }) => {
   );
   const [, setTimeTicker] = useState(0);
 
+  const [draft, setDraft] = useState(() =>
+    getTicketDraft(ticket?.id, ticket?.uuid)
+  );
+
+  useEffect(() => {
+    setDraft(getTicketDraft(ticket?.id, ticket?.uuid));
+
+    const unsubscribe = subscribeToDraftChanges((detail) => {
+      const tId = String(ticket?.id || "");
+      const tUuid = String(ticket?.uuid || "");
+      if (
+        (detail.ticketId && (detail.ticketId === tId || (tUuid && detail.ticketId === tUuid))) ||
+        (detail.ticketUuid && (detail.ticketUuid === tUuid || (tId && detail.ticketUuid === tId)))
+      ) {
+        setDraft(detail.text || "");
+      }
+    });
+
+    return unsubscribe;
+  }, [ticket?.id, ticket?.uuid]);
+
   useEffect(() => {
     const handleSettingsUpdate = () => {
       setShowWaitTime(localStorage.getItem("showTicketWaitTime") || "disabled");
@@ -775,6 +797,15 @@ const TicketListItemCustom = ({ ticket }) => {
               >
                 {["composing", "recording"].includes(ticket?.presence) ? (
                   <span className={classes.presence}>{presenceMessage[ticket.presence]}</span>
+                ) : draft && draft.trim().length > 0 ? (
+                  <span style={{ display: "inline-flex", alignItems: "baseline", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%" }}>
+                    <span style={{ color: "#25d366", fontWeight: 600, marginRight: 4, flexShrink: 0 }}>
+                      Borrador:
+                    </span>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {draft.replace(/\r?\n/g, " ")}
+                    </span>
+                  </span>
                 ) : typeof ticket.lastMessage === "string" && ticket.lastMessage.includes("data:image/png;base64") ? (
                   <MarkdownWrapper>Localización</MarkdownWrapper>
                 ) : (
