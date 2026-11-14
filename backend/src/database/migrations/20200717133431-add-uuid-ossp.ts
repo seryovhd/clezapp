@@ -7,4 +7,7 @@ module.exports = {
     ]);
   },
 
+  down: (queryInterface: QueryInterface) => {
+    return Promise.resolve();
+  }
 };

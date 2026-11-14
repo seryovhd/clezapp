@@ -2,6 +2,7 @@ import Contact from "../models/Contact";
 import Whatsapp from "../models/Whatsapp";
 import Ticket from "../models/Ticket";
 import { logger } from "../utils/logger";
+import { IdentityResolverService } from "../services/IdentityServices/IdentityResolverService";
 
 /**
  * Resuelve un ID de privacidad de WhatsApp (@lid) al número de teléfono real (@s.whatsapp.net)
@@ -14,6 +15,17 @@ export const resolveLidToPhone = async (
   if (!lidNumber) return null;
   const cleanLid = lidNumber.replace(/@.*$/, "").replace(/\D/g, "");
   if (!cleanLid || cleanLid.length < 8) return null;
+
+  try {
+    if (companyId) {
+      const resolved = await IdentityResolverService.resolve(cleanLid, companyId, { wbot });
+      if (resolved.wasResolved && resolved.phoneNumber && resolved.phoneNumber !== cleanLid) {
+        return resolved.phoneNumber;
+      }
+    }
+  } catch (e) {
+    logger.error("Error delegando a IdentityResolverService:", e);
+  }
 
   try {
     // 1. Intentar desde authState keys en memoria si wbot tiene signal key store

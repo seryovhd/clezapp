@@ -40,6 +40,7 @@ import QueueIntegrations from "../models/QueueIntegrations";
  // PARCHE 1.3 - HUB
 import HubNotificaMe from "../models/HubNotificaMe"; 
  // PARCHE 1.3 - FIN
+import LidMapping from "../models/LidMapping";
 import { FlowDefaultModel } from "../models/FlowDefault";
 import { FlowBuilderModel } from "../models/FlowBuilder";
 import { FlowAudioModel } from "../models/FlowAudio";
@@ -98,6 +99,7 @@ const models = [
   FlowCampaignModel,
   FlowImgModel,
   WebhookModel,
+  LidMapping,
 ];
 
 sequelize.addModels(models);

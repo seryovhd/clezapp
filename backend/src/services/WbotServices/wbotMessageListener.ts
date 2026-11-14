@@ -30,6 +30,7 @@ import ShowWhatsAppService from "../WhatsappService/ShowWhatsAppService";
 import UpdateTicketService from "../TicketServices/UpdateTicketService";
 import formatBody from "../../helpers/Mustache";
 import { resolveLidToPhone } from "../../helpers/ResolveLidHelper";
+import { IdentityResolverService } from "../IdentityServices/IdentityResolverService";
 import { Store } from "../../libs/store";
 import TicketTraking from "../../models/TicketTraking";
 import UserRating from "../../models/UserRating";
@@ -730,11 +731,21 @@ const verifyContact = async (
   let cleanNumber = isLid ? cleanLidNumber : rawId.replace('@s.whatsapp.net', '').replace(/\D/g, '');
 
   if (isLid && cleanLidNumber) {
-    const resolvedPhone = await resolveLidToPhone(cleanLidNumber, wbot, companyId);
-    if (resolvedPhone) {
-      logger.info(`✅ [verifyContact] Contacto LID ${cleanLidNumber} resuelto automáticamente a número real ${resolvedPhone}`);
-      cleanNumber = resolvedPhone;
-      msgContact.id = `${resolvedPhone}@s.whatsapp.net`;
+    const resolvedIdentity = await IdentityResolverService.resolve(cleanLidNumber, companyId, { wbot });
+    if (resolvedIdentity.wasResolved && resolvedIdentity.phoneNumber && resolvedIdentity.phoneNumber !== cleanLidNumber) {
+      logger.info(`✅ [verifyContact] Contacto LID ${cleanLidNumber} resuelto automáticamente a número real ${resolvedIdentity.phoneNumber}`);
+      cleanNumber = resolvedIdentity.phoneNumber;
+      msgContact.id = `${cleanNumber}@s.whatsapp.net`;
+      // Intentar auto-fusión si existía un contacto provisional huérfano
+      IdentityResolverService.autoMergeIfDuplicate(companyId, cleanNumber, cleanLidNumber).catch(() => {});
+    } else {
+      const resolvedPhone = await resolveLidToPhone(cleanLidNumber, wbot, companyId);
+      if (resolvedPhone) {
+        logger.info(`✅ [verifyContact] Contacto LID ${cleanLidNumber} resuelto automáticamente a número real ${resolvedPhone}`);
+        cleanNumber = resolvedPhone;
+        msgContact.id = `${resolvedPhone}@s.whatsapp.net`;
+        IdentityResolverService.autoMergeIfDuplicate(companyId, cleanNumber, cleanLidNumber).catch(() => {});
+      }
     }
   }
 
@@ -2668,12 +2679,21 @@ const handleMessage = async (
         detectedRealNumber = msgWithAny.key.remoteJidAlt.replace('@s.whatsapp.net', '').replace(/\D/g, '');
       }
 
-      // Si no viene en metadatos, resolver mediante Baileys lidMapping / DB
+      // Si no viene en metadatos, resolver mediante IdentityResolverService / Baileys lidMapping / DB
       if (!detectedRealNumber && lidNumber) {
-        const resolved = await resolveLidToPhone(lidNumber, wbot, companyId);
-        if (resolved) {
-          detectedRealNumber = resolved;
-          logger.info(`📱 [LID -> JID] Número real resuelto desde Baileys/DB para LID ${lidNumber}: ${resolved}`);
+        const resolvedIdentity = await IdentityResolverService.resolve(lidNumber, companyId, {
+          wbot,
+          metadata: msg
+        });
+        if (resolvedIdentity.wasResolved && resolvedIdentity.phoneNumber && resolvedIdentity.phoneNumber !== lidNumber) {
+          detectedRealNumber = resolvedIdentity.phoneNumber;
+          logger.info(`📱 [LID -> JID] Número real resuelto desde IdentityResolverService para LID ${lidNumber}: ${detectedRealNumber}`);
+        } else {
+          const resolved = await resolveLidToPhone(lidNumber, wbot, companyId);
+          if (resolved) {
+            detectedRealNumber = resolved;
+            logger.info(`📱 [LID -> JID] Número real resuelto desde Baileys/DB para LID ${lidNumber}: ${resolved}`);
+          }
         }
       }
 
@@ -2697,6 +2717,11 @@ const handleMessage = async (
       }
 
       if (detectedRealNumber) {
+        // Persistir la correspondencia en LidMappings para futuras consultas
+        if (lidNumber && detectedRealNumber !== lidNumber) {
+          IdentityResolverService.saveLidMapping(companyId, lidNumber, detectedRealNumber).catch(() => {});
+        }
+
         const existingRealContact = await Contact.findOne({
           where: {
             number: detectedRealNumber,
@@ -3805,6 +3830,47 @@ const wbotMessageListener = async (
         (wbot as WASocket)!.readMessages([message.key]);
         handleMsgAck(message, message.update.status);
       });
+    });
+
+    // Sincronizar automáticamente mapeos de contactos y LIDs cuando WhatsApp los entrega
+    wbot.ev.on("contacts.upsert", async (contacts: any[]) => {
+      try {
+        if (!contacts || !Array.isArray(contacts)) return;
+        for (const c of contacts) {
+          const rawId = c.id || "";
+          const rawLid = c.lid || "";
+          if (rawId && rawLid && rawId.includes("@s.whatsapp.net") && rawLid.includes("@lid")) {
+            const cleanPhone = rawId.replace(/@.*$/, "").replace(/\D/g, "");
+            const cleanLid = rawLid.replace(/@.*$/, "").replace(/\D/g, "");
+            if (cleanPhone && cleanLid && cleanPhone !== cleanLid) {
+              await IdentityResolverService.saveLidMapping(companyId, cleanLid, cleanPhone);
+              await IdentityResolverService.autoMergeIfDuplicate(companyId, cleanPhone, cleanLid);
+            }
+          }
+        }
+      } catch (errContacts) {
+        logger.error("Error en wbot.ev.on(contacts.upsert):", errContacts);
+      }
+    });
+
+    wbot.ev.on("contacts.update", async (updates: any[]) => {
+      try {
+        if (!updates || !Array.isArray(updates)) return;
+        for (const u of updates) {
+          const rawId = u.id || "";
+          const rawLid = u.lid || "";
+          if (rawId && rawLid && rawId.includes("@s.whatsapp.net") && rawLid.includes("@lid")) {
+            const cleanPhone = rawId.replace(/@.*$/, "").replace(/\D/g, "");
+            const cleanLid = rawLid.replace(/@.*$/, "").replace(/\D/g, "");
+            if (cleanPhone && cleanLid && cleanPhone !== cleanLid) {
+              await IdentityResolverService.saveLidMapping(companyId, cleanLid, cleanPhone);
+              await IdentityResolverService.autoMergeIfDuplicate(companyId, cleanPhone, cleanLid);
+            }
+          }
+        }
+      } catch (errUpdates) {
+        logger.error("Error en wbot.ev.on(contacts.update):", errUpdates);
+      }
     });
   } catch (error) {
     Sentry.captureException(error);

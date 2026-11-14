@@ -12,6 +12,7 @@ import Setting from "../models/Setting";
 import CreateMessageService from "../services/MessageServices/CreateMessageService";
 import { Op } from "sequelize";
 import { resolveLidToPhone } from "../helpers/ResolveLidHelper";
+import { IdentityResolverService } from "../services/IdentityServices/IdentityResolverService";
 import { isGroupMessageIgnored } from "../helpers/CheckMsgIsGroupSetting";
 
 export const handleWebhook = async (req: Request, res: Response): Promise<Response> => {
@@ -138,16 +139,34 @@ export const handleWebhook = async (req: Request, res: Response): Promise<Respon
         // Normalizar JID si viene con LID
         const itemAny = item as any;
         if (item.key.remoteJid?.endsWith('@lid') || (item.key.remoteJid?.replace(/\D/g, "").length >= 14 && !item.key.remoteJid.includes('@s.whatsapp.net') && !item.key.remoteJid.includes('@g.us'))) {
-          if (itemAny.key?.remoteJidAlt && !itemAny.key.remoteJidAlt.endsWith('@lid')) {
+          const rawLid = item.key.remoteJid.replace('@lid', '').replace(/\D/g, '');
+          const resolvedIdentity = await IdentityResolverService.resolve(rawLid, companyId, {
+            metadata: itemAny
+          });
+
+          if (resolvedIdentity.wasResolved && resolvedIdentity.phoneNumber && resolvedIdentity.phoneNumber !== rawLid) {
+            logger.info(`🔍 [Evolution Webhook] Resuelto LID ${rawLid} -> ${resolvedIdentity.phoneNumber}@s.whatsapp.net vía IdentityResolverService`);
+            item.key.remoteJid = `${resolvedIdentity.phoneNumber}@s.whatsapp.net`;
+            // Auto-merge si hay un contacto provisional huérfano con este LID
+            IdentityResolverService.autoMergeIfDuplicate(companyId, resolvedIdentity.phoneNumber, rawLid).catch(() => { });
+          } else if (itemAny.key?.remoteJidAlt && !itemAny.key.remoteJidAlt.endsWith('@lid')) {
             item.key.remoteJid = itemAny.key.remoteJidAlt;
+            const cleanAlt = itemAny.key.remoteJidAlt.replace('@s.whatsapp.net', '').replace(/\D/g, '');
+            IdentityResolverService.saveLidMapping(companyId, rawLid, cleanAlt).catch(() => { });
+            IdentityResolverService.autoMergeIfDuplicate(companyId, cleanAlt, rawLid).catch(() => { });
           } else if (itemAny.senderPn && !itemAny.senderPn.endsWith('@lid')) {
-            item.key.remoteJid = itemAny.senderPn.includes('@') ? itemAny.senderPn : `${itemAny.senderPn}@s.whatsapp.net`;
+            const cleanPn = itemAny.senderPn.replace(/@.*$/, "").replace(/\D/g, "");
+            item.key.remoteJid = `${cleanPn}@s.whatsapp.net`;
+            IdentityResolverService.saveLidMapping(companyId, rawLid, cleanPn).catch(() => { });
+            IdentityResolverService.autoMergeIfDuplicate(companyId, cleanPn, rawLid).catch(() => { });
           } else {
             const cleanLid = item.key.remoteJid.replace('@lid', '').replace(/\D/g, '');
             const resolvedPhone = await resolveLidToPhone(cleanLid, undefined, companyId);
             if (resolvedPhone) {
               logger.info(`🔍 [Evolution Webhook] Resuelto LID ${cleanLid} -> ${resolvedPhone}@s.whatsapp.net`);
               item.key.remoteJid = `${resolvedPhone}@s.whatsapp.net`;
+              IdentityResolverService.saveLidMapping(companyId, cleanLid, resolvedPhone).catch(() => { });
+              IdentityResolverService.autoMergeIfDuplicate(companyId, resolvedPhone, cleanLid).catch(() => { });
             }
           }
         }
@@ -486,6 +505,36 @@ export const handleWebhook = async (req: Request, res: Response): Promise<Respon
         logger.warn(`[Evolution Webhook] Error procesando presence.update: ${err?.message}`);
       }
       return res.status(200).json({ status: "presence_processed" });
+    }
+
+    // 8. EVENTO: ACTUALIZACIÓN / SINCRONIZACIÓN DE CONTACTOS (CONTACTS_UPSERT / CONTACTS_UPDATE)
+    if (
+      event === "contacts.upsert" ||
+      event === "contacts_upsert" ||
+      event === "contacts.update" ||
+      event === "contacts_update" ||
+      event === "contact.upsert" ||
+      event === "contact_update"
+    ) {
+      try {
+        const contactsData = Array.isArray(body.data) ? body.data : [body.data];
+        for (const c of contactsData) {
+          if (!c) continue;
+          const rawId = c.id || c.remoteJid || c.jid || "";
+          const rawLid = c.lid || "";
+          if (rawId && rawLid && rawId.includes("@s.whatsapp.net") && rawLid.includes("@lid")) {
+            const cleanPhone = rawId.replace(/@.*$/, "").replace(/\D/g, "");
+            const cleanLid = rawLid.replace(/@.*$/, "").replace(/\D/g, "");
+            if (cleanPhone && cleanLid && cleanPhone !== cleanLid) {
+              await IdentityResolverService.saveLidMapping(companyId, cleanLid, cleanPhone);
+              await IdentityResolverService.autoMergeIfDuplicate(companyId, cleanPhone, cleanLid);
+            }
+          }
+        }
+      } catch (errSync) {
+        logger.warn(`[Evolution Webhook] Error procesando sincronización de contactos: ${errSync?.message}`);
+      }
+      return res.status(200).json({ status: "contacts_processed" });
     }
 
     return res.status(200).json({ status: "event_ignored", event });
