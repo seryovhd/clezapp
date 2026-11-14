@@ -790,11 +790,18 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
     const companyId = localStorage.getItem("companyId");
     const socket = socketManager.getSocket(companyId);
 
-    const onReady = () => {
-      if (ticket?.id) {
-        socket.emit("joinChatBox", `${ticket.id}`);
+    const joinTargetRoom = () => {
+      const target = ticket?.id || (!isNaN(Number(ticketId)) ? ticketId : null);
+      if (target) {
+        socket.emit("joinChatBox", `${target}`);
       }
     };
+
+    const onReady = () => {
+      joinTargetRoom();
+    };
+
+    joinTargetRoom();
 
     const onAppMessage = (data) => {
       if (!data?.message) return;

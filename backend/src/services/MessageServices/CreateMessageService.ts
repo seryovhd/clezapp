@@ -60,11 +60,11 @@ const CreateMessageService = async ({
     ]
   });
 
-  if (message.ticket.queueId !== null && message.queueId === null) {
+  if (message?.ticket && message.ticket.queueId !== null && message.queueId === null) {
     await message.update({ queueId: message.ticket.queueId });
   }
   // PARCHE MENSAJE PRIVADO
-  if (message.isPrivate) {
+  if (message?.isPrivate) {
     await message.update({ wid: `PVT${message.id}` });
   }
   // PARCHE MENSAJE PRIVADO - FIN
@@ -73,19 +73,24 @@ const CreateMessageService = async ({
   }
 
   const io = getIO();
-  io.to(message.ticketId.toString())
-    .to(`company-${companyId}-${message.ticket.status}`)
-    .to(`company-${companyId}-notification`)
+  let emitTarget = io.to(message.ticketId.toString())
     .to(`company-${companyId}-mainchannel`)
-    .to(`queue-${message.ticket.queueId}-${message.ticket.status}`)
-    .to(`queue-${message.ticket.queueId}-notification`)
-    .to(`user-${message.ticket.userId}`)
-    .emit(`company-${companyId}-appMessage`, {
-      action: "create",
-      message,
-      ticket: message.ticket,
-      contact: message.ticket.contact
-    });
+    .to(`company-${companyId}-notification`);
+
+  if (message?.ticket) {
+    emitTarget = emitTarget
+      .to(`company-${companyId}-${message.ticket.status}`)
+      .to(`queue-${message.ticket.queueId}-${message.ticket.status}`)
+      .to(`queue-${message.ticket.queueId}-notification`)
+      .to(`user-${message.ticket.userId}`);
+  }
+
+  emitTarget.emit(`company-${companyId}-appMessage`, {
+    action: "create",
+    message,
+    ticket: message?.ticket,
+    contact: message?.ticket?.contact
+  });
 
   return message;
 };

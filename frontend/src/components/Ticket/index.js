@@ -174,6 +174,39 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
+// Cache LRU en memoria para datos de tickets (SWR: render inmediato sin bloqueo de carga)
+const recentTicketsDataCache = new Map();
+const MAX_CACHED_TICKET_DATA = 50;
+
+const getCachedTicketData = (id) => {
+  if (!id) return null;
+  return recentTicketsDataCache.get(String(id)) || null;
+};
+
+const setCachedTicketData = (id, data, secondaryId = null) => {
+  if (!id && !secondaryId) return;
+  const key1 = id != null ? String(id) : null;
+  const key2 = secondaryId != null ? String(secondaryId) : null;
+
+  if (key1) {
+    if (recentTicketsDataCache.has(key1)) recentTicketsDataCache.delete(key1);
+    else if (recentTicketsDataCache.size >= MAX_CACHED_TICKET_DATA) {
+      const oldest = recentTicketsDataCache.keys().next().value;
+      recentTicketsDataCache.delete(oldest);
+    }
+    recentTicketsDataCache.set(key1, data);
+  }
+
+  if (key2 && key2 !== key1) {
+    if (recentTicketsDataCache.has(key2)) recentTicketsDataCache.delete(key2);
+    else if (recentTicketsDataCache.size >= MAX_CACHED_TICKET_DATA) {
+      const oldest = recentTicketsDataCache.keys().next().value;
+      recentTicketsDataCache.delete(oldest);
+    }
+    recentTicketsDataCache.set(key2, data);
+  }
+};
+
 const Ticket = () => {
   const { ticketId } = useParams();
   const history = useHistory();
@@ -203,9 +236,9 @@ const Ticket = () => {
   };
 
   const socketManager = useContext(SocketContext);
-  const isAssignedToOtherUser = ticket?.userId && ticket?.userId !== user?.id && user?.profile !== "admin" || ticket?.status === "pending";
+  const isAssignedToOtherUser = (ticket?.userId && ticket?.userId !== user?.id && user?.profile !== "admin") || ticket?.status === "pending";
 
- 
+
   const calculate24HourWindow = React.useCallback(async (targetTicketId) => {
     try {
       let messages = null;
@@ -220,17 +253,17 @@ const Ticket = () => {
       }
 
       const customerMessages = messages?.filter(msg => !msg.fromMe) || [];
-      const lastCustomerMessage = customerMessages.length > 0 
+      const lastCustomerMessage = customerMessages.length > 0
         ? customerMessages[customerMessages.length - 1] // El último del array (más reciente)
         : null;
-      
+
       if (lastCustomerMessage && lastCustomerMessage.createdAt) {
         const lastMessageTime = new Date(lastCustomerMessage.createdAt);
         const now = new Date();
         const hoursElapsed = (now - lastMessageTime) / (1000 * 60 * 60); // Convertir a horas
         const hoursLeft = 24 - hoursElapsed;
         const exceeded = hoursElapsed >= 24;
-        
+
         setHoursRemaining(Math.max(0, Math.floor(hoursLeft)));
         setIs24HoursExceeded(exceeded);
       } else {
@@ -245,9 +278,18 @@ const Ticket = () => {
   }, []);
 
   useEffect(() => {
-    setLoading(true);
     let isMounted = true;
     const abortController = new AbortController();
+
+    // SWR: Render instantáneo desde caché de ticket si ya fue visitado
+    const cached = getCachedTicketData(ticketId);
+    if (cached) {
+      setContact(cached.contact || {});
+      setTicket(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
 
     const fetchTicket = async () => {
       try {
@@ -275,11 +317,12 @@ const Ticket = () => {
 
         setContact(data.contact);
         setTicket(data);
-        
+        setCachedTicketData(ticketId, data, data.id || data.uuid);
+
         if (data.whatsapp?.type === "whatsapp_business" || data.whatsapp?.type === "facebook_messenger") {
           calculate24HourWindow(data.id);
         }
-        
+
         setLoading(false);
       } catch (err) {
         if (isMounted) {
@@ -303,11 +346,17 @@ const Ticket = () => {
     const companyId = localStorage.getItem("companyId");
     const socket = socketManager.getSocket(companyId);
 
-    socket.on("ready", () => {
-      if (ticket?.id) {
-        socket.emit("joinChatBox", `${ticket.id}`);
+    const joinTargetRoom = (tId) => {
+      if (tId) {
+        socket.emit("joinChatBox", `${tId}`);
       }
+    };
+
+    socket.on("ready", () => {
+      joinTargetRoom(ticket?.id || ticketId);
     });
+
+    joinTargetRoom(ticket?.id || ticketId);
 
     socket.on(`company-${companyId}-ticket`, (data) => {
       const isTarget =
@@ -318,6 +367,7 @@ const Ticket = () => {
 
       if (data.action === "update" && isTarget) {
         setTicket(data.ticket);
+        setCachedTicketData(ticketId, data.ticket, data.ticket.id || data.ticket.uuid);
         if (data.ticket.whatsapp?.type === "whatsapp_business" || data.ticket.whatsapp?.type === "facebook_messenger") {
           calculate24HourWindow(data.ticket.id);
         }
@@ -394,8 +444,8 @@ const Ticket = () => {
           ticketId={ticketId}
           isGroup={isCurrentTicket ? ticket?.isGroup : false}
         ></MessagesList>
-        <MessageInput 
-          ticketId={resolvedTicketId} 
+        <MessageInput
+          ticketId={resolvedTicketId}
           ticketUuid={ticket?.uuid || (isNaN(Number(ticketId)) ? ticketId : undefined)}
           ticketStatus={ticket?.status || "open"}
           is24HoursExceeded={is24HoursExceeded}
@@ -405,40 +455,40 @@ const Ticket = () => {
   };
 
 
-if (isAssignedToOtherUser && !loading) {
-  return (
-    <div className={classes.root}>
-      <Paper
-        variant="outlined"
-        elevation={0}
-        className={clsx(classes.mainWrapper, {
-          [classes.mainWrapperShift]: drawerOpen,
-        })}
-      >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            alignItems: "center",
-            height: "100%",
-            padding: "2rem",
-            textAlign: "center",
-            color: isDark ? "#8696a0" : "#666"
-          }}
+  if (isAssignedToOtherUser && !loading) {
+    return (
+      <div className={classes.root}>
+        <Paper
+          variant="outlined"
+          elevation={0}
+          className={clsx(classes.mainWrapper, {
+            [classes.mainWrapperShift]: drawerOpen,
+          })}
         >
-          <div style={{ fontSize: "3rem", marginBottom: "1rem", color: isDark ? "#8696a0" : "#bbb" }}>
-            🔒
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "center",
+              height: "100%",
+              padding: "2rem",
+              textAlign: "center",
+              color: isDark ? "#8696a0" : "#666"
+            }}
+          >
+            <div style={{ fontSize: "3rem", marginBottom: "1rem", color: isDark ? "#8696a0" : "#bbb" }}>
+              🔒
+            </div>
+            <h2 style={{ margin: 0, color: isDark ? "#e9edef" : "#111b21" }}>No tienes permisos para ver ni responder en este ticket.</h2>
+            <p style={{ marginTop: 8, fontStyle: "italic", color: isDark ? "#8696a0" : "#666" }}>
+              Este ticket está asignado a otro agente.
+            </p>
           </div>
-          <h2 style={{ margin: 0, color: isDark ? "#e9edef" : "#111b21" }}>No tienes permisos para ver ni responder en este ticket.</h2>
-          <p style={{ marginTop: 8, fontStyle: "italic", color: isDark ? "#8696a0" : "#666" }}>
-            Este ticket está asignado a otro agente.
-          </p>
-        </div>
-      </Paper>
-    </div>
-  );
-}
+        </Paper>
+      </div>
+    );
+  }
 
 
 
@@ -527,7 +577,7 @@ if (isAssignedToOtherUser && !loading) {
         {(() => {
           const isBusiness = ticket?.whatsapp?.type === "whatsapp_business" || ticket?.whatsapp?.type === "facebook_messenger";
           const shouldShow = isBusiness && !loading;
-          
+
           console.log("🔍 [RENDER DEBUG] Evaluando alerta business:", {
             ticket: ticket,
             whatsapp: ticket?.whatsapp,
@@ -536,10 +586,10 @@ if (isAssignedToOtherUser && !loading) {
             loading: loading,
             shouldShow: shouldShow
           });
-          
+
           const getWarningMessage = () => {
             const channelName = ticket?.whatsapp?.type === "facebook_messenger" ? "Facebook Messenger" : "WhatsApp Business API";
-            
+
             if (hoursRemaining === null) {
               return `⏰ Límite de 24 horas: Tienes 24 horas para responder al cliente (límite de ${channelName}).`;
             }
@@ -554,32 +604,32 @@ if (isAssignedToOtherUser && !loading) {
           const textColor = is24HoursExceeded ? "#721c24" : "#856404";
 
           return shouldShow ? (
-          <Paper 
-            style={{
-              boxShadow: "none", 
-              padding: "6px 12px",
-              margin: "0 0 0px 0",
-              backgroundColor: backgroundColor,
-              borderLeft: `3px solid ${borderColor}`,
-              borderRadius: "4px"
-            }}
-          >
-            <Box display="flex" alignItems="center" style={{ margin: 0, padding: 0 }}>
-              <WarningIcon style={{ color: textColor, marginRight: "6px", fontSize: "18px", flexShrink: 0 }} />
-              <Typography 
-                variant="caption" 
-                style={{ 
-                  color: textColor,
-                  lineHeight: 1.2,
-                  fontSize: "12px",
-                  margin: 0,
-                  padding: 0
-                }}
-              >
-                <strong>{getWarningMessage()}</strong>
-              </Typography>
-            </Box>
-          </Paper>
+            <Paper
+              style={{
+                boxShadow: "none",
+                padding: "6px 12px",
+                margin: "0 0 0px 0",
+                backgroundColor: backgroundColor,
+                borderLeft: `3px solid ${borderColor}`,
+                borderRadius: "4px"
+              }}
+            >
+              <Box display="flex" alignItems="center" style={{ margin: 0, padding: 0 }}>
+                <WarningIcon style={{ color: textColor, marginRight: "6px", fontSize: "18px", flexShrink: 0 }} />
+                <Typography
+                  variant="caption"
+                  style={{
+                    color: textColor,
+                    lineHeight: 1.2,
+                    fontSize: "12px",
+                    margin: 0,
+                    padding: 0
+                  }}
+                >
+                  <strong>{getWarningMessage()}</strong>
+                </Typography>
+              </Box>
+            </Paper>
           ) : null;
         })()}
         <ReplyMessageProvider>{renderMessagesList()}</ReplyMessageProvider>

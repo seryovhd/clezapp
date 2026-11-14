@@ -119,8 +119,10 @@ const SocketManager = {
       
       this.currentSocket = openSocket(process.env.REACT_APP_BACKEND_URL, {
         transports: ["websocket"],
-        pingTimeout: 18000,
-        pingInterval: 18000,
+        pingTimeout: 10000,
+        pingInterval: 10000,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
         query: { token },
       });
 

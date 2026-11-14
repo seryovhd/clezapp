@@ -31,6 +31,8 @@ export const initIO = (httpServer: Server): SocketIO => {
     },
     path: "/socket.io/",
     connectTimeout: 10000,
+    pingTimeout: 10000,
+    pingInterval: 10000,
     allowUpgrades: true,
     transports: ["websocket"]
   });
@@ -203,8 +205,16 @@ export const initIO = (httpServer: Server): SocketIO => {
           logger.warn(`ACCESO DENEGADO PARA OTRA COMPAÑIA - TICKET: ${ticketId} POR USUARIO: ${user.id}`);
           return;
         }
-        
-        if (ticket.userId !== user.id && user.profile !== "admin") {
+
+        const isQueueAllowed = !ticket.queueId || (user.queues && user.queues.some((q: any) => q.id === ticket.queueId));
+        const isAllowed =
+          user.profile === "admin" ||
+          user.profile === "supervisor" ||
+          ticket.userId === user.id ||
+          ticket.userId === null ||
+          isQueueAllowed;
+
+        if (!isAllowed) {
           logger.warn(`ACCESO DENEGADO PARA OTRO USUARIO - TICKET: ${ticketId} POR USUARIO: ${user.id}`);
           return;
         }
