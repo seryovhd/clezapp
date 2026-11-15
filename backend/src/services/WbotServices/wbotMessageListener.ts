@@ -171,7 +171,8 @@ const isPureLid = (msg: proto.IWebMessageInfo): boolean => {
   const rawJid = msg.key.remoteJid || "";
   if (rawJid.endsWith("@g.us")) return false; // Los grupos no son LIDs personales
 
-  const isLid = rawJid.endsWith("@lid") || (rawJid.replace(/\D/g, "").length >= 15 && !rawJid.includes("@s.whatsapp.net"));
+  const cleanDigits = rawJid.replace(/\D/g, "");
+  const isLid = rawJid.endsWith("@lid") || (cleanDigits.length >= 14 && !rawJid.includes("@s.whatsapp.net"));
   if (!isLid) return false;
 
   const msgWithAny = msg as any;
@@ -726,7 +727,8 @@ const verifyContact = async (
   let profilePicUrl: string;
 
   const rawId = msgContact.id || "";
-  const isLid = rawId.endsWith('@lid') || (rawId.replace(/\D/g, "").length >= 15 && !rawId.includes('@s.whatsapp.net'));
+  const cleanDigits = rawId.replace(/\D/g, "");
+  const isLid = rawId.endsWith('@lid') || (cleanDigits.length >= 14 && !rawId.includes('@s.whatsapp.net'));
   const cleanLidNumber = isLid ? rawId.replace('@lid', '').replace(/\D/g, '') : undefined;
   let cleanNumber = isLid ? cleanLidNumber : rawId.replace('@s.whatsapp.net', '').replace(/\D/g, '');
 
@@ -2663,12 +2665,12 @@ const handleMessage = async (
     const rawJid = msg.key.remoteJid || msgContact?.id || "";
     const isLidContact = contact.number.includes('@lid') ||
       rawJid.includes('@lid') ||
-      contact.number.length >= 15 ||
+      contact.number.length >= 14 ||
       !!contact.lid;
 
     if (isLidContact) {
       const lidFromJid = rawJid.includes('@lid') ? rawJid.replace('@lid', '').replace(/\D/g, '') : "";
-      const lidNumber = contact.lid || lidFromJid || (contact.number.length >= 15 ? contact.number.replace(/\D/g, '') : "");
+      const lidNumber = contact.lid || lidFromJid || (contact.number.length >= 14 ? contact.number.replace(/\D/g, '') : "");
 
       // Intentar obtener el número real del mensaje si viene en metadatos
       const msgWithAny = msg as any;

@@ -6,6 +6,7 @@ import ShowTicketService from "./ShowTicketService";
 import FindOrCreateATicketTrakingService from "./FindOrCreateATicketTrakingService";
 import Setting from "../../models/Setting";
 import Whatsapp from "../../models/Whatsapp";
+import { IdentityResolverService } from "../IdentityServices/IdentityResolverService";
 
 interface TicketData {
   status?: string;
@@ -34,6 +35,22 @@ const FindOrCreateTicketService = async (
       return null; // ✅ EVITA lanzar error
     }
   }
+  if (!groupContact) {
+    // Si el contacto tiene LID o su número es un LID, resolver si existe un contacto unificado
+    if (contact.lid || contact.number.length >= 14) {
+      const lidToResolve = contact.lid || (contact.number.length >= 14 ? contact.number : "");
+      if (lidToResolve) {
+        const resolved = await IdentityResolverService.resolve(lidToResolve, companyId);
+        if (resolved.wasResolved && resolved.phoneNumber && resolved.phoneNumber !== contact.number) {
+          const mergedContact = await IdentityResolverService.autoMergeIfDuplicate(companyId, resolved.phoneNumber, lidToResolve);
+          if (mergedContact) {
+            contact = mergedContact;
+          }
+        }
+      }
+    }
+  }
+
   // Buscar ticket existente del contacto
   let ticket = await Ticket.findOne({
     where: {

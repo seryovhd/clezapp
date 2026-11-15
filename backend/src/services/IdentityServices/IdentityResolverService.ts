@@ -205,21 +205,29 @@ export class IdentityResolverService {
   ): Promise<Contact | null> {
     if (!companyId || !realPhone || !lidNumber || realPhone === lidNumber) return null;
 
+    const cleanReal = realPhone.replace(/@.*$/, "").replace(/\D/g, "");
+    const cleanLid = lidNumber.replace(/@.*$/, "").replace(/\D/g, "");
+
+    if (!cleanReal || !cleanLid || cleanReal === cleanLid) return null;
+
     try {
       // Buscar si existe un contacto con el número real
       const realContact = await Contact.findOne({
-        where: { companyId, number: realPhone }
+        where: { companyId, number: cleanReal }
       });
 
-      // Buscar si existe un contacto huérfano cuyo número sea el LID
+      // Buscar si existe un contacto huérfano cuyo número o lid coincida con el LID
       const lidContact = await Contact.findOne({
-        where: { companyId, number: lidNumber }
+        where: {
+          companyId,
+          number: cleanLid
+        }
       });
 
       if (!realContact || !lidContact || realContact.id === lidContact.id) {
         // Si solo existe el real, aseguramos su campo lid
-        if (realContact && realContact.lid !== lidNumber) {
-          await realContact.update({ lid: lidNumber });
+        if (realContact && realContact.lid !== cleanLid) {
+          await realContact.update({ lid: cleanLid });
         }
         return realContact;
       }
@@ -228,26 +236,60 @@ export class IdentityResolverService {
         `🔄 [AutoMerge] FUSIONANDO AUTOMÁTICAMENTE Contacto LID ${lidContact.id} (${lidContact.number}) -> Contacto Real ${realContact.id} (${realContact.number})`
       );
 
-      // 1. Traspasar todos los Tickets del contacto LID al contacto real
-      await Ticket.update(
-        { contactId: realContact.id },
-        { where: { contactId: lidContact.id, companyId } }
-      );
+      // 1. Obtener los tickets de ambos contactos
+      const realTicket = await Ticket.findOne({
+        where: { contactId: realContact.id, companyId },
+        order: [["updatedAt", "DESC"]]
+      });
 
-      // 2. Traspasar todos los Mensajes del contacto LID al contacto real
+      const lidTickets = await Ticket.findAll({
+        where: { contactId: lidContact.id, companyId }
+      });
+
+      // Si el contacto real ya tiene un ticket, unificar los mensajes en el ticket real para no violar unique constraint
+      if (realTicket) {
+        for (const lTicket of lidTickets) {
+          await Message.update(
+            { ticketId: realTicket.id, contactId: realContact.id },
+            { where: { ticketId: lTicket.id, companyId } }
+          );
+
+          // Traspasar o eliminar referencias hijas
+          try {
+            const io = getIO();
+            io.to(`company-${companyId}-${lTicket.status}`)
+              .to(lTicket.id.toString())
+              .emit(`company-${companyId}-ticket`, {
+                action: "delete",
+                ticketId: lTicket.id
+              });
+            await lTicket.destroy();
+          } catch (eTicketDestroy) {
+            logger.warn("Error destruyendo ticket temporal fusionado:", eTicketDestroy);
+          }
+        }
+      } else {
+        // Si el real no tenía ticket, traspasar el ticket de LID al real
+        await Ticket.update(
+          { contactId: realContact.id },
+          { where: { contactId: lidContact.id, companyId } }
+        );
+      }
+
+      // 2. Asegurar que todos los mensajes pendientes queden asociados al contacto real
       await Message.update(
         { contactId: realContact.id },
         { where: { contactId: lidContact.id, companyId } }
       );
 
       // 3. Actualizar el campo lid en el contacto real
-      await realContact.update({ lid: lidNumber });
+      await realContact.update({ lid: cleanLid });
 
       // 4. Copiar campos personalizados o guardarlos
       try {
         await ContactCustomField.findOrCreate({
           where: { contactId: realContact.id, name: "LID WhatsApp" },
-          defaults: { contactId: realContact.id, name: "LID WhatsApp", value: lidNumber }
+          defaults: { contactId: realContact.id, name: "LID WhatsApp", value: cleanLid }
         });
       } catch (e) {}
 

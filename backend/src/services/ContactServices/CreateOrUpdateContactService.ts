@@ -66,7 +66,7 @@ const CreateOrUpdateContactService = async ({
     if (lidWarningAt && !contact.lidWarningAt) {
       updateData.lidWarningAt = lidWarningAt;
     }
-    if (contact.number.length >= 15 && number.length >= 8 && number.length <= 14) {
+    if (contact.number.length >= 14 && number.length >= 8 && number.length <= 13) {
       updateData.number = number;
       if (!contact.lid) updateData.lid = contact.number;
     }
