@@ -3930,12 +3930,110 @@ const wbotMessageListener = async (
       }
     });
 
-    wbot.ev.on("messages.update", (messageUpdate: WAMessageUpdate[]) => {
-      if (messageUpdate.length === 0) return;
-      messageUpdate.forEach(async (message: WAMessageUpdate) => {
-        (wbot as WASocket)!.readMessages([message.key]);
-        handleMsgAck(message, message.update.status);
-      });
+    wbot.ev.on("messages.update", async (messageUpdate: WAMessageUpdate[]) => {
+      if (!messageUpdate || messageUpdate.length === 0) return;
+
+      for (const message of messageUpdate) {
+        try {
+          // 1. Manejo de confirmación / lectura (ACK)
+          if (message.update?.status) {
+            (wbot as WASocket)!.readMessages([message.key]);
+            await handleMsgAck(message, message.update.status);
+          }
+
+          // 2. Manejo de MENSAJES EDITADOS emitidos por Baileys en messages.update
+          const editedMsg =
+            (message.update as any)?.message?.editedMessage?.message ||
+            (message.update as any)?.message?.protocolMessage?.editedMessage;
+
+          if (editedMsg) {
+            const targetMsgId = message.key.id;
+            const editedContent =
+              editedMsg.conversation ||
+              editedMsg.extendedTextMessage?.text ||
+              editedMsg.imageMessage?.caption ||
+              editedMsg.videoMessage?.caption ||
+              "";
+
+            console.log("✏️ [BAILEYS messages.update] Edición de mensaje detectada:", {
+              targetMsgId,
+              editedContent,
+              remoteJid: message.key.remoteJid
+            });
+
+            if (targetMsgId && editedContent) {
+              const targetMsg = await Message.findOne({
+                where: { id: targetMsgId, companyId },
+                include: [
+                  "contact",
+                  {
+                    model: Message,
+                    as: "quotedMsg",
+                    include: ["contact"]
+                  }
+                ]
+              });
+
+              if (targetMsg) {
+                await targetMsg.update({
+                  body: editedContent,
+                  isEdited: true
+                });
+
+                await targetMsg.reload({
+                  include: [
+                    "contact",
+                    {
+                      model: Message,
+                      as: "quotedMsg",
+                      include: ["contact"]
+                    }
+                  ]
+                });
+
+                const ticket = await Ticket.findByPk(targetMsg.ticketId, {
+                  include: ["contact"]
+                });
+
+                if (ticket) {
+                  await ticket.update({ lastMessage: editedContent });
+
+                  const io = getIO();
+                  let emitTarget = io.to(String(targetMsg.ticketId))
+                    .to(`company-${companyId}-mainchannel`)
+                    .to(`company-${companyId}-notification`);
+
+                  emitTarget = emitTarget
+                    .to(`company-${companyId}-${ticket.status}`)
+                    .to(`queue-${ticket.queueId}-${ticket.status}`)
+                    .to(`queue-${ticket.queueId}-notification`)
+                    .to(`user-${ticket.userId}`);
+
+                  emitTarget.emit(`company-${companyId}-appMessage`, {
+                    action: "update",
+                    message: targetMsg,
+                    ticket,
+                    contact: ticket.contact
+                  });
+
+                  io.to(`company-${companyId}-${ticket.status}`)
+                    .to(`queue-${ticket.queueId}-${ticket.status}`)
+                    .emit(`company-${companyId}-ticket`, {
+                      action: "update",
+                      ticket
+                    });
+
+                  console.log(`✅ [BAILEYS messages.update] Mensaje ${targetMsgId} actualizado y notificado a la interfaz.`);
+                }
+              } else {
+                console.log(`⚠️ [BAILEYS messages.update] Mensaje original no encontrado con ID: ${targetMsgId}`);
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Error procesando evento messages.update:", err);
+        }
+      }
     });
 
     // Sincronizar automáticamente mapeos de contactos y LIDs cuando WhatsApp los entrega
