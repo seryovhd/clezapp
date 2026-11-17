@@ -16,6 +16,7 @@ import {
   WAMessageUpdate,
   WASocket
 } from "@whiskeysockets/baileys";
+import { aesDecryptGCM, hmacSign } from "@whiskeysockets/baileys/lib/Utils/crypto";
 import Contact from "../../models/Contact";
 import Ticket from "../../models/Ticket";
 import Message from "../../models/Message";
@@ -242,6 +243,73 @@ export const extractEditedMessageInfo = (msg: proto.IWebMessageInfo): { targetMs
     "";
 
   return { targetMsgId, editedContent };
+};
+
+const decryptEditedSecretMessage = (
+  secEnc: any,
+  targetId: string,
+  msgSecret: any,
+  participantJid: string
+): proto.IMessage | null => {
+  try {
+    if (!targetId || !msgSecret || !secEnc?.encPayload || !secEnc?.encIv) {
+      return null;
+    }
+
+    const secretBuffer = Buffer.isBuffer(msgSecret)
+      ? msgSecret
+      : typeof msgSecret === "string"
+      ? Buffer.from(msgSecret, "base64")
+      : Buffer.from(msgSecret);
+
+    const encPayload = Buffer.isBuffer(secEnc.encPayload)
+      ? secEnc.encPayload
+      : typeof secEnc.encPayload === "string"
+      ? Buffer.from(secEnc.encPayload, "base64")
+      : Buffer.from(secEnc.encPayload);
+
+    const encIv = Buffer.isBuffer(secEnc.encIv)
+      ? secEnc.encIv
+      : typeof secEnc.encIv === "string"
+      ? Buffer.from(secEnc.encIv, "base64")
+      : Buffer.from(secEnc.encIv);
+
+    const candidateJids = [
+      participantJid,
+      secEnc.targetMessageKey?.remoteJid,
+      participantJid ? participantJid.replace(/@.+/, "@s.whatsapp.net") : null,
+      participantJid ? participantJid.replace(/@.+/, "@lid") : null
+    ].filter(Boolean) as string[];
+
+    const toBinary = (txt: string) => Buffer.from(txt);
+
+    for (const sender of candidateJids) {
+      try {
+        const senderBuf = toBinary(sender);
+        const sign = Buffer.concat([
+          toBinary(targetId),
+          senderBuf,
+          senderBuf,
+          toBinary("Message Edit"),
+          new Uint8Array([1])
+        ]);
+
+        const key0 = hmacSign(secretBuffer, new Uint8Array(32), "sha256");
+        const decKey = hmacSign(sign, key0, "sha256");
+
+        const decrypted = aesDecryptGCM(encPayload, decKey, encIv, Buffer.alloc(0));
+        const decoded = proto.Message.decode(decrypted);
+        if (decoded) {
+          return decoded;
+        }
+      } catch (err) {
+        // continuar con siguiente candidato
+      }
+    }
+  } catch (err: any) {
+    logger.warn(`Error al descifrar secretEncryptedMessage: ${err.message}`);
+  }
+  return null;
 };
 
 export function validaCpfCnpj(val) {
@@ -1429,6 +1497,7 @@ const isValidMsg = (msg: proto.IWebMessageInfo): boolean => {
       msgType === "conversation" ||
       msgType === "extendedTextMessage" ||
       msgType === "editedMessage" ||
+      msgType === "secretEncryptedMessage" ||
       msgType === "audioMessage" ||
       msgType === "videoMessage" ||
       msgType === "imageMessage" ||
@@ -2616,6 +2685,120 @@ const handleMessage = async (
       console.log("⚠️ No se encontró el mensaje a eliminar:", deletedMsgId);
     }
 
+    return;
+  }
+
+  // 1. Manejo de mensajes editados cifrados nativos de WhatsApp (secretEncryptedMessage)
+  const secretEnc = msg.message?.secretEncryptedMessage;
+  const isSecretEdit =
+    secretEnc &&
+    (String((secretEnc as any).secretEncType) === "MESSAGE_EDIT" ||
+      (secretEnc as any).secretEncType === 2 ||
+      Boolean(secretEnc.targetMessageKey?.id));
+
+  if (isSecretEdit && secretEnc?.targetMessageKey?.id) {
+    const targetMsgId = secretEnc.targetMessageKey.id;
+    console.log("🔐 [SECRET EDIT] Mensaje cifrado editado detectado:", {
+      targetMsgId,
+      remoteJid: msg.key.remoteJid,
+      addressingMode: (msg.key as any).addressingMode
+    });
+
+    const targetMsg = await Message.findOne({
+      where: { id: targetMsgId },
+      include: [
+        "contact",
+        {
+          model: Message,
+          as: "quotedMsg",
+          include: ["contact"]
+        }
+      ]
+    });
+
+    if (targetMsg) {
+      let msgSecret: any = null;
+      if (targetMsg.dataJson) {
+        try {
+          const parsed = JSON.parse(targetMsg.dataJson);
+          msgSecret =
+            parsed?.message?.messageContextInfo?.messageSecret ||
+            parsed?.messageContextInfo?.messageSecret;
+        } catch (e) {}
+      }
+
+      const senderJid = msg.key.participant || msg.key.remoteJid || "";
+      const decoded = decryptEditedSecretMessage(secretEnc, targetMsgId, msgSecret, senderJid);
+
+      if (decoded) {
+        const editedContent =
+          decoded.conversation ||
+          decoded.extendedTextMessage?.text ||
+          (decoded as any)?.imageMessage?.caption ||
+          (decoded as any)?.videoMessage?.caption ||
+          "";
+
+        console.log(`🔓 [SECRET EDIT] Descifrado exitoso para mensaje ${targetMsgId}: "${editedContent}"`);
+
+        if (editedContent) {
+          const targetCompanyId = targetMsg.companyId || companyId;
+          await targetMsg.update({
+            body: editedContent,
+            isEdited: true
+          });
+
+          await targetMsg.reload({
+            include: [
+              "contact",
+              {
+                model: Message,
+                as: "quotedMsg",
+                include: ["contact"]
+              }
+            ]
+          });
+
+          const ticket = await Ticket.findByPk(targetMsg.ticketId, {
+            include: ["contact"]
+          });
+
+          if (ticket) {
+            await ticket.update({ lastMessage: editedContent });
+
+            const io = getIO();
+            let emitTarget = io.to(String(targetMsg.ticketId))
+              .to(`company-${targetCompanyId}-mainchannel`)
+              .to(`company-${targetCompanyId}-notification`);
+
+            emitTarget = emitTarget
+              .to(`company-${targetCompanyId}-${ticket.status}`)
+              .to(`queue-${ticket.queueId}-${ticket.status}`)
+              .to(`queue-${ticket.queueId}-notification`)
+              .to(`user-${ticket.userId}`);
+
+            emitTarget.emit(`company-${targetCompanyId}-appMessage`, {
+              action: "update",
+              message: targetMsg,
+              ticket,
+              contact: ticket.contact
+            });
+
+            io.to(`company-${targetCompanyId}-${ticket.status}`)
+              .to(`queue-${ticket.queueId}-${ticket.status}`)
+              .emit(`company-${targetCompanyId}-ticket`, {
+                action: "update",
+                ticket
+              });
+
+            console.log(`✅ [SECRET EDIT] Mensaje ${targetMsgId} actualizado y notificado a toda la plataforma.`);
+          }
+        }
+      } else {
+        console.log(`⚠️ [SECRET EDIT] No se pudo descifrar el contenido para el mensaje ${targetMsgId}`);
+      }
+    } else {
+      console.log(`⚠️ [SECRET EDIT] Mensaje original no encontrado en BD: ${targetMsgId}`);
+    }
     return;
   }
 
@@ -3905,7 +4088,8 @@ const wbotMessageListener = async (
             }
 
             const editInfo = extractEditedMessageInfo(message);
-            const isEditProtocol = Boolean(editInfo || getTypeMessage(message) === "editedMessage");
+            const isSecretEdit = Boolean(message.message?.secretEncryptedMessage);
+            const isEditProtocol = Boolean(editInfo || getTypeMessage(message) === "editedMessage" || isSecretEdit);
 
             const messageExists = isEditProtocol ? 0 : await Message.count({
               where: { id: message.key.id!, companyId }

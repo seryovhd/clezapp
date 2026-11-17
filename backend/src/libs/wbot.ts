@@ -27,6 +27,7 @@ import DeleteBaileysService from "../services/BaileysServices/DeleteBaileysServi
 import NodeCache from 'node-cache';
 import Contact from "../models/Contact";
 import Ticket from "../models/Ticket";
+import Message from "../models/Message";
 const loggerBaileys = MAIN_LOGGER.child({});
 loggerBaileys.level = "error";
 
@@ -53,7 +54,7 @@ type Session = WASocket & {
 
 export default function msg() {
   return {
-    get: (key: WAMessageKey) => {
+    get: async (key: WAMessageKey) => {
       const { id } = key;
       if (!id) return;
       let data = msgCache.get(id);
@@ -64,6 +65,15 @@ export default function msg() {
         } catch (error) {
           logger.error(error);
         }
+      }
+      try {
+        const msgDb = await Message.findOne({ where: { id } });
+        if (msgDb?.dataJson) {
+          const parsed = JSON.parse(msgDb.dataJson);
+          return parsed?.message;
+        }
+      } catch (dbErr) {
+        logger.error(`Error buscando mensaje en DB para getMessage: ${id}`, dbErr);
       }
     },
     save: (msg: WAMessage) => {
