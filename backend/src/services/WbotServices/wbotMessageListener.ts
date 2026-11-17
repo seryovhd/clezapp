@@ -2724,41 +2724,29 @@ const handleMessage = async (
           IdentityResolverService.saveLidMapping(companyId, lidNumber, detectedRealNumber).catch(() => {});
         }
 
-        const existingRealContact = await Contact.findOne({
-          where: {
-            number: detectedRealNumber,
-            companyId
-          }
-        });
-
-        if (existingRealContact && existingRealContact.id !== contact.id) {
-          logger.info(`✅ [LID -> JID] Fusionando contacto LID ${contact.id} (${contact.number}) en contacto real ${existingRealContact.id} (${existingRealContact.number})`);
-          await Ticket.update({ contactId: existingRealContact.id }, { where: { contactId: contact.id } });
-          await Message.update({ contactId: existingRealContact.id }, { where: { contactId: contact.id } });
-          await existingRealContact.update({ lid: lidNumber });
-
-          const oldContactId = contact.id;
-          try {
-            await ContactCustomField.destroy({ where: { contactId: oldContactId } });
-            await contact.destroy();
-            const io = getIO();
-            io.to(`company-${companyId}-mainchannel`).emit(`company-${companyId}-contact`, {
-              action: "delete",
-              contactId: oldContactId
-            });
-          } catch (eDestroy) {
-            logger.error("Error eliminando contacto duplicado:", eDestroy);
-          }
-          contact = existingRealContact;
+        // Ejecutar auto-fusión centralizada completa con soporte seguro para unique constraint de Tickets
+        const mergedContact = await IdentityResolverService.autoMergeIfDuplicate(companyId, detectedRealNumber, lidNumber);
+        if (mergedContact) {
+          contact = mergedContact;
         } else {
-          logger.info(`✅ [LID -> JID] Actualizando número del contacto LID ${contact.id} de ${contact.number} a número real ${detectedRealNumber}`);
-          await contact.update({
-            number: detectedRealNumber,
-            lid: lidNumber,
-            name: contact.name !== 'Contacto WhatsApp' && contact.name !== 'Contacto LinkedIn' ? contact.name : detectedRealNumber
+          const existingRealContact = await Contact.findOne({
+            where: {
+              number: detectedRealNumber,
+              companyId
+            }
           });
-          contact.number = detectedRealNumber;
-          contact.lid = lidNumber;
+
+          if (existingRealContact && existingRealContact.id !== contact.id) {
+            contact = existingRealContact;
+          } else {
+            await contact.update({
+              number: detectedRealNumber,
+              lid: lidNumber,
+              name: contact.name !== 'Contacto WhatsApp' && contact.name !== 'Contacto LinkedIn' ? contact.name : detectedRealNumber
+            });
+            contact.number = detectedRealNumber;
+            contact.lid = lidNumber;
+          }
         }
 
         // Guardar en campos adicionales visibles en el panel lateral del chat

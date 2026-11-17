@@ -236,6 +236,17 @@ export class IdentityResolverService {
         `🔄 [AutoMerge] FUSIONANDO AUTOMÁTICAMENTE Contacto LID ${lidContact.id} (${lidContact.number}) -> Contacto Real ${realContact.id} (${realContact.number})`
       );
 
+      // Si el contacto real tiene por nombre solo números y el contacto LID tiene un nombre real legible, conservar el nombre real
+      if (
+        lidContact.name &&
+        lidContact.name !== lidContact.number &&
+        (realContact.name === realContact.number || /^\d+$/.test(realContact.name) || realContact.name === 'Contacto WhatsApp')
+      ) {
+        await realContact.update({ name: lidContact.name, lid: cleanLid });
+      } else {
+        await realContact.update({ lid: cleanLid });
+      }
+
       // 1. Obtener los tickets de ambos contactos
       const realTicket = await Ticket.findOne({
         where: { contactId: realContact.id, companyId },
@@ -282,10 +293,7 @@ export class IdentityResolverService {
         { where: { contactId: lidContact.id, companyId } }
       );
 
-      // 3. Actualizar el campo lid en el contacto real
-      await realContact.update({ lid: cleanLid });
-
-      // 4. Copiar campos personalizados o guardarlos
+      // 3. Copiar campos personalizados o guardarlos
       try {
         await ContactCustomField.findOrCreate({
           where: { contactId: realContact.id, name: "LID WhatsApp" },
