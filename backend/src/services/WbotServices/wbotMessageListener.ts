@@ -3944,26 +3944,27 @@ const wbotMessageListener = async (
           // 2. Manejo de MENSAJES EDITADOS emitidos por Baileys en messages.update
           const editedMsg =
             (message.update as any)?.message?.editedMessage?.message ||
-            (message.update as any)?.message?.protocolMessage?.editedMessage;
+            (message.update as any)?.message?.protocolMessage?.editedMessage ||
+            (message.update as any)?.message?.editedMessage;
 
           if (editedMsg) {
-            const targetMsgId = message.key.id;
+            const targetMsgId = message.key?.id || (message.update as any)?.key?.id;
             const editedContent =
               editedMsg.conversation ||
               editedMsg.extendedTextMessage?.text ||
               editedMsg.imageMessage?.caption ||
               editedMsg.videoMessage?.caption ||
-              "";
+              (typeof editedMsg === "string" ? editedMsg : "");
 
             console.log("✏️ [BAILEYS messages.update] Edición de mensaje detectada:", {
               targetMsgId,
               editedContent,
-              remoteJid: message.key.remoteJid
+              remoteJid: message.key?.remoteJid
             });
 
             if (targetMsgId && editedContent) {
               const targetMsg = await Message.findOne({
-                where: { id: targetMsgId, companyId },
+                where: { id: targetMsgId },
                 include: [
                   "contact",
                   {
@@ -3975,6 +3976,7 @@ const wbotMessageListener = async (
               });
 
               if (targetMsg) {
+                const targetCompanyId = targetMsg.companyId || companyId;
                 await targetMsg.update({
                   body: editedContent,
                   isEdited: true
@@ -4000,25 +4002,25 @@ const wbotMessageListener = async (
 
                   const io = getIO();
                   let emitTarget = io.to(String(targetMsg.ticketId))
-                    .to(`company-${companyId}-mainchannel`)
-                    .to(`company-${companyId}-notification`);
+                    .to(`company-${targetCompanyId}-mainchannel`)
+                    .to(`company-${targetCompanyId}-notification`);
 
                   emitTarget = emitTarget
-                    .to(`company-${companyId}-${ticket.status}`)
+                    .to(`company-${targetCompanyId}-${ticket.status}`)
                     .to(`queue-${ticket.queueId}-${ticket.status}`)
                     .to(`queue-${ticket.queueId}-notification`)
                     .to(`user-${ticket.userId}`);
 
-                  emitTarget.emit(`company-${companyId}-appMessage`, {
+                  emitTarget.emit(`company-${targetCompanyId}-appMessage`, {
                     action: "update",
                     message: targetMsg,
                     ticket,
                     contact: ticket.contact
                   });
 
-                  io.to(`company-${companyId}-${ticket.status}`)
+                  io.to(`company-${targetCompanyId}-${ticket.status}`)
                     .to(`queue-${ticket.queueId}-${ticket.status}`)
-                    .emit(`company-${companyId}-ticket`, {
+                    .emit(`company-${targetCompanyId}-ticket`, {
                       action: "update",
                       ticket
                     });
