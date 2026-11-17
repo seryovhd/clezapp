@@ -20,6 +20,7 @@ import { aesDecryptGCM, hmacSign } from "@whiskeysockets/baileys/lib/Utils/crypt
 import Contact from "../../models/Contact";
 import Ticket from "../../models/Ticket";
 import Message from "../../models/Message";
+import LidMapping from "../../models/LidMapping";
 import ContactCustomField from "../../models/ContactCustomField";
 
 import { getIO } from "../../libs/socket";
@@ -249,7 +250,7 @@ const decryptEditedSecretMessage = (
   secEnc: any,
   targetId: string,
   msgSecret: any,
-  participantJid: string
+  candidateList: string[] | string
 ): proto.IMessage | null => {
   try {
     if (!targetId || !msgSecret || !secEnc?.encPayload || !secEnc?.encIv) {
@@ -274,16 +275,35 @@ const decryptEditedSecretMessage = (
       ? Buffer.from(secEnc.encIv, "base64")
       : Buffer.from(secEnc.encIv);
 
-    const candidateJids = [
-      participantJid,
-      secEnc.targetMessageKey?.remoteJid,
-      participantJid ? participantJid.replace(/@.+/, "@s.whatsapp.net") : null,
-      participantJid ? participantJid.replace(/@.+/, "@lid") : null
-    ].filter(Boolean) as string[];
+    const rawCandidates = Array.isArray(candidateList) ? candidateList : [candidateList];
+    const candidateJids = new Set<string>();
+
+    for (const c of rawCandidates) {
+      if (!c) continue;
+      candidateJids.add(c);
+      const clean = c.replace(/@.*$/, "").replace(/:\d+$/, "");
+      if (clean) {
+        candidateJids.add(clean);
+        candidateJids.add(`${clean}@lid`);
+        candidateJids.add(`${clean}@s.whatsapp.net`);
+      }
+    }
+
+    if (secEnc.targetMessageKey?.remoteJid) {
+      const rJid = secEnc.targetMessageKey.remoteJid;
+      candidateJids.add(rJid);
+      const cleanRemote = rJid.replace(/@.*$/, "").replace(/:\d+$/, "");
+      if (cleanRemote) {
+        candidateJids.add(cleanRemote);
+        candidateJids.add(`${cleanRemote}@lid`);
+        candidateJids.add(`${cleanRemote}@s.whatsapp.net`);
+      }
+    }
 
     const toBinary = (txt: string) => Buffer.from(txt);
+    const key0 = hmacSign(secretBuffer, new Uint8Array(32), "sha256");
 
-    for (const sender of candidateJids) {
+    for (const sender of Array.from(candidateJids)) {
       try {
         const senderBuf = toBinary(sender);
         const sign = Buffer.concat([
@@ -294,9 +314,7 @@ const decryptEditedSecretMessage = (
           new Uint8Array([1])
         ]);
 
-        const key0 = hmacSign(secretBuffer, new Uint8Array(32), "sha256");
         const decKey = hmacSign(sign, key0, "sha256");
-
         const decrypted = aesDecryptGCM(encPayload, decKey, encIv, Buffer.alloc(0));
         const decoded = proto.Message.decode(decrypted);
         if (decoded) {
@@ -2728,14 +2746,46 @@ const handleMessage = async (
       }
 
       const senderJid = msg.key.participant || msg.key.remoteJid || "";
-      const decoded = decryptEditedSecretMessage(secretEnc, targetMsgId, msgSecret, senderJid);
+      const extraCandidates: string[] = [
+        senderJid,
+        targetMsg.remoteJid,
+        targetMsg.participant,
+        secretEnc.targetMessageKey?.remoteJid,
+        targetMsg.contact?.number ? `${targetMsg.contact.number}@s.whatsapp.net` : null,
+        targetMsg.contact?.lid ? `${targetMsg.contact.lid}@lid` : null
+      ].filter(Boolean) as string[];
+
+      try {
+        const cleanPhone = (targetMsg.contact?.number || senderJid || "").replace(/@.*$/, "").replace(/\D/g, "");
+        if (cleanPhone) {
+          const mapping = await LidMapping.findOne({ where: { phoneNumber: cleanPhone } });
+          if (mapping?.lid) {
+            extraCandidates.push(`${mapping.lid}@lid`);
+            extraCandidates.push(mapping.lid);
+          }
+        }
+        const cleanRemote = (secretEnc.targetMessageKey?.remoteJid || "").replace(/@.*$/, "").replace(/\D/g, "");
+        if (cleanRemote) {
+          const mappingRemote = await LidMapping.findOne({ where: { lid: cleanRemote } });
+          if (mappingRemote?.phoneNumber) {
+            extraCandidates.push(`${mappingRemote.phoneNumber}@s.whatsapp.net`);
+            extraCandidates.push(mappingRemote.phoneNumber);
+          }
+        }
+      } catch (errLid) {}
+
+      const decoded = decryptEditedSecretMessage(secretEnc, targetMsgId, msgSecret, extraCandidates);
 
       if (decoded) {
+        const protoMsg = decoded.protocolMessage || (decoded as any)?.editedMessage?.message?.protocolMessage || decoded;
+        const innerEdited = protoMsg.editedMessage || protoMsg;
         const editedContent =
+          innerEdited.conversation ||
+          innerEdited.extendedTextMessage?.text ||
+          (innerEdited as any)?.imageMessage?.caption ||
+          (innerEdited as any)?.videoMessage?.caption ||
           decoded.conversation ||
           decoded.extendedTextMessage?.text ||
-          (decoded as any)?.imageMessage?.caption ||
-          (decoded as any)?.videoMessage?.caption ||
           "";
 
         console.log(`🔓 [SECRET EDIT] Descifrado exitoso para mensaje ${targetMsgId}: "${editedContent}"`);

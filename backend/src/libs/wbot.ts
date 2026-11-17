@@ -258,6 +258,13 @@ export const initWASocket = async (whatsapp: Whatsapp): Promise<Session> => {
 
         wsocket.ev.on('messages.upsert', async (m) => {
           try {
+            if (m.messages) {
+              for (const msg of m.messages) {
+                if (msg.key?.id) {
+                  msgDB.save(msg);
+                }
+              }
+            }
           } catch (err) {
             const ignoredErrors = [
               "Bad MAC",
