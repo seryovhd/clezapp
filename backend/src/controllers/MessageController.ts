@@ -567,17 +567,33 @@ export const edit = async (req: Request, res: Response): Promise<Response> => {
     const { ticket, message } = await EditWhatsAppMessage({ messageId, body });
 
     const io = getIO();
-    io.to(String(ticket.id))
-      .to(`company-${companyId}-${ticket.status}`)
-      .to(`company-${companyId}-notification`)
-      .emit(`company-${companyId}-appMessage`, {
+    let emitTarget = io.to(String(ticket.id))
+      .to(`company-${companyId}-mainchannel`)
+      .to(`company-${companyId}-notification`);
+
+    if (ticket) {
+      emitTarget = emitTarget
+        .to(`company-${companyId}-${ticket.status}`)
+        .to(`queue-${ticket.queueId}-${ticket.status}`)
+        .to(`queue-${ticket.queueId}-notification`)
+        .to(`user-${ticket.userId}`);
+    }
+
+    emitTarget.emit(`company-${companyId}-appMessage`, {
+      action: "update",
+      message,
+      ticket: ticket,
+      contact: ticket.contact,
+    });
+
+    io.to(`company-${companyId}-${ticket.status}`)
+      .to(`queue-${ticket.queueId}-${ticket.status}`)
+      .emit(`company-${companyId}-ticket`, {
         action: "update",
-        message,
-        ticket: ticket,
-        contact: ticket.contact,
+        ticket
       });
 
-    return res.send();
+    return res.json({ message, ticket });
   } catch (err: any) {
     console.error("❌ ERROR EDIT MESSAGE:", err);
     throw new AppError(err.message || "ERR_EDITING_WAPP_MSG", 400);

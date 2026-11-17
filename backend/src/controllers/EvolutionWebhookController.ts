@@ -206,18 +206,24 @@ export const handleWebhook = async (req: Request, res: Response): Promise<Respon
           }
 
           // Si el mensaje es un mensaje editado recibido vía Evolution
-          const targetEditedId = item.message?.protocolMessage?.key?.id;
+          const protoMsg =
+            item.message?.protocolMessage ||
+            (item.message as any)?.editedMessage?.message?.protocolMessage;
+
+          const targetEditedId = protoMsg?.key?.id;
           const isEditProtocol =
-            protocolType === 14 ||
-            protocolType === "MESSAGE_EDIT" ||
-            Boolean(item.message?.protocolMessage?.editedMessage);
+            protoMsg &&
+            (protoMsg.type === 14 ||
+              protoMsg.type === "MESSAGE_EDIT" ||
+              Boolean(protoMsg.editedMessage));
 
           if (targetEditedId && isEditProtocol) {
+            const edited = protoMsg.editedMessage;
             const editedContent =
-              item.message?.protocolMessage?.editedMessage?.conversation ||
-              item.message?.protocolMessage?.editedMessage?.extendedTextMessage?.text ||
-              (item.message?.protocolMessage?.editedMessage as any)?.imageMessage?.caption ||
-              (item.message?.protocolMessage?.editedMessage as any)?.videoMessage?.caption ||
+              edited?.conversation ||
+              edited?.extendedTextMessage?.text ||
+              (edited as any)?.imageMessage?.caption ||
+              (edited as any)?.videoMessage?.caption ||
               "";
 
             if (editedContent) {
@@ -242,14 +248,29 @@ export const handleWebhook = async (req: Request, res: Response): Promise<Respon
                   ]
                 });
 
-                const ticket = await Ticket.findByPk(targetMsg.ticketId);
+                const ticket = await Ticket.findByPk(targetMsg.ticketId, {
+                  include: ["contact"]
+                });
+
                 if (ticket) {
                   await ticket.update({ lastMessage: editedContent });
 
                   const io = getIO();
-                  io.to(targetMsg.ticketId.toString()).emit(`company-${companyId}-appMessage`, {
+                  let emitTarget = io.to(targetMsg.ticketId.toString())
+                    .to(`company-${companyId}-mainchannel`)
+                    .to(`company-${companyId}-notification`);
+
+                  emitTarget = emitTarget
+                    .to(`company-${companyId}-${ticket.status}`)
+                    .to(`queue-${ticket.queueId}-${ticket.status}`)
+                    .to(`queue-${ticket.queueId}-notification`)
+                    .to(`user-${ticket.userId}`);
+
+                  emitTarget.emit(`company-${companyId}-appMessage`, {
                     action: "update",
-                    message: targetMsg
+                    message: targetMsg,
+                    ticket,
+                    contact: ticket.contact
                   });
 
                   io.to(`company-${companyId}-${ticket.status}`)

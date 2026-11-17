@@ -92,10 +92,17 @@ const EditWhatsAppMessage = async ({
     }
 
     logger.info(`[Baileys] Editando mensaje ${message.id} para ${targetJid}`);
-    await wbot.sendMessage(targetJid, {
+    
+    // Despacho a WhatsApp con timeout de 2.5s para no bloquear la interfaz del operador
+    const sendEditPromise = wbot.sendMessage(targetJid, {
       text: body,
       edit: msgKey,
     });
+
+    await Promise.race([
+      sendEditPromise,
+      new Promise((resolve) => setTimeout(resolve, 2500))
+    ]);
 
   } catch (err: any) {
     logger.warn(`[Baileys] Advertencia al despachar edición a WhatsApp: ${err.message}`);
@@ -103,6 +110,17 @@ const EditWhatsAppMessage = async ({
 
   await message.update({ body, isEdited: true });
   await ticket.update({ lastMessage: body });
+
+  await message.reload({
+    include: [
+      "contact",
+      {
+        model: Message,
+        as: "quotedMsg",
+        include: ["contact"]
+      }
+    ]
+  });
 
   return { ticket: message.ticket, message };
 };

@@ -457,10 +457,10 @@ export const setTicketMessagesCache = (id, messages, hasMore = false, secondaryI
   // Filtrar estrictamente para que ningún mensaje ajeno entre en la caché de este ticket
   const validMessages = Array.isArray(messages)
     ? messages.filter((m) => {
-        if (!m || !m.ticketId) return true;
-        const msgTicketId = String(m.ticketId);
-        return msgTicketId === key1 || (key2 && msgTicketId === key2);
-      })
+      if (!m || !m.ticketId) return true;
+      const msgTicketId = String(m.ticketId);
+      return msgTicketId === key1 || (key2 && msgTicketId === key2);
+    })
     : [];
 
   if (key1) {
@@ -831,16 +831,29 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
       }
 
       if (data.action === "update" && isTargetTicket) {
-        if (data.message.isEdited) {
-          dispatch({
-            type: "UPDATE_MESSAGE",
-            payload: {
-              ...data.message,
-              body: data.message.body || "Mensaje editado"
-            }
-          });
-        } else {
-          dispatch({ type: "UPDATE_MESSAGE", payload: data.message });
+        dispatch({
+          type: "UPDATE_MESSAGE",
+          payload: {
+            ...data.message,
+            body: data.message.body || "Mensaje editado"
+          }
+        });
+
+        // Sincronizar de inmediato la caché en memoria para que al alternar chats no vuelva el texto antiguo
+        const cacheKey = ticket?.id ? String(ticket.id) : String(currentTicketId.current);
+        const cached = recentMessagesCache.get(cacheKey) || (ticket?.uuid && recentMessagesCache.get(String(ticket.uuid)));
+        if (cached) {
+          const updatedCached = cached.messages.map((m) =>
+            m.id === data.message.id
+              ? { ...m, ...data.message, body: data.message.body || m.body, isEdited: Boolean(data.message.isEdited) }
+              : m
+          );
+          setTicketMessagesCache(
+            cacheKey,
+            updatedCached,
+            cached.hasMore,
+            ticket?.uuid
+          );
         }
       }
     };

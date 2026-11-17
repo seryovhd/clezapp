@@ -215,6 +215,35 @@ function hasCaption(title: string, fileName: string) {
   return !fileName.includes(`${title}.${fileNameExtension}`)
 }
 
+export const extractEditedMessageInfo = (msg: proto.IWebMessageInfo): { targetMsgId: string; editedContent: string } | null => {
+  const protoMsg =
+    msg.message?.protocolMessage ||
+    (msg.message as any)?.editedMessage?.message?.protocolMessage;
+
+  if (!protoMsg) return null;
+
+  const protocolType = protoMsg.type;
+  const isEditType =
+    protocolType === 14 ||
+    (typeof protocolType === "string" && protocolType === "MESSAGE_EDIT") ||
+    Boolean(protoMsg.editedMessage);
+
+  if (!isEditType) return null;
+
+  const targetMsgId = protoMsg.key?.id;
+  if (!targetMsgId) return null;
+
+  const edited = protoMsg.editedMessage;
+  const editedContent =
+    edited?.conversation ||
+    edited?.extendedTextMessage?.text ||
+    (edited as any)?.imageMessage?.caption ||
+    (edited as any)?.videoMessage?.caption ||
+    "";
+
+  return { targetMsgId, editedContent };
+};
+
 export function validaCpfCnpj(val) {
   if (val.length == 11) {
     var cpf = val.trim();
@@ -2590,25 +2619,16 @@ const handleMessage = async (
     return;
   }
 
-  // Verificar mensajes editados (protocolMessage.type === 14)
-  const isEditMessage =
-    protocolType === 14 ||
-    (typeof protocolType === 'string' && protocolType === "MESSAGE_EDIT") ||
-    Boolean(msg.message?.protocolMessage?.editedMessage);
+  // Verificar mensajes editados (soporta protocolMessage directo y FutureProofMessage/editedMessage)
+  const editInfo = extractEditedMessageInfo(msg);
 
-  if (isEditMessage) {
-    const targetMsgId = msg.message?.protocolMessage?.key?.id;
-    const editedContent =
-      msg.message?.protocolMessage?.editedMessage?.conversation ||
-      msg.message?.protocolMessage?.editedMessage?.extendedTextMessage?.text ||
-      (msg.message?.protocolMessage?.editedMessage as any)?.imageMessage?.caption ||
-      (msg.message?.protocolMessage?.editedMessage as any)?.videoMessage?.caption ||
-      "";
+  if (editInfo) {
+    const { targetMsgId, editedContent } = editInfo;
 
     console.log("✏️ [EDIT] Mensaje editado detectado:", {
       targetMsgId,
       editedContent,
-      key: msg.message?.protocolMessage?.key
+      key: msg.key
     });
 
     if (targetMsgId && editedContent) {
@@ -2642,16 +2662,30 @@ const handleMessage = async (
         });
 
         // Actualizar también lastMessage en el ticket correspondiente
-        const ticket = await Ticket.findByPk(targetMsg.ticketId);
+        const ticket = await Ticket.findByPk(targetMsg.ticketId, {
+          include: ["contact"]
+        });
+
         if (ticket) {
           await ticket.update({ lastMessage: editedContent });
 
           const io = getIO();
-          io.to(String(targetMsg.ticketId))
-            .emit(`company-${ticket.companyId}-appMessage`, {
-              action: "update",
-              message: targetMsg
-            });
+          let emitTarget = io.to(String(targetMsg.ticketId))
+            .to(`company-${companyId}-mainchannel`)
+            .to(`company-${companyId}-notification`);
+
+          emitTarget = emitTarget
+            .to(`company-${companyId}-${ticket.status}`)
+            .to(`queue-${ticket.queueId}-${ticket.status}`)
+            .to(`queue-${ticket.queueId}-notification`)
+            .to(`user-${ticket.userId}`);
+
+          emitTarget.emit(`company-${companyId}-appMessage`, {
+            action: "update",
+            message: targetMsg,
+            ticket,
+            contact: ticket.contact
+          });
 
           io.to(`company-${companyId}-${ticket.status}`)
             .to(`queue-${ticket.queueId}-${ticket.status}`)
@@ -2660,7 +2694,7 @@ const handleMessage = async (
               ticket
             });
 
-          console.log(`✅ Mensaje ${targetMsgId} actualizado con texto editado y notificado al frontend.`);
+          console.log(`✅ Mensaje ${targetMsgId} actualizado con texto editado y notificado globalmente.`);
         }
       } else {
         console.log(`⚠️ No se encontró el mensaje original a editar con ID: ${targetMsgId}`);
@@ -3870,10 +3904,8 @@ const wbotMessageListener = async (
               continue;
             }
 
-            const isEditProtocol = Boolean(
-              message.message?.protocolMessage?.type === 14 ||
-              message.message?.protocolMessage?.editedMessage
-            );
+            const editInfo = extractEditedMessageInfo(message);
+            const isEditProtocol = Boolean(editInfo || getTypeMessage(message) === "editedMessage");
 
             const messageExists = isEditProtocol ? 0 : await Message.count({
               where: { id: message.key.id!, companyId }

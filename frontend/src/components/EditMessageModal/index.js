@@ -121,6 +121,11 @@ const EditMessageModal = ({ open, onClose, onSave, message }) => {
     }
   }, [open, message]);
 
+  const theme = useTheme();
+  const isDark = (theme.palette?.type || theme.mode) === 'dark';
+
+  if (!open) return null;
+
   const handleSave = async () => {
     if (editedMessage.trim()) {
       setLoading(true);
@@ -147,9 +152,6 @@ const EditMessageModal = ({ open, onClose, onSave, message }) => {
     setEditedMessage((prev) => prev + emoji.native);
     setShowEmoji(false); // 👈 Cierra al seleccionar
   };
-
-  const theme = useTheme();
-  const isDark = (theme.palette?.type || theme.mode) === 'dark';
 
   return (
     <Dialog
