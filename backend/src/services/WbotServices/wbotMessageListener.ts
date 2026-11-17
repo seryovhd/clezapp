@@ -2590,7 +2590,86 @@ const handleMessage = async (
     return;
   }
 
-  // Validaciones para otros tipos de mensajes (después de manejar mensajes eliminados)
+  // Verificar mensajes editados (protocolMessage.type === 14)
+  const isEditMessage =
+    protocolType === 14 ||
+    (typeof protocolType === 'string' && protocolType === "MESSAGE_EDIT") ||
+    Boolean(msg.message?.protocolMessage?.editedMessage);
+
+  if (isEditMessage) {
+    const targetMsgId = msg.message?.protocolMessage?.key?.id;
+    const editedContent =
+      msg.message?.protocolMessage?.editedMessage?.conversation ||
+      msg.message?.protocolMessage?.editedMessage?.extendedTextMessage?.text ||
+      (msg.message?.protocolMessage?.editedMessage as any)?.imageMessage?.caption ||
+      (msg.message?.protocolMessage?.editedMessage as any)?.videoMessage?.caption ||
+      "";
+
+    console.log("✏️ [EDIT] Mensaje editado detectado:", {
+      targetMsgId,
+      editedContent,
+      key: msg.message?.protocolMessage?.key
+    });
+
+    if (targetMsgId && editedContent) {
+      const targetMsg = await Message.findOne({
+        where: { id: targetMsgId, companyId },
+        include: [
+          "contact",
+          {
+            model: Message,
+            as: "quotedMsg",
+            include: ["contact"]
+          }
+        ]
+      });
+
+      if (targetMsg) {
+        await targetMsg.update({
+          body: editedContent,
+          isEdited: true
+        });
+
+        await targetMsg.reload({
+          include: [
+            "contact",
+            {
+              model: Message,
+              as: "quotedMsg",
+              include: ["contact"]
+            }
+          ]
+        });
+
+        // Actualizar también lastMessage en el ticket correspondiente
+        const ticket = await Ticket.findByPk(targetMsg.ticketId);
+        if (ticket) {
+          await ticket.update({ lastMessage: editedContent });
+
+          const io = getIO();
+          io.to(String(targetMsg.ticketId))
+            .emit(`company-${ticket.companyId}-appMessage`, {
+              action: "update",
+              message: targetMsg
+            });
+
+          io.to(`company-${companyId}-${ticket.status}`)
+            .to(`queue-${ticket.queueId}-${ticket.status}`)
+            .emit(`company-${companyId}-ticket`, {
+              action: "update",
+              ticket
+            });
+
+          console.log(`✅ Mensaje ${targetMsgId} actualizado con texto editado y notificado al frontend.`);
+        }
+      } else {
+        console.log(`⚠️ No se encontró el mensaje original a editar con ID: ${targetMsgId}`);
+      }
+    }
+    return;
+  }
+
+  // Validaciones para otros tipos de mensajes (después de manejar mensajes eliminados y editados)
   if (msg.message?.protocolMessage && msg.message.protocolMessage.type !== 14) {
     return;
   }
@@ -3791,7 +3870,12 @@ const wbotMessageListener = async (
               continue;
             }
 
-            const messageExists = await Message.count({
+            const isEditProtocol = Boolean(
+              message.message?.protocolMessage?.type === 14 ||
+              message.message?.protocolMessage?.editedMessage
+            );
+
+            const messageExists = isEditProtocol ? 0 : await Message.count({
               where: { id: message.key.id!, companyId }
             });
 

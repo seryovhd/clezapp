@@ -205,6 +205,67 @@ export const handleWebhook = async (req: Request, res: Response): Promise<Respon
             continue;
           }
 
+          // Si el mensaje es un mensaje editado recibido vía Evolution
+          const targetEditedId = item.message?.protocolMessage?.key?.id;
+          const isEditProtocol =
+            protocolType === 14 ||
+            protocolType === "MESSAGE_EDIT" ||
+            Boolean(item.message?.protocolMessage?.editedMessage);
+
+          if (targetEditedId && isEditProtocol) {
+            const editedContent =
+              item.message?.protocolMessage?.editedMessage?.conversation ||
+              item.message?.protocolMessage?.editedMessage?.extendedTextMessage?.text ||
+              (item.message?.protocolMessage?.editedMessage as any)?.imageMessage?.caption ||
+              (item.message?.protocolMessage?.editedMessage as any)?.videoMessage?.caption ||
+              "";
+
+            if (editedContent) {
+              const targetMsg = await Message.findOne({
+                where: { id: targetEditedId, companyId }
+              });
+
+              if (targetMsg) {
+                await targetMsg.update({
+                  body: editedContent,
+                  isEdited: true
+                });
+
+                await targetMsg.reload({
+                  include: [
+                    "contact",
+                    {
+                      model: Message,
+                      as: "quotedMsg",
+                      include: ["contact"]
+                    }
+                  ]
+                });
+
+                const ticket = await Ticket.findByPk(targetMsg.ticketId);
+                if (ticket) {
+                  await ticket.update({ lastMessage: editedContent });
+
+                  const io = getIO();
+                  io.to(targetMsg.ticketId.toString()).emit(`company-${companyId}-appMessage`, {
+                    action: "update",
+                    message: targetMsg
+                  });
+
+                  io.to(`company-${companyId}-${ticket.status}`)
+                    .to(`queue-${ticket.queueId}-${ticket.status}`)
+                    .emit(`company-${companyId}-ticket`, {
+                      action: "update",
+                      ticket
+                    });
+
+                  logger.info(`[Evolution Webhook] Mensaje ${targetEditedId} editado exitosamente: "${editedContent}"`);
+                }
+              }
+            }
+            continue;
+          }
+
           const messageExists = await Message.count({
             where: { id: messageId, companyId }
           });
